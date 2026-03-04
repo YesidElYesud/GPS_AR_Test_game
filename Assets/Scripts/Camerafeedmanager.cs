@@ -3,42 +3,31 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// CameraFeedManager: Muestra el feed de la cámara del dispositivo como fondo.
-///
-/// En WebGL: solicita permisos de cámara vía JS y muestra el stream en un
-/// RawImage de fondo. En editor usa WebCamTexture de Unity directamente.
-///
-/// La cámara del dispositivo se muestra SIEMPRE como fondo plano (no 3D),
-/// la cámara de Unity renderiza los objetos 3D encima con fondo transparente.
+/// CameraFeedManager: Muestra el feed de camara como fondo dentro de Unity.
+/// Usa una camara secundaria de depth -1 que renderiza solo la RawImage del video.
+/// La camara principal (depth 0) renderiza el cubo AR encima.
 /// </summary>
 public class CameraFeedManager : MonoBehaviour
 {
-    // ── Singleton ────────────────────────────────────────────────────────────
     public static CameraFeedManager Instance { get; private set; }
 
-    // ── Imports JS ──────────────────────────────────────────────────────────
 #if UNITY_WEBGL && !UNITY_EDITOR
-    [DllImport("__Internal")] private static extern void CamFeed_Start(string videoElementId);
+    [DllImport("__Internal")] private static extern void CamFeed_Start(string id);
     [DllImport("__Internal")] private static extern void CamFeed_Stop();
-    [DllImport("__Internal")] private static extern bool CamFeed_IsReady();
+    [DllImport("__Internal")] private static extern int  CamFeed_IsReady();
+    [DllImport("__Internal")] private static extern void GrabVideoFrame();
 #else
     private static void CamFeed_Start(string id) { }
-    private static void CamFeed_Stop() { }
-    private static bool CamFeed_IsReady() => false;
+    private static void CamFeed_Stop()           { }
+    private static int  CamFeed_IsReady()        => 0;
+    private static void GrabVideoFrame()         { }
 #endif
 
-    // ── Inspector ────────────────────────────────────────────────────────────
-    [Header("UI")]
-    [Tooltip("RawImage que cubre toda la pantalla para el feed de cámara")]
-    public RawImage backgroundImage;
+    private RawImage    _bgImage;
+    private Texture2D   _videoTex;
+    private bool        _cameraReady = false;
+    private WebCamTexture _editorCam;
 
-    [Header("Editor fallback")]
-    [Tooltip("Índice de cámara web para probar en editor")]
-    public int editorCameraIndex = 0;
-
-    // ── Internos ─────────────────────────────────────────────────────────────
-    private WebCamTexture _webCamTexture;
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
@@ -48,81 +37,135 @@ public class CameraFeedManager : MonoBehaviour
 
     private void Start()
     {
+        CreateBackgroundSetup();
+
 #if UNITY_WEBGL && !UNITY_EDITOR
-        // En WebGL: el JS manejará el <video> element y renderizará en canvas
-        // El fondo del canvas del video ya es gestionado por el template HTML
-        Debug.Log("[CamFeed] Modo WebGL: cámara gestionada por JS.");
         CamFeed_Start("ar-video-bg");
-        // Esconder la RawImage de Unity porque el video lo pinta el HTML
-        if (backgroundImage != null)
-            backgroundImage.gameObject.SetActive(false);
 #else
         StartEditorCamera();
 #endif
     }
 
-    private void Update()
+    private void OnDestroy() { CamFeed_Stop(); }
+
+    // ── Setup: camara de fondo + canvas + RawImage ────────────────────────────
+    private void CreateBackgroundSetup()
     {
-#if !UNITY_WEBGL || UNITY_EDITOR
-        // En editor, actualizar textura de la webcam
-        if (_webCamTexture != null && _webCamTexture.isPlaying && backgroundImage != null)
+        // ── Camara de fondo (depth -1) ────────────────────────────────────────
+        // Solo renderiza el layer "UI" donde está la RawImage del video.
+        // La camara principal (depth 0) renderiza todo LO DEMAS encima.
+        GameObject bgCamGO = new GameObject("BackgroundCamera");
+        DontDestroyOnLoad(bgCamGO);
+        Camera bgCam = bgCamGO.AddComponent<Camera>();
+        bgCam.depth      = -1;                         // se renderiza primero
+        bgCam.clearFlags = CameraClearFlags.SolidColor;
+        bgCam.backgroundColor = Color.black;
+        bgCam.cullingMask = LayerMask.GetMask("UI");   // solo UI
+        bgCam.orthographic = true;
+
+        // ── Canvas en Screen Space - Camera ───────────────────────────────────
+        GameObject canvasGO = new GameObject("CameraFeedCanvas");
+        DontDestroyOnLoad(canvasGO);
+        Canvas canvas = canvasGO.AddComponent<Canvas>();
+        canvas.renderMode   = RenderMode.ScreenSpaceCamera;
+        canvas.worldCamera  = bgCam;
+        canvas.planeDistance = 1f;
+        canvas.sortingOrder  = 0;
+
+        CanvasScaler scaler = canvasGO.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1080, 1920);
+        scaler.matchWidthOrHeight  = 0.5f;
+
+        canvasGO.AddComponent<GraphicRaycaster>();
+
+        // ── RawImage que llena toda la pantalla ───────────────────────────────
+        GameObject imgGO = new GameObject("VideoFrame");
+        imgGO.transform.SetParent(canvasGO.transform, false);
+        // Asignar al layer UI
+        imgGO.layer = LayerMask.NameToLayer("UI");
+
+        _bgImage = imgGO.AddComponent<RawImage>();
+        RectTransform rt = _bgImage.GetComponent<RectTransform>();
+        rt.anchorMin        = Vector2.zero;
+        rt.anchorMax        = Vector2.one;
+        rt.sizeDelta        = Vector2.zero;
+        rt.anchoredPosition = Vector2.zero;
+        _bgImage.color = Color.black;
+
+        // ── Camara principal: NO limpiar color, solo depth ────────────────────
+        // Asi la camara de fondo ya pinto el video, y la principal dibuja
+        // el cubo AR encima sin borrar lo que hay debajo.
+        Camera mainCam = Camera.main;
+        if (mainCam != null)
         {
-            if (backgroundImage.texture != _webCamTexture)
-                backgroundImage.texture = _webCamTexture;
-
-            // Corregir rotación según la cámara
-            AdjustEditorCameraDisplay();
+            mainCam.depth      = 0;
+            mainCam.clearFlags = CameraClearFlags.Depth; // <-- solo limpiar depth
+            mainCam.cullingMask = ~LayerMask.GetMask("UI"); // todo excepto UI
         }
-#endif
     }
 
-    private void OnDestroy()
-    {
-#if UNITY_WEBGL && !UNITY_EDITOR
-        CamFeed_Stop();
-#else
-        if (_webCamTexture != null && _webCamTexture.isPlaying)
-            _webCamTexture.Stop();
-#endif
-    }
-
-    // ── Editor Camera ─────────────────────────────────────────────────────────
-    private void StartEditorCamera()
-    {
-        WebCamDevice[] devices = WebCamTexture.devices;
-        if (devices.Length == 0)
-        {
-            Debug.LogWarning("[CamFeed] No se encontraron cámaras.");
-            return;
-        }
-
-        int idx = Mathf.Clamp(editorCameraIndex, 0, devices.Length - 1);
-        _webCamTexture = new WebCamTexture(devices[idx].name, 1280, 720, 30);
-        _webCamTexture.Play();
-        Debug.Log($"[CamFeed] Editor: usando cámara '{devices[idx].name}'");
-    }
-
-    private void AdjustEditorCameraDisplay()
-    {
-        if (_webCamTexture == null || backgroundImage == null) return;
-
-        // Corregir rotación vertical si la cámara lo requiere
-        int angle = _webCamTexture.videoRotationAngle;
-        backgroundImage.rectTransform.localEulerAngles = new Vector3(0, 0, -angle);
-
-        // Espejo horizontal en cámara frontal
-        bool mirror = _webCamTexture.videoVerticallyMirrored;
-        backgroundImage.rectTransform.localScale = new Vector3(mirror ? -1 : 1, 1, 1);
-    }
-
-    // ── Callback JS ──────────────────────────────────────────────────────────
+    // ── Callbacks desde JS ────────────────────────────────────────────────────
     public void OnCameraReady(string msg)
     {
-        Debug.Log($"[CamFeed] Cámara WebGL lista: {msg}");
+        _cameraReady = true;
+        Debug.Log("[Cam] Lista.");
+        InvokeRepeating(nameof(RequestFrame), 0.1f, 1f / 25f);
     }
 
-    public void OnCameraError(string errorMsg)
+    public void OnCameraError(string msg)
     {
-        Debug.LogError($"[CamFeed] Error de cámara: {errorMsg}");
+        Debug.LogWarning("[Cam] Error: " + msg);
+    }
+
+    public void OnVideoFrame(string base64jpeg)
+    {
+        if (string.IsNullOrEmpty(base64jpeg) || _bgImage == null) return;
+        try
+        {
+            byte[] bytes = System.Convert.FromBase64String(base64jpeg);
+            if (_videoTex == null)
+                _videoTex = new Texture2D(2, 2, TextureFormat.RGB24, false);
+            if (_videoTex.LoadImage(bytes))
+            {
+                _bgImage.texture = _videoTex;
+                _bgImage.color   = Color.white;
+
+                // Ajustar UV para mantener aspect ratio sin deformar
+                float vidAR    = (float)_videoTex.width  / _videoTex.height;
+                float scrAR    = (float)Screen.width     / Screen.height;
+                if (vidAR > scrAR)
+                {
+                    float s = scrAR / vidAR;
+                    _bgImage.uvRect = new Rect((1f-s)/2f, 0f, s, 1f);
+                }
+                else
+                {
+                    float s = vidAR / scrAR;
+                    _bgImage.uvRect = new Rect(0f, (1f-s)/2f, 1f, s);
+                }
+            }
+        }
+        catch { /* ignorar frame corrupto */ }
+    }
+
+    private void RequestFrame()
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        if (_cameraReady) GrabVideoFrame();
+#endif
+    }
+
+    // ── Editor ────────────────────────────────────────────────────────────────
+    private void StartEditorCamera()
+    {
+        if (WebCamTexture.devices.Length == 0) return;
+        _editorCam = new WebCamTexture();
+        _editorCam.Play();
+        if (_bgImage != null)
+        {
+            _bgImage.texture = _editorCam;
+            _bgImage.color   = Color.white;
+        }
     }
 }

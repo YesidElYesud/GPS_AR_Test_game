@@ -1,23 +1,18 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using TMPro;
 
 /// <summary>
-/// ARSceneSetup: Script de inicialización de la escena.
-/// Crea y conecta todos los GameObjects en el Start si no existen en la escena.
-/// Puedes usarlo como "bootstrap" o configurar la escena manualmente siguiendo
-/// la GUIA DE ESCENA al final de este archivo.
-///
-/// NOTA: Este script se puede eliminar si prefieres configurar la escena
-/// manualmente desde el editor de Unity (recomendado para producción).
+/// ARSceneSetup: Bootstrap automático de la escena AR.
+/// Compatible con Unity 2022.3 — usa FindObjectOfType (no FindFirstObjectByType).
 /// </summary>
 public class ARSceneSetup : MonoBehaviour
 {
     [Header("Auto-setup")]
-    [Tooltip("Si es true, crea los GameObjects necesarios al iniciar")]
     public bool autoSetupScene = true;
 
-    [Header("Prefabs opcionales (si no se auto-crean)")]
+    [Header("Prefab del objeto AR (opcional)")]
     public GameObject arObjectPrefab;
 
     private void Awake()
@@ -28,193 +23,165 @@ public class ARSceneSetup : MonoBehaviour
 
     private void SetupScene()
     {
-        Debug.Log("[Setup] Iniciando configuración de escena AR...");
+        Debug.Log("[Setup] Iniciando configuracion de escena AR...");
 
-        // ── 1. Managers (GameObject vacíos con scripts) ──────────────────────
+        // ── 1. Managers ──────────────────────────────────────────────────────
         EnsureManager<GPSManager>("GPSManager");
         EnsureManager<GyroscopeManager>("GyroscopeManager");
         EnsureManager<CameraFeedManager>("CameraFeedManager");
 
-        // ── 2. Cámara principal ──────────────────────────────────────────────
+        // ── 2. Camara principal ──────────────────────────────────────────────
         Camera mainCam = Camera.main;
         if (mainCam == null)
         {
             GameObject camGO = new GameObject("AR Camera");
             mainCam = camGO.AddComponent<Camera>();
+            mainCam.tag = "MainCamera";
         }
-        // Fondo transparente para ver el video de la cámara del dispositivo
-        mainCam.clearFlags = CameraClearFlags.SolidColor;
-        mainCam.backgroundColor = new Color(0, 0, 0, 0);
+        mainCam.clearFlags = CameraClearFlags.Depth;
+        // backgroundColor no necesaria con Depth
         mainCam.fieldOfView = 60f;
 
-        // Controlador de cámara
         ARCameraController camController = mainCam.gameObject.GetComponent<ARCameraController>();
         if (camController == null)
             camController = mainCam.gameObject.AddComponent<ARCameraController>();
 
-        // ── 3. Objeto AR (Cubo) ──────────────────────────────────────────────
+        // ── 3. Objeto AR ─────────────────────────────────────────────────────
         GameObject arObj;
         if (arObjectPrefab != null)
         {
             arObj = Instantiate(arObjectPrefab);
+            arObj.name = "AR_Object";
         }
         else
         {
             arObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
             arObj.name = "AR_Cube";
-            arObj.transform.localScale = Vector3.one * 0.3f; // 30cm de lado
-
-            // Material simple
+            arObj.transform.localScale = Vector3.one * 0.3f;
             Renderer rend = arObj.GetComponent<Renderer>();
             if (rend != null)
             {
-                Material mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-                if (mat.shader.name == "Hidden/InternalErrorShader")
-                    mat = new Material(Shader.Find("Standard")); // Fallback
-                mat.color = new Color(0.2f, 0.8f, 1.0f, 1f); // Azul cian
+                Material mat = new Material(Shader.Find("Standard"));
+                mat.color = new Color(0.2f, 0.8f, 1.0f);
                 rend.material = mat;
             }
-
-            // Rotación simple para que se vea que es 3D
             arObj.AddComponent<SimpleRotator>();
         }
-
         camController.arObject = arObj;
 
         // ── 4. Canvas UI ──────────────────────────────────────────────────────
-        SetupUI(camController);
-
-        Debug.Log("[Setup] Escena AR configurada.");
-    }
-
-    private void SetupUI(ARCameraController camController)
-    {
-        // Canvas raíz
-        Canvas canvas = FindFirstObjectByType<Canvas>();
+        Canvas canvas = FindObjectOfType<Canvas>();
         if (canvas == null)
         {
             GameObject canvasGO = new GameObject("AR_Canvas");
             canvas = canvasGO.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvasGO.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            CanvasScaler scaler = canvasGO.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1080, 1920);
+            scaler.matchWidthOrHeight = 0.5f;
             canvasGO.AddComponent<GraphicRaycaster>();
-
-            // EventSystem
-            if (FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
-            {
-                GameObject evGO = new GameObject("EventSystem");
-                evGO.AddComponent<UnityEngine.EventSystems.EventSystem>();
-                evGO.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
-            }
         }
 
-        // Panel de estado (esquina superior izquierda)
+        if (FindObjectOfType<EventSystem>() == null)
+        {
+            GameObject evGO = new GameObject("EventSystem");
+            evGO.AddComponent<EventSystem>();
+            evGO.AddComponent<StandaloneInputModule>();
+        }
+
+        // ── 5. Panel de estado (esquina superior izquierda) ───────────────────
         GameObject statusPanel = CreatePanel(canvas.transform, "StatusPanel",
-            new Vector2(0, 1), new Vector2(0, 1), new Vector2(20, -20),
-            new Vector2(220, 80));
-        statusPanel.GetComponent<Image>().color = new Color(0, 0, 0, 0.5f);
+            new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(120f, -50f), new Vector2(230f, 95f));
+        statusPanel.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
 
-        // Textos de estado
-        CreateText(statusPanel.transform, "GPSStatus", "GPS...", 12, new Vector2(10, -10));
-        CreateText(statusPanel.transform, "GyroStatus", "Giroscopio...", 12, new Vector2(10, -28));
-        CreateText(statusPanel.transform, "Displacement", "", 11, new Vector2(10, -46));
+        TextMeshProUGUI gpsText  = CreateTMPText(statusPanel.transform, "GPSStatus",  "GPS...",        new Vector2(8f, -8f));
+        TextMeshProUGUI gyroText = CreateTMPText(statusPanel.transform, "GyroStatus", "Giroscopio...", new Vector2(8f, -30f));
+        TextMeshProUGUI dispText = CreateTMPText(statusPanel.transform, "DispText",   "",              new Vector2(8f, -52f));
+        TextMeshProUGUI modeText = CreateTMPText(statusPanel.transform, "ModeText",   "Modo: GPS",     new Vector2(8f, -74f));
 
-        // Texto de modo (esquina superior derecha)
-        GameObject modePanel = CreatePanel(canvas.transform, "ModePanel",
-            new Vector2(1, 1), new Vector2(1, 1), new Vector2(-20, -20),
-            new Vector2(150, 30));
-        modePanel.GetComponent<Image>().color = new Color(0, 0, 0, 0.5f);
-        CreateText(modePanel.transform, "ModeText", "Modo: GPS", 12, new Vector2(10, -8));
-
-        // Panel joystick (parte inferior izquierda)
+        // ── 6. Panel joystick (esquina inferior izquierda) ────────────────────
         GameObject joystickPanel = CreatePanel(canvas.transform, "JoystickPanel",
-            new Vector2(0, 0), new Vector2(0, 0), new Vector2(80, 80),
-            new Vector2(150, 150));
-        joystickPanel.GetComponent<Image>().color = new Color(1, 1, 1, 0.15f);
+            new Vector2(0f, 0f), new Vector2(0f, 0f),
+            new Vector2(90f, 90f), new Vector2(160f, 160f));
+        joystickPanel.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.15f);
         joystickPanel.SetActive(false);
 
-        // Knob del joystick
-        GameObject knob = CreatePanel(joystickPanel.transform, "Knob",
-            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-            new Vector2(60, 60));
-        knob.GetComponent<Image>().color = new Color(1, 1, 1, 0.6f);
+        GameObject knobGO = CreatePanel(joystickPanel.transform, "Knob",
+            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, new Vector2(65f, 65f));
+        knobGO.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.6f);
 
-        // Script joystick
         JoystickController joystickComp = joystickPanel.AddComponent<JoystickController>();
-        joystickComp.knob = knob.GetComponent<RectTransform>();
-        joystickComp.knobRadius = 45f;
-
+        joystickComp.knob = knobGO.GetComponent<RectTransform>();
+        joystickComp.knobRadius = 48f;
         camController.joystickController = joystickComp;
 
-        // Botones (parte inferior derecha)
-        GameObject btnPanel = CreatePanel(canvas.transform, "ButtonPanel",
-            new Vector2(1, 0), new Vector2(1, 0), new Vector2(-10, 10),
-            new Vector2(170, 90));
-        btnPanel.GetComponent<Image>().color = new Color(0, 0, 0, 0f);
+        // ── 7. Botones (esquina inferior derecha) ─────────────────────────────
+        Button toggleBtn = CreateButton(canvas.transform, "ToggleBtn",  "Joystick ON/OFF", new Vector2(-95f, 75f));
+        Button recalBtn  = CreateButton(canvas.transform, "RecalBtn",   "Recalibrar",      new Vector2(-95f, 30f));
 
-        Button toggleBtn = CreateButton(btnPanel.transform, "ToggleJoystickBtn",
-            "Usar Joystick", new Vector2(0, 50));
-        Button recalBtn = CreateButton(btnPanel.transform, "RecalibrateBtn",
-            "Recalibrar", new Vector2(0, 10));
-
-        // UIManager
+        // ── 8. UIManager ──────────────────────────────────────────────────────
         UIManager uiMgr = canvas.gameObject.GetComponent<UIManager>();
-        if (uiMgr == null) uiMgr = canvas.gameObject.AddComponent<UIManager>();
+        if (uiMgr == null)
+            uiMgr = canvas.gameObject.AddComponent<UIManager>();
 
-        uiMgr.joystickPanel     = joystickPanel;
-        uiMgr.cameraController  = camController;
+        uiMgr.joystickPanel        = joystickPanel;
+        uiMgr.cameraController     = camController;
         uiMgr.toggleJoystickButton = toggleBtn;
         uiMgr.recalibrateButton    = recalBtn;
+        uiMgr.gpsStatusText        = gpsText;
+        uiMgr.gyroStatusText       = gyroText;
+        uiMgr.displacementText     = dispText;
+        uiMgr.modeText             = modeText;
 
-        // Asignar textos al UIManager
-        var allTexts = statusPanel.GetComponentsInChildren<TextMeshProUGUI>();
-        // Necesitarían asignarse por nombre; en editor esto es más limpio
-        // Para el auto-setup básico dejamos los textos funcionales sin binding
+        Debug.Log("[Setup] Escena AR lista.");
     }
 
-    // ── Helpers de creación de UI ─────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
     private GameObject CreatePanel(Transform parent, string name,
         Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPos, Vector2 sizeDelta)
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(parent, false);
         RectTransform rt = go.AddComponent<RectTransform>();
-        rt.anchorMin = anchorMin;
-        rt.anchorMax = anchorMax;
+        rt.anchorMin        = anchorMin;
+        rt.anchorMax        = anchorMax;
         rt.anchoredPosition = anchoredPos;
-        rt.sizeDelta = sizeDelta;
+        rt.sizeDelta        = sizeDelta;
         go.AddComponent<Image>();
         return go;
     }
 
-    private TextMeshProUGUI CreateText(Transform parent, string name, string text,
-        int fontSize, Vector2 pos)
+    private TextMeshProUGUI CreateTMPText(Transform parent, string name, string content, Vector2 pos)
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(parent, false);
         RectTransform rt = go.AddComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0, 1);
-        rt.anchorMax = new Vector2(1, 1);
+        rt.anchorMin        = new Vector2(0f, 1f);
+        rt.anchorMax        = new Vector2(1f, 1f);
         rt.anchoredPosition = pos;
-        rt.sizeDelta = new Vector2(0, 20);
+        rt.sizeDelta        = new Vector2(-8f, 20f);
         TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
-        tmp.text = text;
-        tmp.fontSize = fontSize;
-        tmp.color = Color.white;
+        tmp.text     = content;
+        tmp.fontSize = 12f;
+        tmp.color    = Color.white;
         return tmp;
     }
 
-    private Button CreateButton(Transform parent, string name, string label, Vector2 pos)
+    private Button CreateButton(Transform parent, string name, string label, Vector2 anchoredPos)
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(parent, false);
         RectTransform rt = go.AddComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0, 0);
-        rt.anchorMax = new Vector2(1, 0);
-        rt.anchoredPosition = pos;
-        rt.sizeDelta = new Vector2(-10, 35);
+        rt.anchorMin        = new Vector2(1f, 0f);
+        rt.anchorMax        = new Vector2(1f, 0f);
+        rt.anchoredPosition = anchoredPos;
+        rt.sizeDelta        = new Vector2(175f, 38f);
         Image img = go.AddComponent<Image>();
-        img.color = new Color(0f, 0.8f, 0.5f, 0.85f);
+        img.color = new Color(0.1f, 0.75f, 0.45f, 0.9f);
         Button btn = go.AddComponent<Button>();
 
         GameObject textGO = new GameObject("Label");
@@ -224,16 +191,16 @@ public class ARSceneSetup : MonoBehaviour
         trt.anchorMax = Vector2.one;
         trt.sizeDelta = Vector2.zero;
         TextMeshProUGUI tmp = textGO.AddComponent<TextMeshProUGUI>();
-        tmp.text = label;
-        tmp.fontSize = 13;
-        tmp.color = Color.black;
+        tmp.text      = label;
+        tmp.fontSize  = 13f;
+        tmp.color     = Color.black;
         tmp.alignment = TextAlignmentOptions.Center;
         return btn;
     }
 
     private T EnsureManager<T>(string goName) where T : Component
     {
-        T existing = FindFirstObjectByType<T>();
+        T existing = FindObjectOfType<T>();
         if (existing != null) return existing;
         GameObject go = new GameObject(goName);
         DontDestroyOnLoad(go);
@@ -241,14 +208,10 @@ public class ARSceneSetup : MonoBehaviour
     }
 }
 
-/// <summary>
-/// Rotador simple para el cubo AR - gira para indicar que es 3D.
-/// </summary>
+/// <summary>Rota el objeto AR para que se vea tridimensional.</summary>
 public class SimpleRotator : MonoBehaviour
 {
     public float speed = 45f;
-    private void Update()
-    {
+    private void Update() =>
         transform.Rotate(Vector3.up, speed * Time.deltaTime, Space.World);
-    }
 }

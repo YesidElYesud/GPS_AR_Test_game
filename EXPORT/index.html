@@ -1,205 +1,191 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <title>AR GPS Test</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; overflow:hidden; background:#000; }
 
-    html, body {
-      width: 100%; height: 100%;
-      overflow: hidden;
-      background: #000;
-      font-family: 'Courier New', monospace;
-    }
-
-    /* ── Video de cámara: fondo absoluto ── */
     #ar-video-bg {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      object-fit: cover;
-      z-index: 0;
-      transform: scaleX(-1); /* Espejo si la cámara es frontal; el JS lo gestiona */
+      position:fixed; top:-9999px; left:-9999px;
+      width:1px; height:1px;
+      opacity:0; pointer-events:none;
     }
 
-    /* ── Canvas de Unity: encima del video, fondo transparente ── */
     #unity-canvas {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100% !important;
-      height: 100% !important;
-      z-index: 1;
-      background: transparent !important;
+      position:fixed; top:0; left:0;
+      width:100% !important; height:100% !important;
+      z-index:1;
+      background:transparent !important;
     }
 
-    /* ── Loading overlay ── */
+    #debug-bar {
+      position:fixed; bottom:0; left:0; right:0; z-index:500;
+      background:rgba(0,0,0,0.75); color:#0f0;
+      font:11px monospace; padding:4px 8px; pointer-events:none;
+    }
+
     #loading-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 100;
-      background: #0a0a0f;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 24px;
-      transition: opacity 0.6s ease;
+      position:fixed; inset:0; z-index:100; background:#0a0a0f;
+      display:none; flex-direction:column;
+      align-items:center; justify-content:center; gap:20px;
+      transition:opacity 0.5s;
     }
+    #loading-overlay.hidden { opacity:0; pointer-events:none; }
+    .ld-title { font:bold 20px monospace; color:#00ff88; letter-spacing:4px; }
+    .ld-bar-w { width:200px; height:3px; background:#1a1a2e; border-radius:2px; overflow:hidden; }
+    .ld-bar   { height:100%; width:0; background:linear-gradient(90deg,#00ff88,#00cfff); transition:width .3s; }
+    .ld-pct   { font:13px monospace; color:#00ff88; }
 
-    #loading-overlay.hidden {
-      opacity: 0;
-      pointer-events: none;
+    #start-screen {
+      position:fixed; inset:0; z-index:200; background:#000;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      gap:16px; padding:40px; text-align:center;
     }
-
-    .loading-title {
-      font-size: 22px;
-      color: #00ff88;
-      letter-spacing: 4px;
-      text-transform: uppercase;
+    #start-screen h2 { font:bold 22px monospace; color:#00ff88; letter-spacing:3px; }
+    #start-screen p  { font:13px monospace; color:#888; line-height:1.7; }
+    #start-btn {
+      background:#00ff88; color:#000; border:none; border-radius:12px;
+      padding:14px 44px; font:bold 16px monospace; cursor:pointer;
     }
-
-    .loading-sub {
-      font-size: 12px;
-      color: #666;
-      letter-spacing: 2px;
-    }
-
-    .loading-bar-wrap {
-      width: 220px;
-      height: 3px;
-      background: #1a1a2e;
-      border-radius: 2px;
-      overflow: hidden;
-    }
-
-    .loading-bar {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #00ff88, #00cfff);
-      transition: width 0.3s ease;
-      border-radius: 2px;
-    }
-
-    #loading-percent {
-      font-size: 13px;
-      color: #00ff88;
-      letter-spacing: 2px;
-    }
-
-    /* ── Aviso de permisos iOS ── */
-    #permission-hint {
-      display: none;
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 200;
-      background: rgba(0,0,0,0.85);
-      color: #fff;
-      padding: 12px 20px;
-      border-radius: 12px;
-      font-size: 13px;
-      text-align: center;
-      max-width: 300px;
-      border: 1px solid rgba(0,255,136,0.3);
-    }
-
-    #permission-hint button {
-      margin-top: 10px;
-      background: #00ff88;
-      color: #000;
-      border: none;
-      padding: 8px 20px;
-      border-radius: 8px;
-      font-size: 13px;
-      cursor: pointer;
-      font-weight: bold;
-    }
+    #start-btn:disabled { background:#555; color:#888; }
+    #start-status { font:11px monospace; color:#aaa; min-height:16px; }
   </style>
 </head>
 <body>
 
-  <!-- Feed de cámara (fondo) -->
   <video id="ar-video-bg" autoplay playsinline muted></video>
-
-  <!-- Canvas de Unity -->
   <canvas id="unity-canvas"></canvas>
+  <div id="debug-bar">Esperando tap...</div>
 
-  <!-- Loading Screen -->
+  <div id="start-screen">
+    <h2>AR · GPS · TEST</h2>
+    <p>Necesito acceso a:<br><br>
+      📷 Cámara trasera<br>📍 Ubicación GPS<br>🔄 Orientación
+    </p>
+    <button id="start-btn" onclick="onStartTap()">INICIAR</button>
+    <div id="start-status">Toca para comenzar</div>
+  </div>
+
   <div id="loading-overlay">
-    <div class="loading-title">AR · GPS · TEST</div>
-    <div class="loading-bar-wrap">
-      <div class="loading-bar" id="progress-bar"></div>
-    </div>
-    <div id="loading-percent">0%</div>
-    <div class="loading-sub">Iniciando sensores...</div>
+    <div class="ld-title">CARGANDO</div>
+    <div class="ld-bar-w"><div class="ld-bar" id="progress-bar"></div></div>
+    <div class="ld-pct" id="loading-percent">0%</div>
   </div>
 
-  <!-- Aviso permisos iOS (se muestra vía Unity UIManager.ShowPermissionPanel) -->
-  <div id="permission-hint">
-    <div>Tu dispositivo requiere permiso para acceder al giroscopio.</div>
-    <button id="grant-btn" onclick="requestIOSPermission()">Permitir acceso</button>
-  </div>
-
-  <!-- Unity Loader -->
   <script src="Build/EXPORT.loader.js"></script>
   <script>
     var unityInstance = null;
 
-    // ── Cargar Unity ──────────────────────────────────────────────────────────
-    createUnityInstance(document.querySelector('#unity-canvas'), {
-      dataUrl:          'Build/EXPORT.data',
-      frameworkUrl:     'Build/EXPORT.framework.js',
-      codeUrl:          'Build/EXPORT.wasm',
-      streamingAssetsUrl: 'StreamingAssets',
-      companyName:      'DefaultCompany',
-      productName:      'GPS_AR_Test_game',
-      productVersion:   '0.1',
-    }, function(progress) {
-      var pct = Math.round(progress * 100);
-      document.getElementById('progress-bar').style.width = pct + '%';
-      document.getElementById('loading-percent').textContent = pct + '%';
-    }).then(function(instance) {
-      unityInstance = instance;
-      // Ocultar loading
-      var overlay = document.getElementById('loading-overlay');
-      overlay.classList.add('hidden');
-      setTimeout(function() { overlay.style.display = 'none'; }, 700);
-
-      // Detectar iOS y mostrar aviso de permisos si es necesario
-      checkiOSPermission();
-    }).catch(function(err) {
-      console.error('[AR] Error cargando Unity:', err);
-    });
-
-    // ── iOS DeviceOrientation Permission ────────────────────────────────────
-    function checkiOSPermission() {
-      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-      if (isIOS && typeof DeviceOrientationEvent !== 'undefined' &&
-          typeof DeviceOrientationEvent.requestPermission === 'function') {
-        document.getElementById('permission-hint').style.display = 'block';
-      }
+    function dbg(msg) {
+      document.getElementById('debug-bar').textContent = msg;
+      console.log('[AR] ' + msg);
     }
 
-    function requestIOSPermission() {
-      // Llamar al UIManager de Unity para que gestione el permiso
-      if (unityInstance) {
-        unityInstance.SendMessage('UIManager', 'ShowPermissionPanel', '');
-      }
-      document.getElementById('permission-hint').style.display = 'none';
+    function onStartTap() {
+      document.getElementById('start-btn').disabled = true;
+      document.getElementById('start-status').textContent = 'Solicitando cámara...';
+
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} },
+        audio: false
+      })
+      .then(function(stream) {
+        var video = document.getElementById('ar-video-bg');
+        video.srcObject = stream;
+        video.addEventListener('loadedmetadata', function() {
+          video.play().then(function() {
+            dbg('Cam OK ' + video.videoWidth + 'x' + video.videoHeight);
+            // Notificar a Unity directamente que la camara esta lista
+            // sin esperar a que CamFeed_Start lo detecte
+            if (unityInstance) {
+              unityInstance.SendMessage('CameraFeedManager', 'OnCameraReady', 'OK');
+            } else {
+              // Unity todavia cargando — esperar y reintentar
+              var retries = 0;
+              var interval = setInterval(function() {
+                retries++;
+                if (unityInstance) {
+                  unityInstance.SendMessage('CameraFeedManager', 'OnCameraReady', 'OK');
+                  clearInterval(interval);
+                }
+                if (retries > 20) clearInterval(interval);
+              }, 500);
+            }
+          }).catch(function(e) { dbg('play err: ' + e.message); });
+        });
+
+        if (typeof DeviceOrientationEvent !== 'undefined' &&
+            typeof DeviceOrientationEvent.requestPermission === 'function') {
+          DeviceOrientationEvent.requestPermission()
+            .then(function(s) { dbg('Gyro: ' + s); })
+            .catch(function(e) { dbg('Gyro err: ' + e); });
+        }
+        loadUnity();
+      })
+      .catch(function(err) {
+        dbg('CAM ERROR: ' + err.name);
+        setTimeout(loadUnity, 800);
+      });
     }
 
-    // ── Prevenir zoom / scroll en móvil ──────────────────────────────────────
+    function loadUnity() {
+      document.getElementById('start-screen').style.display = 'none';
+      var ov = document.getElementById('loading-overlay');
+      ov.style.display = 'flex';
+
+      createUnityInstance(document.getElementById('unity-canvas'), {
+        dataUrl:            'Build/EXPORT.data',
+        frameworkUrl:       'Build/EXPORT.framework.js',
+        codeUrl:            'Build/EXPORT.wasm',
+        streamingAssetsUrl: 'StreamingAssets',
+        companyName:        'DefaultCompany',
+        productName:        'GPS_AR_Test_game',
+        productVersion:     '0.1',
+        webglContextAttributes: {
+          alpha: true,
+          premultipliedAlpha: false,
+          preserveDrawingBuffer: true,   // ← CRÍTICO: sin esto el canvas se borra cada frame
+          antialias: false,
+          powerPreference: 'high-performance'
+        }
+      }, function(progress) {
+        var pct = Math.round(progress * 100);
+        document.getElementById('progress-bar').style.width    = pct + '%';
+        document.getElementById('loading-percent').textContent = pct + '%';
+      })
+      .then(function(instance) {
+        unityInstance = instance;
+        var canvas = document.getElementById('unity-canvas');
+        canvas.style.background = 'transparent';
+
+        // Verificar que el contexto tenga alpha
+        var gl = canvas.getContext('webgl2', {alpha:true}) ||
+                 canvas.getContext('webgl',  {alpha:true});
+        if (gl) {
+          dbg('GL alpha=' + gl.getContextAttributes().alpha +
+              ' preserveDB=' + gl.getContextAttributes().preserveDrawingBuffer);
+        }
+
+        ov.classList.add('hidden');
+        setTimeout(function() { ov.style.display = 'none'; }, 600);
+
+        setInterval(function() {
+          var v = document.getElementById('ar-video-bg');
+          dbg('vid:' + (v.paused?'PAUSED':'play') + ' ' + v.videoWidth + 'x' + v.videoHeight +
+              ' rs=' + v.readyState);
+        }, 3000);
+      })
+      .catch(function(err) { dbg('Unity error: ' + err); });
+    }
+
     document.addEventListener('touchmove', function(e) {
       if (e.touches.length > 1) e.preventDefault();
     }, { passive: false });
-
-    document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
   </script>
 </body>
 </html>

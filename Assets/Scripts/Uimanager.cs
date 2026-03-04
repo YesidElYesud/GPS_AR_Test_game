@@ -3,21 +3,15 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// UIManager: Controla toda la interfaz de usuario.
-///   - Estado del GPS e indicadores de sensores
-///   - Toggle entre GPS y Joystick
-///   - Botón de recalibración
-///   - Avisos de permisos al usuario
+/// UIManager: Controla la interfaz de usuario AR.
+/// Compatible con Unity 2022.3 — usa TextMeshProUGUI.
 /// </summary>
 public class UIManager : MonoBehaviour
 {
-    // ── Inspector ─────────────────────────────────────────────────────────────
     [Header("Paneles")]
     public GameObject joystickPanel;
-    public GameObject permissionPanel;    // "Por favor acepta los permisos"
-    public GameObject statusPanel;
 
-    [Header("Textos de estado")]
+    [Header("Textos de estado (TMP)")]
     public TextMeshProUGUI gpsStatusText;
     public TextMeshProUGUI gyroStatusText;
     public TextMeshProUGUI displacementText;
@@ -26,73 +20,60 @@ public class UIManager : MonoBehaviour
     [Header("Botones")]
     public Button toggleJoystickButton;
     public Button recalibrateButton;
-    public Button permissionGrantButton;  // En iOS requiere gesto del usuario
+    public Button permissionGrantButton;
 
     [Header("Referencia")]
     public ARCameraController cameraController;
 
-    // ── Internos ─────────────────────────────────────────────────────────────
-    private bool _joystickActive = false;
+    // ── Internos ──────────────────────────────────────────────────────────────
+    private bool  _joystickActive    = false;
     private float _statusUpdateTimer = 0f;
-    private const float STATUS_UPDATE_INTERVAL = 0.5f;
+    private const float STATUS_INTERVAL = 0.5f;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Start()
     {
-        // Botones
-        if (toggleJoystickButton != null)
-            toggleJoystickButton.onClick.AddListener(OnToggleJoystick);
-
-        if (recalibrateButton != null)
-            recalibrateButton.onClick.AddListener(OnRecalibrate);
-
-        if (permissionGrantButton != null)
-            permissionGrantButton.onClick.AddListener(OnPermissionGrant);
-
-        // Estado inicial
+        if (toggleJoystickButton  != null) toggleJoystickButton.onClick.AddListener(OnToggleJoystick);
+        if (recalibrateButton     != null) recalibrateButton.onClick.AddListener(OnRecalibrate);
+        if (permissionGrantButton != null) permissionGrantButton.onClick.AddListener(OnPermissionGrant);
         UpdateModeText();
     }
 
     private void Update()
     {
         _statusUpdateTimer += Time.deltaTime;
-        if (_statusUpdateTimer >= STATUS_UPDATE_INTERVAL)
+        if (_statusUpdateTimer >= STATUS_INTERVAL)
         {
             _statusUpdateTimer = 0f;
             UpdateStatusDisplay();
         }
-
-        // Mostrar joystick si GPS no está disponible
         AutoActivateJoystickIfNeeded();
     }
 
-    // ── Actualización de estado ───────────────────────────────────────────────
+    // ── Estado ────────────────────────────────────────────────────────────────
     private void UpdateStatusDisplay()
     {
-        // GPS
         if (gpsStatusText != null && GPSManager.Instance != null)
         {
             bool gpsOk = GPSManager.Instance.IsAvailable && GPSManager.Instance.HasOrigin;
             gpsStatusText.text = gpsOk
-                ? $"<color=#00FF88>GPS ✓</color>"
+                ? "<color=#00FF88>GPS OK</color>"
                 : GPSManager.Instance.IsAvailable
-                    ? "<color=#FFAA00>GPS esperando señal...</color>"
-                    : "<color=#FF4444>GPS no disponible</color>";
+                    ? "<color=#FFAA00>GPS: esperando senal...</color>"
+                    : "<color=#FF4444>GPS: no disponible</color>";
         }
 
-        // Giroscopio
         if (gyroStatusText != null && GyroscopeManager.Instance != null)
         {
             gyroStatusText.text = GyroscopeManager.Instance.IsAvailable
-                ? "<color=#00FF88>Giroscopio ✓</color>"
-                : "<color=#FF4444>Giroscopio no disponible</color>";
+                ? "<color=#00FF88>Giroscopio OK</color>"
+                : "<color=#FF4444>Giroscopio: no disponible</color>";
         }
 
-        // Desplazamiento
         if (displacementText != null && GPSManager.Instance != null && GPSManager.Instance.HasOrigin)
         {
             Vector2 d = GPSManager.Instance.DisplacementMeters;
-            displacementText.text = $"Δ E:{d.x:+0.0;-0.0}m  N:{d.y:+0.0;-0.0}m";
+            displacementText.text = string.Format("E:{0:+0.0;-0.0}m  N:{1:+0.0;-0.0}m", d.x, d.y);
         }
         else if (displacementText != null)
         {
@@ -102,71 +83,44 @@ public class UIManager : MonoBehaviour
 
     private void AutoActivateJoystickIfNeeded()
     {
-        // Si el GPS falló y el joystick no está activo, activarlo automáticamente
         if (GPSManager.Instance != null && !GPSManager.Instance.IsAvailable && !_joystickActive)
-        {
             ActivateJoystick(true);
-        }
     }
 
     // ── Botones ───────────────────────────────────────────────────────────────
-    private void OnToggleJoystick()
-    {
-        ActivateJoystick(!_joystickActive);
-    }
+    private void OnToggleJoystick() => ActivateJoystick(!_joystickActive);
 
     private void ActivateJoystick(bool active)
     {
         _joystickActive = active;
-
-        if (joystickPanel != null)
-            joystickPanel.SetActive(active);
-
-        if (cameraController != null)
-            cameraController.SetForceJoystick(active);
-
+        if (joystickPanel != null) joystickPanel.SetActive(active);
+        if (cameraController != null) cameraController.SetForceJoystick(active);
         UpdateModeText();
         UpdateToggleButtonLabel();
     }
 
     private void OnRecalibrate()
     {
-        if (cameraController != null)
-            cameraController.Recalibrate();
+        if (cameraController != null) cameraController.Recalibrate();
     }
 
-    private void OnPermissionGrant()
-    {
-        // En iOS 13+ se necesita un gesto del usuario para pedir permiso de giroscopio
-        // Este botón dispara la solicitud via JS
-        RequestGyroPermissionJS();
-        if (permissionPanel != null)
-            permissionPanel.SetActive(false);
-    }
+    private void OnPermissionGrant() => RequestGyroPermissionJS();
 
     private void UpdateModeText()
     {
-        if (modeText == null) return;
-        modeText.text = _joystickActive ? "Modo: Joystick" : "Modo: GPS";
+        if (modeText != null)
+            modeText.text = _joystickActive ? "Modo: Joystick" : "Modo: GPS";
     }
 
     private void UpdateToggleButtonLabel()
     {
         if (toggleJoystickButton == null) return;
-        var label = toggleJoystickButton.GetComponentInChildren<TextMeshProUGUI>();
-        if (label != null)
-            label.text = _joystickActive ? "Usar GPS" : "Usar Joystick";
+        TextMeshProUGUI lbl = toggleJoystickButton.GetComponentInChildren<TextMeshProUGUI>();
+        if (lbl != null) lbl.text = _joystickActive ? "Usar GPS" : "Joystick ON/OFF";
     }
 
-    // ── Notificación desde managers ──────────────────────────────────────────
-    /// Llamado cuando se detecta que el GPS necesita permiso (desde JS)
-    public void ShowPermissionPanel()
-    {
-        if (permissionPanel != null)
-            permissionPanel.SetActive(true);
-    }
+    public void ShowPermissionPanel() => RequestGyroPermissionJS();
 
-    // ── JS Interop ────────────────────────────────────────────────────────────
 #if UNITY_WEBGL && !UNITY_EDITOR
     [System.Runtime.InteropServices.DllImport("__Internal")]
     private static extern void RequestDeviceOrientationPermission();
@@ -174,8 +128,5 @@ public class UIManager : MonoBehaviour
     private static void RequestDeviceOrientationPermission() { }
 #endif
 
-    private void RequestGyroPermissionJS()
-    {
-        RequestDeviceOrientationPermission();
-    }
+    private void RequestGyroPermissionJS() => RequestDeviceOrientationPermission();
 }
