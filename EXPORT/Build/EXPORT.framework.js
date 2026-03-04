@@ -2235,7 +2235,7 @@ var ASM_CONSTS = {
 
   function _CamFeed_IsReady() {
       var video = document.getElementById('ar-video-bg');
-      return video && video.readyState >= 2;
+      return (video && video.readyState >= 2) ? 1 : 0;
     }
 
   function _CamFeed_Start(videoElementIdPtr) {
@@ -2243,33 +2243,32 @@ var ASM_CONSTS = {
       var video = document.getElementById(videoElementId);
   
       if (!video) {
-        console.warn('[ARSensors] No se encontró el elemento <video id="' + videoElementId + '">');
         SendMessage('CameraFeedManager', 'OnCameraError', 'VideoElementNotFound');
         return;
       }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        SendMessage('CameraFeedManager', 'OnCameraError', 'getUserMediaNotSupported');
+        return;
+      }
   
-      var constraints = {
+      navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: { ideal: 'environment' }, // Cámara trasera preferida
+          facingMode: { ideal: 'environment' },
           width:  { ideal: 1280 },
           height: { ideal: 720 }
         },
         audio: false
-      };
-  
-      navigator.mediaDevices.getUserMedia(constraints)
-        .then(function(stream) {
-          video.srcObject = stream;
-          video.onloadedmetadata = function() {
-            video.play();
-            SendMessage('CameraFeedManager', 'OnCameraReady', 'OK');
-            console.log('[ARSensors] Cámara iniciada.');
-          };
-        })
-        .catch(function(err) {
-          console.error('[ARSensors] Error de cámara:', err);
-          SendMessage('CameraFeedManager', 'OnCameraError', err.message);
-        });
+      })
+      .then(function(stream) {
+        video.srcObject = stream;
+        video.onloadedmetadata = function() {
+          video.play();
+          SendMessage('CameraFeedManager', 'OnCameraReady', 'OK');
+        };
+      })
+      .catch(function(err) {
+        SendMessage('CameraFeedManager', 'OnCameraError', err.name + ':' + err.message);
+      });
     }
 
   function _CamFeed_Stop() {
@@ -2277,31 +2276,25 @@ var ASM_CONSTS = {
       if (video && video.srcObject) {
         video.srcObject.getTracks().forEach(function(t) { t.stop(); });
         video.srcObject = null;
-        console.log('[ARSensors] Cámara detenida.');
       }
     }
 
   function _GPS_IsAvailable() {
-      return !!navigator.geolocation;
+      return !!navigator.geolocation ? 1 : 0;
     }
 
   function _GPS_StartWatching() {
-      if (!navigator.geolocation) return;
-  
-      var self = ARSensorsPlugin;
-      var options = {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      };
-  
-      self._gpsWatchId = navigator.geolocation.watchPosition(
+      if (!navigator.geolocation) {
+        SendMessage('GPSManager', 'OnGPSError', 'GeolocationNotSupported');
+        return;
+      }
+      if (!window.AR_STATE) window.AR_STATE = {};
+      var options = { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 };
+      window.AR_STATE.gpsWatchId = navigator.geolocation.watchPosition(
         function(pos) {
-          var lat = pos.coords.latitude;
-          var lon = pos.coords.longitude;
-          var acc = pos.coords.accuracy;
-          var data = lat.toFixed(8) + ',' + lon.toFixed(8) + ',' + acc.toFixed(1);
-          // Enviar a Unity → GPSManager.OnGPSUpdate(data)
+          var data = pos.coords.latitude.toFixed(8) + ',' +
+                     pos.coords.longitude.toFixed(8) + ',' +
+                     pos.coords.accuracy.toFixed(1);
           SendMessage('GPSManager', 'OnGPSUpdate', data);
         },
         function(err) {
@@ -2312,9 +2305,9 @@ var ASM_CONSTS = {
     }
 
   function _GPS_StopWatching() {
-      if (ARSensorsPlugin._gpsWatchId >= 0) {
-        navigator.geolocation.clearWatch(ARSensorsPlugin._gpsWatchId);
-        ARSensorsPlugin._gpsWatchId = -1;
+      if (window.AR_STATE && window.AR_STATE.gpsWatchId >= 0) {
+        navigator.geolocation.clearWatch(window.AR_STATE.gpsWatchId);
+        window.AR_STATE.gpsWatchId = -1;
       }
     }
 
@@ -2329,30 +2322,33 @@ var ASM_CONSTS = {
     }
 
   function _Gyro_IsAvailable() {
-      return 'DeviceOrientationEvent' in window;
+      return ('DeviceOrientationEvent' in window) ? 1 : 0;
     }
 
   function _Gyro_StartListening() {
-      if (!('DeviceOrientationEvent' in window)) return;
+      if (!window.AR_STATE) window.AR_STATE = {};
   
-      ARSensorsPlugin._gyroHandler = function(event) {
-        if (event.alpha === null || event.beta === null || event.gamma === null) return;
+      // Limpiar listener anterior si existe
+      if (window.AR_STATE.gyroHandler) {
+        window.removeEventListener('deviceorientation', window.AR_STATE.gyroHandler, true);
+        window.AR_STATE.gyroHandler = null;
+      }
   
-        var alpha = event.alpha !== null ? event.alpha.toFixed(4) : '0';
-        var beta  = event.beta  !== null ? event.beta.toFixed(4)  : '0';
-        var gamma = event.gamma !== null ? event.gamma.toFixed(4) : '0';
-  
-        var data = alpha + ',' + beta + ',' + gamma;
-        SendMessage('GyroscopeManager', 'OnGyroUpdate', data);
+      window.AR_STATE.gyroHandler = function(e) {
+        if (e.alpha === null && e.beta === null && e.gamma === null) return;
+        var a = (e.alpha !== null) ? e.alpha.toFixed(4) : '0';
+        var b = (e.beta  !== null) ? e.beta.toFixed(4)  : '0';
+        var g = (e.gamma !== null) ? e.gamma.toFixed(4) : '0';
+        SendMessage('GyroscopeManager', 'OnGyroUpdate', a + ',' + b + ',' + g);
       };
   
-      window.addEventListener('deviceorientation', ARSensorsPlugin._gyroHandler, true);
+      window.addEventListener('deviceorientation', window.AR_STATE.gyroHandler, true);
     }
 
   function _Gyro_StopListening() {
-      if (ARSensorsPlugin._gyroHandler) {
-        window.removeEventListener('deviceorientation', ARSensorsPlugin._gyroHandler, true);
-        ARSensorsPlugin._gyroHandler = null;
+      if (window.AR_STATE && window.AR_STATE.gyroHandler) {
+        window.removeEventListener('deviceorientation', window.AR_STATE.gyroHandler, true);
+        window.AR_STATE.gyroHandler = null;
       }
     }
 
@@ -4849,18 +4845,26 @@ var ASM_CONSTS = {
         DeviceOrientationEvent.requestPermission()
           .then(function(state) {
             if (state === 'granted') {
-              // Re-iniciar el listener ahora que tenemos permiso
-              ARSensorsPlugin.Gyro_StartListening();
+              if (!window.AR_STATE) window.AR_STATE = {};
+              if (!window.AR_STATE.gyroHandler) {
+                window.AR_STATE.gyroHandler = function(e) {
+                  if (e.alpha === null && e.beta === null && e.gamma === null) return;
+                  var a = (e.alpha !== null) ? e.alpha.toFixed(4) : '0';
+                  var b = (e.beta  !== null) ? e.beta.toFixed(4)  : '0';
+                  var g = (e.gamma !== null) ? e.gamma.toFixed(4) : '0';
+                  SendMessage('GyroscopeManager', 'OnGyroUpdate', a + ',' + b + ',' + g);
+                };
+                window.addEventListener('deviceorientation', window.AR_STATE.gyroHandler, true);
+              }
               SendMessage('GyroscopeManager', 'OnGyroError', 'PermissionGranted');
             } else {
               SendMessage('GyroscopeManager', 'OnGyroError', 'PermissionDenied');
             }
           })
           .catch(function(err) {
-            SendMessage('GyroscopeManager', 'OnGyroError', 'PermissionError: ' + err);
+            SendMessage('GyroscopeManager', 'OnGyroError', 'PermissionError:' + err.toString());
           });
       }
-      // En Android/Chrome el permiso no es necesario; no hace nada.
     }
 
   function ___assert_fail(condition, filename, line, func) {
