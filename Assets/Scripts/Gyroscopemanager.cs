@@ -18,12 +18,12 @@ public class GyroscopeManager : MonoBehaviour
     public bool       IsAvailable    { get; private set; }
     public Quaternion DeviceRotation { get; private set; } = Quaternion.identity;
 
-    [Range(1f, 15f)] public float smoothSpeed = 5f;
+    // Suavizado: 3 = muy suave/lento, 8 = directo/rápido
+    // Ajustable en Inspector sin rebuild
+    [Range(1f, 15f)] public float smoothSpeed = 8f;
 
     private Quaternion _target      = Quaternion.identity;
-    private bool _hasFirstRead      = false;
-    private float _lastAlpha        = -1f;
-    private int _stableFrames       = 0;
+    private bool       _hasFirstRead = false;
 
     private void Awake()
     {
@@ -41,6 +41,7 @@ public class GyroscopeManager : MonoBehaviour
 
     private void Update()
     {
+        // Interpolación exponencial — framerate-independent, sin overshoot
         float t = 1f - Mathf.Exp(-smoothSpeed * Time.deltaTime);
         DeviceRotation = Quaternion.Slerp(DeviceRotation, _target, t);
     }
@@ -58,33 +59,26 @@ public class GyroscopeManager : MonoBehaviour
             float beta  = float.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture);
             float gamma = float.Parse(p[2], System.Globalization.CultureInfo.InvariantCulture);
 
-            // Detectar si el sensor está mandando basura (alpha siempre 0 = sin brújula)
-            // En ese caso ignoramos alpha y solo usamos beta/gamma
-            bool alphaValid = !(alpha == 0f && _lastAlpha == 0f && _stableFrames > 5);
-            _stableFrames = (alpha == _lastAlpha) ? _stableFrames + 1 : 0;
-            _lastAlpha = alpha;
-
-            float yaw = alphaValid ? -alpha : 0f;
-
             // Conversión W3C → Unity para teléfono vertical:
-            // beta=90  → mirando al frente (pitch=0 en Unity)
-            // beta=0   → mirando al techo  (pitch=-90 en Unity)  
-            // beta=180 → mirando al suelo  (pitch=90 en Unity)
-            // gamma=0  → vertical (roll=0)
+            // beta=90  → mirando al frente → pitch = 0
+            // alpha    → yaw (brújula), negado porque W3C es CW, Unity CCW
+            // gamma    → roll lateral
             float pitch = -(beta - 90f);
-            float roll  = gamma;
+            float yaw   = -alpha;
+            float roll  =  gamma;
 
-            // Clamp para evitar valores extremos que causen flips
-            pitch = Mathf.Clamp(pitch, -89f, 89f);
-            roll  = Mathf.Clamp(roll,  -89f, 89f);
+            // Clamp para evitar flips en ángulos extremos
+            pitch = Mathf.Clamp(pitch, -85f, 85f);
+            roll  = Mathf.Clamp(roll,  -85f, 85f);
 
             _target = Quaternion.Euler(pitch, yaw, roll);
 
             if (!_hasFirstRead)
             {
+                // Primera lectura: aplicar sin interpolación para evitar
+                // el "vuelo" inicial desde Quaternion.identity
                 DeviceRotation = _target;
                 _hasFirstRead  = true;
-                Debug.Log($"[Gyro] Primera lectura: a={alpha:F1} b={beta:F1} g={gamma:F1}");
             }
         }
         catch (System.Exception e)

@@ -100,22 +100,10 @@
         video.addEventListener('loadedmetadata', function() {
           video.play().then(function() {
             dbg('Cam OK ' + video.videoWidth + 'x' + video.videoHeight);
-            // Notificar a Unity directamente que la camara esta lista
-            // sin esperar a que CamFeed_Start lo detecte
-            if (unityInstance) {
-              unityInstance.SendMessage('CameraFeedManager', 'OnCameraReady', 'OK');
-            } else {
-              // Unity todavia cargando — esperar y reintentar
-              var retries = 0;
-              var interval = setInterval(function() {
-                retries++;
-                if (unityInstance) {
-                  unityInstance.SendMessage('CameraFeedManager', 'OnCameraReady', 'OK');
-                  clearInterval(interval);
-                }
-                if (retries > 20) clearInterval(interval);
-              }, 500);
-            }
+            // Guardar flag — Unity puede no estar listo todavia
+            window.AR_STATE = window.AR_STATE || {};
+            window.AR_STATE.cameraReady = true;
+            trySendCameraReady();
           }).catch(function(e) { dbg('play err: ' + e.message); });
         });
 
@@ -171,6 +159,9 @@
               ' preserveDB=' + gl.getContextAttributes().preserveDrawingBuffer);
         }
 
+        // Intentar enviar CameraReady por si el video ya estaba listo
+        trySendCameraReady();
+
         ov.classList.add('hidden');
         setTimeout(function() { ov.style.display = 'none'; }, 600);
 
@@ -181,6 +172,16 @@
         }, 3000);
       })
       .catch(function(err) { dbg('Unity error: ' + err); });
+    }
+
+    // Intentar notificar a Unity que la camara esta lista
+    // Se llama tanto cuando el video esta listo como cuando Unity termina de cargar
+    function trySendCameraReady() {
+      if (unityInstance && window.AR_STATE && window.AR_STATE.cameraReady) {
+        unityInstance.SendMessage('CameraFeedManager', 'OnCameraReady', 'OK');
+        window.AR_STATE.cameraReady = false; // no enviar dos veces
+        dbg('CameraReady enviado a Unity OK');
+      }
     }
 
     document.addEventListener('touchmove', function(e) {

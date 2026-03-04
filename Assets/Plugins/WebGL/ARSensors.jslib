@@ -49,20 +49,76 @@ mergeInto(LibraryManager.library, {
     if (window.AR_STATE.gyroHandler) {
       window.removeEventListener('deviceorientation', window.AR_STATE.gyroHandler, true);
     }
+
+    // Intentar AbsoluteOrientationSensor primero (funciona durante toques en iOS 17+)
+    if (typeof AbsoluteOrientationSensor !== 'undefined') {
+      try {
+        var sensor = new AbsoluteOrientationSensor({ frequency: 60, referenceFrame: 'screen' });
+        sensor.addEventListener('reading', function() {
+          var q = sensor.quaternion; // [x, y, z, w]
+          // Convertir quaternion a euler para mantener compatibilidad con OnGyroUpdate
+          var sinp = 2 * (q[3] * q[1] - q[2] * q[0]);
+          var pitch = Math.abs(sinp) >= 1 ? (Math.PI/2) * Math.sign(sinp) : Math.asin(sinp);
+          var siny  = 2 * (q[3] * q[2] + q[0] * q[1]);
+          var cosy  = 1 - 2 * (q[1]*q[1] + q[2]*q[2]);
+          var yaw   = Math.atan2(siny, cosy);
+          var sinr  = 2 * (q[3] * q[0] + q[1] * q[2]);
+          var cosr  = 1 - 2 * (q[0]*q[0] + q[1]*q[1]);
+          var roll  = Math.atan2(sinr, cosr);
+          var alpha = ((yaw   * 180 / Math.PI) + 360) % 360;
+          var beta  = pitch * 180 / Math.PI;
+          var gamma = roll  * 180 / Math.PI;
+          var data = alpha.toFixed(4) + ',' + beta.toFixed(4) + ',' + gamma.toFixed(4);
+          window.AR_STATE.lastGyro = data;
+          SendMessage('GyroscopeManager', 'OnGyroUpdate', data);
+        });
+        sensor.addEventListener('error', function(e) {
+          console.warn('[AR] AbsoluteOrientationSensor error:', e.error);
+        });
+        sensor.start();
+        window.AR_STATE.orientationSensor = sensor;
+        console.log('[AR] Usando AbsoluteOrientationSensor');
+        return; // No necesitamos DeviceOrientation si esto funciona
+      } catch(e) {
+        console.warn('[AR] AbsoluteOrientationSensor no disponible:', e);
+      }
+    }
     window.AR_STATE.gyroHandler = function(e) {
       if (e.alpha === null && e.beta === null && e.gamma === null) return;
       var a = (e.alpha !== null) ? e.alpha.toFixed(4) : '0';
       var b = (e.beta  !== null) ? e.beta.toFixed(4)  : '0';
       var g = (e.gamma !== null) ? e.gamma.toFixed(4) : '0';
-      SendMessage('GyroscopeManager', 'OnGyroUpdate', a + ',' + b + ',' + g);
+      // Guardar ultimo valor conocido
+      window.AR_STATE.lastGyro = a + ',' + b + ',' + g;
+      SendMessage('GyroscopeManager', 'OnGyroUpdate', window.AR_STATE.lastGyro);
     };
     window.addEventListener('deviceorientation', window.AR_STATE.gyroHandler, true);
+
+    // Pulso independiente: re-envia el ultimo giroscopio conocido cada 16ms (60fps)
+    // Esto asegura que Unity recibe rotacion aunque iOS pause DeviceOrientation durante toques
+    if (!window.AR_STATE.gyroPulse) {
+      window.AR_STATE.gyroPulse = setInterval(function() {
+        if (window.AR_STATE.lastGyro) {
+          SendMessage('GyroscopeManager', 'OnGyroUpdate', window.AR_STATE.lastGyro);
+        }
+      }, 16);
+    }
   },
 
   Gyro_StopListening: function() {
-    if (window.AR_STATE && window.AR_STATE.gyroHandler) {
-      window.removeEventListener('deviceorientation', window.AR_STATE.gyroHandler, true);
-      window.AR_STATE.gyroHandler = null;
+    if (window.AR_STATE) {
+      if (window.AR_STATE.gyroHandler) {
+        window.removeEventListener('deviceorientation', window.AR_STATE.gyroHandler, true);
+        window.AR_STATE.gyroHandler = null;
+      }
+      if (window.AR_STATE.orientationSensor) {
+        window.AR_STATE.orientationSensor.stop();
+        window.AR_STATE.orientationSensor = null;
+      }
+      if (window.AR_STATE.gyroPulse) {
+        clearInterval(window.AR_STATE.gyroPulse);
+        window.AR_STATE.gyroPulse = null;
+      }
     }
   },
 
@@ -109,22 +165,33 @@ mergeInto(LibraryManager.library, {
       return;
     }
 
-    // Si ya tiene stream (iniciado desde HTML), notificar listo directamente
-    if (video.srcObject && !video.paused) {
+    function notifyReady() {
       SendMessage('CameraFeedManager', 'OnCameraReady', 'OK');
+    }
+
+    // Si ya tiene stream activo, notificar inmediatamente
+    if (video.srcObject) {
+      if (video.readyState >= 2) {
+        notifyReady();
+      } else {
+        video.addEventListener('loadeddata', notifyReady, { once: true });
+        // Fallback: notificar igual despues de 2 segundos
+        setTimeout(notifyReady, 2000);
+      }
       return;
     }
 
-    // Iniciar stream si no existe
+    // Si no hay stream, iniciarlo
     navigator.mediaDevices.getUserMedia({
       video: { facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} },
       audio: false
     }).then(function(stream) {
       video.srcObject = stream;
       video.onloadedmetadata = function() {
-        video.play();
-        SendMessage('CameraFeedManager', 'OnCameraReady', 'OK');
+        video.play().then(notifyReady).catch(notifyReady);
       };
+      // Fallback por si onloadedmetadata no dispara
+      setTimeout(notifyReady, 3000);
     }).catch(function(err) {
       SendMessage('CameraFeedManager', 'OnCameraError', err.name + ':' + err.message);
     });
