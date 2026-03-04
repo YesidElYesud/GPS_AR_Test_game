@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>AR GPS Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: 'Courier New', monospace;
+    }
+
+    /* ── Video de cámara: fondo absoluto ── */
+    #ar-video-bg {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      z-index: 0;
+      transform: scaleX(-1); /* Espejo si la cámara es frontal; el JS lo gestiona */
+    }
+
+    /* ── Canvas de Unity: encima del video, fondo transparente ── */
+    #unity-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100% !important;
+      height: 100% !important;
+      z-index: 1;
+      background: transparent !important;
+    }
+
+    /* ── Loading overlay ── */
+    #loading-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: #0a0a0f;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      transition: opacity 0.6s ease;
+    }
+
+    #loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loading-title {
+      font-size: 22px;
+      color: #00ff88;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+    }
+
+    .loading-sub {
+      font-size: 12px;
+      color: #666;
+      letter-spacing: 2px;
+    }
+
+    .loading-bar-wrap {
+      width: 220px;
+      height: 3px;
+      background: #1a1a2e;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .loading-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #00ff88, #00cfff);
+      transition: width 0.3s ease;
+      border-radius: 2px;
+    }
+
+    #loading-percent {
+      font-size: 13px;
+      color: #00ff88;
+      letter-spacing: 2px;
+    }
+
+    /* ── Aviso de permisos iOS ── */
+    #permission-hint {
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 200;
+      background: rgba(0,0,0,0.85);
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 13px;
+      text-align: center;
+      max-width: 300px;
+      border: 1px solid rgba(0,255,136,0.3);
+    }
+
+    #permission-hint button {
+      margin-top: 10px;
+      background: #00ff88;
+      color: #000;
+      border: none;
+      padding: 8px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Feed de cámara (fondo) -->
+  <video id="ar-video-bg" autoplay playsinline muted></video>
+
+  <!-- Canvas de Unity -->
+  <canvas id="unity-canvas"></canvas>
+
+  <!-- Loading Screen -->
+  <div id="loading-overlay">
+    <div class="loading-title">AR · GPS · TEST</div>
+    <div class="loading-bar-wrap">
+      <div class="loading-bar" id="progress-bar"></div>
+    </div>
+    <div id="loading-percent">0%</div>
+    <div class="loading-sub">Iniciando sensores...</div>
+  </div>
+
+  <!-- Aviso permisos iOS (se muestra vía Unity UIManager.ShowPermissionPanel) -->
+  <div id="permission-hint">
+    <div>Tu dispositivo requiere permiso para acceder al giroscopio.</div>
+    <button id="grant-btn" onclick="requestIOSPermission()">Permitir acceso</button>
+  </div>
+
+  <!-- Unity Loader -->
+  <script src="Build/{{{ LOADER_FILENAME }}}"></script>
+  <script>
+    var unityInstance = null;
+
+    // ── Cargar Unity ──────────────────────────────────────────────────────────
+    createUnityInstance(document.querySelector('#unity-canvas'), {
+      dataUrl:          'Build/{{{ DATA_FILENAME }}}',
+      frameworkUrl:     'Build/{{{ FRAMEWORK_FILENAME }}}',
+      codeUrl:          'Build/{{{ CODE_FILENAME }}}',
+      streamingAssetsUrl: 'StreamingAssets',
+      companyName:      '{{{ COMPANY_NAME }}}',
+      productName:      '{{{ PRODUCT_NAME }}}',
+      productVersion:   '{{{ PRODUCT_VERSION }}}',
+    }, function(progress) {
+      var pct = Math.round(progress * 100);
+      document.getElementById('progress-bar').style.width = pct + '%';
+      document.getElementById('loading-percent').textContent = pct + '%';
+    }).then(function(instance) {
+      unityInstance = instance;
+      // Ocultar loading
+      var overlay = document.getElementById('loading-overlay');
+      overlay.classList.add('hidden');
+      setTimeout(function() { overlay.style.display = 'none'; }, 700);
+
+      // Detectar iOS y mostrar aviso de permisos si es necesario
+      checkiOSPermission();
+    }).catch(function(err) {
+      console.error('[AR] Error cargando Unity:', err);
+    });
+
+    // ── iOS DeviceOrientation Permission ────────────────────────────────────
+    function checkiOSPermission() {
+      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      if (isIOS && typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        document.getElementById('permission-hint').style.display = 'block';
+      }
+    }
+
+    function requestIOSPermission() {
+      // Llamar al UIManager de Unity para que gestione el permiso
+      if (unityInstance) {
+        unityInstance.SendMessage('UIManager', 'ShowPermissionPanel', '');
+      }
+      document.getElementById('permission-hint').style.display = 'none';
+    }
+
+    // ── Prevenir zoom / scroll en móvil ──────────────────────────────────────
+    document.addEventListener('touchmove', function(e) {
+      if (e.touches.length > 1) e.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
+  </script>
+</body>
+</html>
