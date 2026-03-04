@@ -7,27 +7,26 @@ public class ARCameraController : MonoBehaviour
     public JoystickController joystickController;
     public GameObject arObject;
 
-    [Header("GPS")]
+    [Header("GPS (opcional)")]
     public float gpsToUnityScale = 1f;
 
     [Header("Joystick")]
-    [Tooltip("Velocidad de desplazamiento en unidades/segundo")]
-    public float joystickSpeed = 3f;
+    public float joystickSpeed = 5f;
 
     [Header("Modo")]
     public bool forceJoystick = false;
 
     private Camera  _camera;
-    private Vector3 _cameraOrigin;   // posicion inicial de la CAMARA
-    private Vector3 _arObjectOrigin; // posicion inicial del objeto AR
+    private Vector3 _cameraOrigin;
     private bool    _arObjectPlaced = false;
 
     private void Awake()
     {
         _camera = GetComponent<Camera>();
-        _camera.clearFlags = CameraClearFlags.SolidColor;
-        _camera.backgroundColor = new Color(0f, 0f, 0f, 0f);
+        // Fondo negro sólido — sin transparencia, sin video
+        _camera.clearFlags = CameraClearFlags.Skybox;
         _camera.fieldOfView = 60f;
+        _camera.depth = 0;
         _cameraOrigin = transform.position;
     }
 
@@ -38,65 +37,53 @@ public class ARCameraController : MonoBehaviour
 
     private void LateUpdate()
     {
-        // 1. Rotacion: SIEMPRE desde el giroscopio
         ApplyRotation();
-
-        // 2. Traslacion: GPS mueve la camara, Joystick mueve la camara
         ApplyMovement();
     }
 
+    // ── Rotacion: siempre desde el giroscopio ─────────────────────────────────
     private void ApplyRotation()
     {
         if (GyroscopeManager.Instance == null || !GyroscopeManager.Instance.IsAvailable) return;
         transform.rotation = GyroscopeManager.Instance.DeviceRotation;
     }
 
+    // ── Movimiento: GPS o Joystick ────────────────────────────────────────────
     private void ApplyMovement()
     {
-        bool gpsDisponible = GPSManager.Instance != null
-                          && GPSManager.Instance.IsAvailable
-                          && GPSManager.Instance.HasOrigin;
+        bool gpsOk = !forceJoystick
+                  && GPSManager.Instance != null
+                  && GPSManager.Instance.IsAvailable
+                  && GPSManager.Instance.HasOrigin;
 
-        if (!forceJoystick && gpsDisponible)
-            MoveCameraByGPS();
-        else
-            MoveCameraByJoystick();
+        if (gpsOk) MoveCameraByGPS();
+        else        MoveCameraByJoystick();
     }
 
-    // GPS mueve la CAMARA (el mundo se queda fijo, el jugador se mueve)
     private void MoveCameraByGPS()
     {
         Vector2 disp = GPSManager.Instance.DisplacementMeters * gpsToUnityScale;
         Vector3 target = new Vector3(
             _cameraOrigin.x + disp.x,
             transform.position.y,
-            _cameraOrigin.z + disp.y
-        );
-        transform.position = Vector3.Lerp(transform.position, target, Time.deltaTime * 5f);
+            _cameraOrigin.z + disp.y);
+        transform.position = Vector3.Lerp(transform.position, target, Time.deltaTime * 2f);
     }
 
-    // Joystick mueve la CAMARA — efecto VR
-    // La direccion es relativa al YAW actual de la camara
-    // Mover el joystick adelante = avanzar hacia donde miras
     private void MoveCameraByJoystick()
     {
         if (joystickController == null) return;
         Vector2 input = joystickController.InputDirection;
         if (input.sqrMagnitude < 0.01f) return;
 
-        // Extraer solo el yaw (ignorar pitch/roll para que el movimiento
-        // sea siempre horizontal, como un FPS/VR)
-        float yaw = transform.eulerAngles.y;
-        Vector3 forward = new Vector3(
-            Mathf.Sin(yaw * Mathf.Deg2Rad), 0f,
-            Mathf.Cos(yaw * Mathf.Deg2Rad));
-        Vector3 right = new Vector3(
-            Mathf.Cos(yaw * Mathf.Deg2Rad), 0f,
-            -Mathf.Sin(yaw * Mathf.Deg2Rad));
+        // Movimiento horizontal basado en el yaw actual
+        float   yaw     = transform.eulerAngles.y;
+        float   rad     = yaw * Mathf.Deg2Rad;
+        Vector3 forward = new Vector3( Mathf.Sin(rad), 0f, Mathf.Cos(rad));
+        Vector3 right   = new Vector3( Mathf.Cos(rad), 0f,-Mathf.Sin(rad));
 
-        // Mover la CAMARA, no el objeto
         transform.position += (forward * input.y + right * input.x)
-                              * joystickSpeed * Time.deltaTime;
+                             * joystickSpeed * Time.deltaTime;
     }
 
     private void PlaceARObject()
@@ -105,8 +92,7 @@ public class ARCameraController : MonoBehaviour
         Vector3 fwd = transform.forward;
         fwd.y = 0f;
         if (fwd.sqrMagnitude < 0.001f) fwd = Vector3.forward;
-        arObject.transform.position = transform.position + fwd.normalized * 2f;
-        _arObjectOrigin = arObject.transform.position;
+        arObject.transform.position = transform.position + fwd.normalized * 20f;
         _arObjectPlaced = true;
     }
 
@@ -120,9 +106,11 @@ public class ARCameraController : MonoBehaviour
     public void Recalibrate()
     {
         if (GPSManager.Instance != null) GPSManager.Instance.ResetOrigin();
+        if (GyroscopeManager.Instance != null) GyroscopeManager.Instance.Recalibrate();
         _cameraOrigin = transform.position;
         _arObjectPlaced = false;
         PlaceARObject();
+        Debug.Log("[AR] Recalibrado.");
     }
 
 #if UNITY_EDITOR
