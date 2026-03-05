@@ -247,7 +247,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   autoSetupScene: 1
-  arObjectPrefab: {fileID: 5257298433100673412, guid: ce5c8983708dce9a0a34718807960c60, type: 3}
+  arObjectPrefab: {fileID: 7182082583787018590, guid: 69f6f6216cbfe233ea6459b1c555f18d, type: 3}
 --- !u!224 &782628377
 RectTransform:
   m_ObjectHideFlags: 0
@@ -381,7 +381,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   joystickController: {fileID: 0}
-  arObject: {fileID: 5257298433100673412, guid: ce5c8983708dce9a0a34718807960c60, type: 3}
+  arObject: {fileID: 7182082583787018590, guid: 69f6f6216cbfe233ea6459b1c555f18d, type: 3}
   gpsToUnityScale: 1
   joystickSpeed: 3
   forceJoystick: 0
