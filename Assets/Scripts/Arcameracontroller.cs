@@ -1,10 +1,11 @@
 using UnityEngine;
 
 /// <summary>
-/// ARCameraController v2
+/// ARCameraController v3
 /// - Si joystickController no está asignado en el editor, lo busca en la escena.
 /// - forceJoystick = true desde el editor para forzar modo joystick sin GPS.
 /// - En editor: clic derecho del mouse para rotar la cámara.
+/// - SetInputBlocked(true) congela rotación y movimiento (usado por StageManager).
 /// </summary>
 [RequireComponent(typeof(Camera))]
 public class ARCameraController : MonoBehaviour
@@ -32,6 +33,7 @@ public class ARCameraController : MonoBehaviour
     private Camera  _camera;
     private Vector3 _cameraOrigin;
     private bool    _arObjectPlaced = false;
+    private bool    _inputBlocked   = false;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
@@ -67,6 +69,7 @@ public class ARCameraController : MonoBehaviour
     // ── Rotación: giroscopio en dispositivo, mouse en editor ──────────────────
     private void ApplyRotation()
     {
+        if (_inputBlocked) return;
         if (GyroscopeManager.Instance == null || !GyroscopeManager.Instance.IsAvailable) return;
         transform.rotation = GyroscopeManager.Instance.DeviceRotation;
     }
@@ -74,6 +77,7 @@ public class ARCameraController : MonoBehaviour
     // ── Movimiento ────────────────────────────────────────────────────────────
     private void ApplyMovement()
     {
+        if (_inputBlocked) return;
         bool gpsOk = !forceJoystick
                   && GPSManager.Instance != null
                   && GPSManager.Instance.IsAvailable
@@ -123,6 +127,15 @@ public class ARCameraController : MonoBehaviour
 
     // ── API pública ───────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Congela o descongela toda la entrada del jugador (rotación + movimiento).
+    /// Llamado por StageManager al mostrar panels, cinemáticas o diálogos.
+    /// </summary>
+    public void SetInputBlocked(bool blocked)
+    {
+        _inputBlocked = blocked;
+    }
+
     /// <summary>Activa o desactiva el modo joystick manualmente.</summary>
     public void SetForceJoystick(bool value)
     {
@@ -146,6 +159,7 @@ public class ARCameraController : MonoBehaviour
     private float _eYaw, _ePitch;
     private void Update()
     {
+        if (_inputBlocked) return;
         if (!Input.GetMouseButton(1)) return;
         _eYaw   += Input.GetAxis("Mouse X") * 3f;
         _ePitch -= Input.GetAxis("Mouse Y") * 3f;

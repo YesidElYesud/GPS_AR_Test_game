@@ -45,11 +45,21 @@ public class UIManager : MonoBehaviour
         if (recalibrateButton     != null) recalibrateButton.onClick.AddListener(OnRecalibrate);
         if (permissionGrantButton != null) permissionGrantButton.onClick.AddListener(OnPermissionGrant);
 
+        // Suscribirse al StageManager para actualizar UI en cada cambio de etapa
+        if (StageManager.Instance != null)
+            StageManager.Instance.OnStageChanged += HandleStageChanged;
+
         // Estado inicial
         SetJoystickPanelVisible(false);
         UpdateModeText();
         UpdateToggleButtonLabel();
         CheckAutoJoystick();
+    }
+
+    private void OnDestroy()
+    {
+        if (StageManager.Instance != null)
+            StageManager.Instance.OnStageChanged -= HandleStageChanged;
     }
 
     private void Update()
@@ -61,6 +71,15 @@ public class UIManager : MonoBehaviour
             UpdateStatusDisplay();
         }
         CheckAutoJoystick();
+    }
+
+    // ── StageManager ─────────────────────────────────────────────────────────
+    private void HandleStageChanged(StageManager.Stage previous, StageManager.Stage current)
+    {
+        // Actualizar textos de estado inmediatamente al cambiar de etapa
+        // (no esperar al siguiente tick del timer de 0.5s)
+        UpdateStatusDisplay();
+        UpdateModeText();
     }
 
     // ── Estado GPS / Giroscopio ───────────────────────────────────────────────
