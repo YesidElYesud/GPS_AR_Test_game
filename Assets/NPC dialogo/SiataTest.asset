@@ -10,10 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a4b488c86b9ab9a45bd0ccc96dd123bd, type: 3}
-  m_Name: DialogueTest
+  m_Name: SiataTest
   m_EditorClassIdentifier: 
-  npcName: Vecino de prueba
-  npcPhoto: {fileID: 21300000, guid: 182acf71ddf9c950fa17aa1f5eb640e3, type: 3}
+  npcName: Siata
+  npcPhoto: {fileID: 21300000, guid: b712112d4983abbad86df5109c08ec1a, type: 3}
   npcText: "\xBFQu\xE9 haces ante una alerta de inundaci\xF3n?"
   options:
   - optionText: Quedarme en casa
@@ -25,5 +25,5 @@ MonoBehaviour:
   - optionText: Ignorar la alerta
     isCorrect: 0
     feedbackText: Nunca ignores una alerta oficial.
-  advancesStageOnCorrect: 0
+  advancesStageOnCorrect: 1
   correctAnswerDelay: 1.5
