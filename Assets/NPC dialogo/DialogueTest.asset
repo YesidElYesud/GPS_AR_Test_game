@@ -12,18 +12,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a4b488c86b9ab9a45bd0ccc96dd123bd, type: 3}
   m_Name: DialogueTest
   m_EditorClassIdentifier: 
-  npcName: Jose
+  npcName: Vecino de prueba
   npcPhoto: {fileID: 0}
-  npcText: Soy un NPC de prueba
+  npcText: "\xBFQu\xE9 haces ante una alerta de inundaci\xF3n?"
   options:
-  - optionText: respuesta a
+  - optionText: Quedarme en casa
     isCorrect: 0
-    feedbackText: Casi le atina
-  - optionText: respuesta b
-    isCorrect: 0
-    feedbackText: "ac\xE1 no era"
-  - optionText: La correcta :v
+    feedbackText: Incorrecto, debes evacuar.
+  - optionText: Evacuar al punto seguro
     isCorrect: 1
-    feedbackText: Muy inteligente
-  advancesStageOnCorrect: 1
+    feedbackText: "\xA1Correcto! El punto de evacuaci\xF3n salva vidas."
+  - optionText: Ignorar la alerta
+    isCorrect: 0
+    feedbackText: Nunca ignores una alerta oficial.
+  advancesStageOnCorrect: 0
   correctAnswerDelay: 1.5
