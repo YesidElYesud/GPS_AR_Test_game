@@ -204,19 +204,25 @@ public class HotspotController : MonoBehaviour
                 break;
 
             case HotspotActionType.NpcConversation:
-                // ── Sistema 9: NpcDialoguePanel (pendiente de implementación) ──
-                // Cuando esté implementado, sustituir estas líneas por:
-                //   NpcDialoguePanel.Instance.Show(data.dialogueData, this);
-                Debug.Log($"[Hotspot] '{data.title}' → NpcConversation (Sistema 9 pendiente). Usando InfoPanel.");
-                OpenInfoPanel();
+                if (NpcDialoguePanel.Instance != null)
+                    NpcDialoguePanel.Instance.Show(data.dialogueData, this);
+                else
+                {
+                    Debug.LogWarning($"[Hotspot] '{data.title}' → NpcDialoguePanel no encontrado en escena. Usando InfoPanel.");
+                    OpenInfoPanel();
+                }
                 break;
 
             case HotspotActionType.SiataCall:
-                // ── Sistema 10: SiataCallPanel (pendiente de implementación) ──
-                // Cuando esté implementado, sustituir estas líneas por:
-                //   SiataCallPanel.Instance.Show(data.dialogueData, this);
-                Debug.Log($"[Hotspot] '{data.title}' → SiataCall (Sistema 10 pendiente). Usando InfoPanel.");
-                OpenInfoPanel();
+                // Sistema 10 implementará SiataCallPanel con estética de llamada.
+                // Por ahora usa NpcDialoguePanel (misma lógica de decisión, visual distinto después).
+                if (NpcDialoguePanel.Instance != null)
+                    NpcDialoguePanel.Instance.Show(data.dialogueData, this);
+                else
+                {
+                    Debug.LogWarning($"[Hotspot] '{data.title}' → NpcDialoguePanel no encontrado (SiataCall fallback). Usando InfoPanel.");
+                    OpenInfoPanel();
+                }
                 break;
         }
     }
