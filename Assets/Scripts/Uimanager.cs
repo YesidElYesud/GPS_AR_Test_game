@@ -23,6 +23,7 @@ public class UIManager : MonoBehaviour
     public Button toggleJoystickButton;
     public Button recalibrateButton;
     public Button permissionGrantButton;
+    public Button calibrationPanelButton;
 
     [Header("Referencia de cámara")]
     [Tooltip("Arrastra aquí la Main Camera (que tiene ARCameraController)")]
@@ -44,6 +45,7 @@ public class UIManager : MonoBehaviour
         if (toggleJoystickButton  != null) toggleJoystickButton.onClick.AddListener(OnToggleJoystick);
         if (recalibrateButton     != null) recalibrateButton.onClick.AddListener(OnRecalibrate);
         if (permissionGrantButton != null) permissionGrantButton.onClick.AddListener(OnPermissionGrant);
+        if (calibrationPanelButton != null) calibrationPanelButton.onClick.AddListener(OnOpenCalibration);
 
         // Suscribirse al StageManager para actualizar UI en cada cambio de etapa
         if (StageManager.Instance != null)
@@ -149,6 +151,12 @@ public class UIManager : MonoBehaviour
     {
         if (cameraController != null)
             cameraController.Recalibrate();
+    }
+
+    private void OnOpenCalibration()
+    {
+        if (SensorCalibrationPanel.Instance != null)
+            SensorCalibrationPanel.Instance.Show();
     }
 
     private void OnPermissionGrant() => RequestGyroPermissionJS();

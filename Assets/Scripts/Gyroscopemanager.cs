@@ -23,10 +23,19 @@ public class GyroscopeManager : MonoBehaviour
     private Quaternion _target       = Quaternion.identity;
     private bool       _hasFirstRead = false;
 
-    // Offset de calibración: se fija en la primera lectura para que
+    // Offset de calibración automática: se fija en la primera lectura para que
     // "donde apunta el teléfono al inicio" sea el frente de la escena.
     private Quaternion _calibrationOffset = Quaternion.identity;
     private bool       _calibrated        = false;
+
+    // Offset manual (Euler) aplicado encima de la calibración automática.
+    // Permite corregir desviaciones de Pitch / Yaw / Roll por dispositivo.
+    // Persiste en PlayerPrefs entre sesiones.
+    private Vector3 _eulerOffset = Vector3.zero;
+
+    private const string PREF_PITCH = "Gyro_PitchOffset";
+    private const string PREF_YAW   = "Gyro_YawOffset";
+    private const string PREF_ROLL  = "Gyro_RollOffset";
 
     private void Awake()
     {
@@ -40,6 +49,8 @@ public class GyroscopeManager : MonoBehaviour
         IsAvailable = Gyro_IsAvailable() == 1;
         if (IsAvailable) Gyro_StartListening();
         else Debug.LogWarning("[Gyro] No disponible.");
+
+        LoadSavedOffset();
     }
 
     private void Update()
@@ -49,6 +60,26 @@ public class GyroscopeManager : MonoBehaviour
     }
 
     private void OnDestroy() { if (IsAvailable) Gyro_StopListening(); }
+
+    // ── Offset manual ─────────────────────────────────────────────────────────
+    public Vector3 GetEulerOffset() => _eulerOffset;
+
+    public void SetOffset(float pitch, float roll, float yaw)
+    {
+        _eulerOffset = new Vector3(pitch, yaw, roll);
+        PlayerPrefs.SetFloat(PREF_PITCH, pitch);
+        PlayerPrefs.SetFloat(PREF_YAW,   yaw);
+        PlayerPrefs.SetFloat(PREF_ROLL,  roll);
+        PlayerPrefs.Save();
+    }
+
+    private void LoadSavedOffset()
+    {
+        float pitch = PlayerPrefs.GetFloat(PREF_PITCH, 0f);
+        float yaw   = PlayerPrefs.GetFloat(PREF_YAW,   0f);
+        float roll  = PlayerPrefs.GetFloat(PREF_ROLL,  0f);
+        _eulerOffset = new Vector3(pitch, yaw, roll);
+    }
 
     public void Recalibrate()
     {
@@ -104,6 +135,10 @@ public class GyroscopeManager : MonoBehaviour
 
             // Aplicar offset de calibración
             _target = qUnity * _calibrationOffset;
+
+            // Aplicar offset manual (ajuste fino por dispositivo)
+            if (_eulerOffset != Vector3.zero)
+                _target = _target * Quaternion.Euler(_eulerOffset);
 
             if (!_hasFirstRead)
             {

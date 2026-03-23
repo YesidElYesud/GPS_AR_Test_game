@@ -205,7 +205,10 @@ public class HotspotController : MonoBehaviour
 
             case HotspotActionType.NpcConversation:
                 if (NpcDialoguePanel.Instance != null)
+                {
+                    _isPanelOpen = true;
                     NpcDialoguePanel.Instance.Show(data.dialogueData, this);
+                }
                 else
                 {
                     Debug.LogWarning($"[Hotspot] '{data.title}' → NpcDialoguePanel no encontrado en escena. Usando InfoPanel.");
@@ -214,10 +217,11 @@ public class HotspotController : MonoBehaviour
                 break;
 
             case HotspotActionType.SiataCall:
-                // Sistema 10 implementará SiataCallPanel con estética de llamada.
-                // Por ahora usa NpcDialoguePanel (misma lógica de decisión, visual distinto después).
                 if (NpcDialoguePanel.Instance != null)
+                {
+                    _isPanelOpen = true;
                     NpcDialoguePanel.Instance.Show(data.dialogueData, this);
+                }
                 else
                 {
                     Debug.LogWarning($"[Hotspot] '{data.title}' → NpcDialoguePanel no encontrado (SiataCall fallback). Usando InfoPanel.");
