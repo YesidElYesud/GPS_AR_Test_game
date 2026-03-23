@@ -217,14 +217,21 @@ public class HotspotController : MonoBehaviour
                 break;
 
             case HotspotActionType.SiataCall:
-                if (NpcDialoguePanel.Instance != null)
+                if (SiataCallPanel.Instance != null)
                 {
+                    _isPanelOpen = true;
+                    SiataCallPanel.Instance.Show(data.dialogueData, this);
+                }
+                else if (NpcDialoguePanel.Instance != null)
+                {
+                    // Fallback: NpcDialoguePanel mientras SiataCallPanel no esté en escena
+                    Debug.LogWarning($"[Hotspot] '{data.title}' → SiataCallPanel no encontrado. Usando NpcDialoguePanel.");
                     _isPanelOpen = true;
                     NpcDialoguePanel.Instance.Show(data.dialogueData, this);
                 }
                 else
                 {
-                    Debug.LogWarning($"[Hotspot] '{data.title}' → NpcDialoguePanel no encontrado (SiataCall fallback). Usando InfoPanel.");
+                    Debug.LogWarning($"[Hotspot] '{data.title}' → SiataCallPanel y NpcDialoguePanel no encontrados. Usando InfoPanel.");
                     OpenInfoPanel();
                 }
                 break;
