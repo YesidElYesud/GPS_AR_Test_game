@@ -1,27 +1,32 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// NpcDialoguePanel — Panel de conversación con NPC y selección de opciones múltiples.
+/// NpcDialoguePanel v2 — Panel de conversación con NPC.
 ///
-/// Responsabilidades:
+/// Responsabilidades de ESTE script:
 ///   - Mostrar foto, nombre y texto del NPC.
-///   - Generar dinámicamente los botones de opción desde NpcDialogueData.options.
-///   - Al responder correctamente: feedback verde → espera → NextStage() → cierra.
-///   - Al responder incorrectamente: feedback rojo → botón "Intentar de nuevo".
-///   - Bloquea/desbloquea el input del jugador mientras está activo.
+///   - Delegar toda la lógica de opciones a MultipleChoicePanel (campo choicePanel).
+///   - Bloquear/desbloquear el input del jugador.
+///   - Al responder correctamente: esperar correctAnswerDelay → NextStage() → cerrar.
+///   - Al responder incorrectamente: solo registrarlo (MultipleChoicePanel ya muestra feedback).
 ///
-/// También recibe llamadas de tipo SiataCall (misma lógica, visual diferente en Sistema 10).
+/// Singleton para ser llamado desde HotspotController.
 ///
-/// Setup en editor:
-///   1. Crear panel hijo del Canvas llamado "NpcDialoguePanel" (inactivo por defecto).
-///   2. Adjuntar este script al panel.
-///   3. Crear y asignar un prefab "OptionButton" con Button + TextMeshProUGUI hijo.
-///   4. Asignar todos los campos desde el Inspector.
-///   5. En HotspotData (tipo NpcConversation), asignar el NpcDialogueData correspondiente.
+/// Jerarquía sugerida en Canvas:
+///   NpcDialoguePanel  (inactivo por defecto)
+///   ├── NpcInfoRow
+///   │   ├── NpcPhoto        (Image)
+///   │   └── NpcName         (TextMeshProUGUI)
+///   ├── DialogueText        (TextMeshProUGUI)
+///   └── MultipleChoicePanelGO  ← MultipleChoicePanel.cs aquí
+///       ├── OptionsContainer   (Vertical Layout Group)
+///       ├── FeedbackSection
+///       │   ├── FeedbackBG     (Image)
+///       │   ├── FeedbackText   (TextMeshProUGUI)
+///       │   └── RetryButton    (Button)
 /// </summary>
 public class NpcDialoguePanel : MonoBehaviour
 {
@@ -30,83 +35,44 @@ public class NpcDialoguePanel : MonoBehaviour
 
     // ── Inspector: NPC ────────────────────────────────────────────────────────
     [Header("Sección NPC")]
-    [Tooltip("Image que muestra la foto/sprite del NPC. Se oculta si el NPC no tiene foto.")]
+    [Tooltip("Imagen del NPC. Se oculta automáticamente si el NpcDialogueData no tiene foto.")]
     public Image npcPhoto;
 
-    [Tooltip("Texto con el nombre del NPC")]
+    [Tooltip("Nombre del NPC.")]
     public TextMeshProUGUI npcNameText;
 
-    [Tooltip("Texto principal del diálogo del NPC")]
+    [Tooltip("Texto principal del diálogo.")]
     public TextMeshProUGUI dialogueText;
 
-    // ── Inspector: Opciones ───────────────────────────────────────────────────
-    [Header("Sección de opciones")]
-    [Tooltip("GameObject padre que contiene los botones de opción generados.\n" +
-             "Se oculta cuando se muestra el feedback.")]
-    public GameObject optionsSection;
-
-    [Tooltip("Transform que actúa como contenedor (Layout Group) para los botones generados.")]
-    public Transform optionsContainer;
-
-    [Tooltip("Prefab del botón de opción. Debe tener:\n" +
-             "  • Button component en la raíz\n" +
-             "  • TextMeshProUGUI hijo (para el texto de la opción)")]
-    public GameObject optionButtonPrefab;
-
-    // ── Inspector: Feedback ───────────────────────────────────────────────────
-    [Header("Sección de feedback")]
-    [Tooltip("GameObject que contiene el feedback. Se activa tras responder.")]
-    public GameObject feedbackSection;
-
-    [Tooltip("Texto explicativo del feedback (correcto o incorrecto)")]
-    public TextMeshProUGUI feedbackText;
-
-    [Tooltip("Image de fondo del feedback (cambia de color según la respuesta)")]
-    public Image feedbackBackground;
-
-    [Tooltip("Botón 'Intentar de nuevo'. Solo visible tras respuesta incorrecta.")]
-    public Button retryButton;
-
-    // ── Inspector: Colores ────────────────────────────────────────────────────
-    [Header("Colores de feedback")]
-    public Color correctColor   = new Color(0.13f, 0.69f, 0.30f, 0.95f);
-    public Color incorrectColor = new Color(0.78f, 0.18f, 0.18f, 0.95f);
+    // ── Inspector: Opciones múltiples ─────────────────────────────────────────
+    [Header("Panel de opciones múltiples")]
+    [Tooltip("Componente hijo que maneja la generación de botones, feedback y reintento.")]
+    public MultipleChoicePanel choicePanel;
 
     // ── Internos ──────────────────────────────────────────────────────────────
-    private NpcDialogueData       _currentData;
-    private HotspotController     _sourceHotspot;
-    private List<GameObject>      _spawnedButtons = new List<GameObject>();
-    private Coroutine             _correctAnswerCoroutine;
+    private NpcDialogueData   _currentData;
+    private HotspotController _sourceHotspot;
+    private Coroutine         _correctRoutine;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
+        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
         gameObject.SetActive(false);
-    }
-
-    private void Start()
-    {
-        if (retryButton != null)
-            retryButton.onClick.AddListener(OnRetry);
     }
 
     // ── API pública ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Abre el panel con los datos del NpcDialogueData indicado.
-    /// Llamado desde HotspotController cuando actionType = NpcConversation o SiataCall.
+    /// Muestra el panel con los datos del diálogo indicado.
+    /// Llamado desde HotspotController (NpcConversation y SiataCall).
     /// </summary>
     public void Show(NpcDialogueData data, HotspotController source)
     {
         if (data == null)
         {
-            Debug.LogWarning("[NpcDialoguePanel] NpcDialogueData es null. No se puede mostrar el panel.");
+            Debug.LogWarning("[NpcDialoguePanel] NpcDialogueData es null.");
             return;
         }
 
@@ -114,21 +80,26 @@ public class NpcDialoguePanel : MonoBehaviour
         _sourceHotspot = source;
 
         PopulateNpcInfo();
-        ShowOptionsSection();
+        SetupChoicePanel();
+
         gameObject.SetActive(true);
         BlockInput(true);
     }
 
-    /// <summary>Cierra el panel y desbloquea el input.</summary>
+    /// <summary>Cierra el panel, limpia el estado y desbloquea el input.</summary>
     public void Hide()
     {
-        if (_correctAnswerCoroutine != null)
+        if (_correctRoutine != null)
         {
-            StopCoroutine(_correctAnswerCoroutine);
-            _correctAnswerCoroutine = null;
+            StopCoroutine(_correctRoutine);
+            _correctRoutine = null;
         }
 
-        ClearSpawnedButtons();
+        // Desconectar eventos para evitar dobles disparos
+        UnsubscribeChoiceEvents();
+
+        if (choicePanel != null) choicePanel.Clear();
+
         BlockInput(false);
 
         if (_sourceHotspot != null)
@@ -146,86 +117,52 @@ public class NpcDialoguePanel : MonoBehaviour
     {
         if (_currentData == null) return;
 
-        // Foto del NPC
+        bool hasPhoto = _currentData.npcPhoto != null;
         if (npcPhoto != null)
         {
-            bool hasPhoto = _currentData.npcPhoto != null;
             npcPhoto.gameObject.SetActive(hasPhoto);
             if (hasPhoto) npcPhoto.sprite = _currentData.npcPhoto;
         }
 
-        // Nombre
-        if (npcNameText != null)
-            npcNameText.text = _currentData.npcName;
-
-        // Texto de diálogo
-        if (dialogueText != null)
-            dialogueText.text = _currentData.npcText;
+        if (npcNameText  != null) npcNameText.text  = _currentData.npcName;
+        if (dialogueText != null) dialogueText.text  = _currentData.npcText;
     }
 
-    private void ShowOptionsSection()
+    // ── Configuración de opciones ─────────────────────────────────────────────
+    private void SetupChoicePanel()
     {
-        ClearSpawnedButtons();
-
-        if (optionsSection  != null) optionsSection.SetActive(true);
-        if (feedbackSection != null) feedbackSection.SetActive(false);
-
-        if (_currentData.options == null || _currentData.options.Length == 0)
+        if (choicePanel == null)
         {
-            Debug.LogWarning($"[NpcDialoguePanel] '{_currentData.npcName}' no tiene opciones configuradas.");
+            Debug.LogWarning("[NpcDialoguePanel] choicePanel no asignado en el Inspector.");
             return;
         }
 
-        foreach (DialogueOption option in _currentData.options)
-        {
-            if (optionButtonPrefab == null || optionsContainer == null) break;
+        // Suscribir antes de SetOptions para que los eventos estén listos
+        UnsubscribeChoiceEvents();
+        choicePanel.OnCorrect += HandleCorrectAnswer;
+        choicePanel.OnWrong   += HandleWrongAnswer;
 
-            GameObject btnGo = Instantiate(optionButtonPrefab, optionsContainer);
-            _spawnedButtons.Add(btnGo);
-
-            // Asignar texto al botón
-            TextMeshProUGUI label = btnGo.GetComponentInChildren<TextMeshProUGUI>();
-            if (label != null) label.text = option.optionText;
-
-            // Capturar la opción en una variable local para el closure del lambda
-            DialogueOption captured = option;
-            Button btn = btnGo.GetComponent<Button>();
-            if (btn != null)
-                btn.onClick.AddListener(() => OnOptionSelected(captured));
-        }
+        choicePanel.SetOptions(_currentData.options);
     }
 
-    private void ClearSpawnedButtons()
+    private void UnsubscribeChoiceEvents()
     {
-        foreach (GameObject go in _spawnedButtons)
-            if (go != null) Destroy(go);
-        _spawnedButtons.Clear();
+        if (choicePanel == null) return;
+        choicePanel.OnCorrect -= HandleCorrectAnswer;
+        choicePanel.OnWrong   -= HandleWrongAnswer;
     }
 
-    // ── Lógica de selección ───────────────────────────────────────────────────
-    private void OnOptionSelected(DialogueOption option)
+    // ── Respuestas ────────────────────────────────────────────────────────────
+    private void HandleCorrectAnswer()
     {
-        // Cambiar a sección de feedback
-        if (optionsSection  != null) optionsSection.SetActive(false);
-        if (feedbackSection != null) feedbackSection.SetActive(true);
+        _correctRoutine = StartCoroutine(CorrectAnswerRoutine());
+    }
 
-        // Texto de feedback
-        if (feedbackText != null)
-            feedbackText.text = option.feedbackText;
-
-        if (option.isCorrect)
-        {
-            // Feedback verde — avanzar etapa tras pausa
-            if (feedbackBackground != null) feedbackBackground.color = correctColor;
-            if (retryButton        != null) retryButton.gameObject.SetActive(false);
-            _correctAnswerCoroutine = StartCoroutine(CorrectAnswerRoutine());
-        }
-        else
-        {
-            // Feedback rojo — permitir reintento
-            if (feedbackBackground != null) feedbackBackground.color = incorrectColor;
-            if (retryButton        != null) retryButton.gameObject.SetActive(true);
-        }
+    private void HandleWrongAnswer()
+    {
+        // MultipleChoicePanel ya muestra el feedback rojo y el botón de reintento.
+        // Aquí se pueden agregar efectos adicionales si son necesarios (audio, vibración, etc.)
+        Debug.Log("[NpcDialoguePanel] Respuesta incorrecta.");
     }
 
     private IEnumerator CorrectAnswerRoutine()
@@ -240,11 +177,6 @@ public class NpcDialoguePanel : MonoBehaviour
         }
 
         Hide();
-    }
-
-    private void OnRetry()
-    {
-        ShowOptionsSection();
     }
 
     // ── Input ─────────────────────────────────────────────────────────────────
