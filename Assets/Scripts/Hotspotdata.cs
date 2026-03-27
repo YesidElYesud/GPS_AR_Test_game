@@ -56,8 +56,15 @@ public class HotspotData : ScriptableObject
     public HotspotActionType actionType = HotspotActionType.InfoPanel;
 
     [Header("Datos según tipo de acción")]
-    [Tooltip("Video a reproducir. Solo se usa cuando actionType = Cinematic.")]
+    [Tooltip("VideoClip a reproducir en editor/standalone. Solo se usa cuando actionType = Cinematic.")]
     public VideoClip cinematicClip;
+
+    [Tooltip("URL del video para WebGL (streaming). Requerida en builds WebGL porque VideoClip no es compatible.\n" +
+             "Ejemplo: 'StreamingAssets/Videos/clip.mp4' o URL remota HTTPS.")]
+    public string cinematicUrl = "";
+
+    [Tooltip("Si es true, al terminar (o saltar) la cinemática se avanza a la siguiente etapa.")]
+    public bool cinematicAdvancesStage = true;
 
     [Tooltip("Datos del diálogo. Solo se usa cuando actionType = NpcConversation o SiataCall.")]
     public NpcDialogueData dialogueData;

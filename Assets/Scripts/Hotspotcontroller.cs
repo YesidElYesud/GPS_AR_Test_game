@@ -196,11 +196,16 @@ public class HotspotController : MonoBehaviour
                 break;
 
             case HotspotActionType.Cinematic:
-                // ── Sistema 6: CinematicManager (pendiente de implementación) ──
-                // Cuando esté implementado, sustituir estas líneas por:
-                //   CinematicManager.Instance.Play(data.cinematicClip);
-                Debug.Log($"[Hotspot] '{data.title}' → Cinematic (Sistema 6 pendiente). Usando InfoPanel.");
-                OpenInfoPanel();
+                if (CinematicManager.Instance != null)
+                {
+                    _isPanelOpen = true;
+                    CinematicManager.Instance.Play(data, this);
+                }
+                else
+                {
+                    Debug.LogWarning($"[Hotspot] '{data.title}' → CinematicManager no encontrado en escena. Usando InfoPanel.");
+                    OpenInfoPanel();
+                }
                 break;
 
             case HotspotActionType.NpcConversation:
