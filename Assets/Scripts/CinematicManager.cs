@@ -158,7 +158,7 @@ public class CinematicManager : MonoBehaviour
         if (hasUrl)
         {
             videoPlayer.source = VideoSource.Url;
-            videoPlayer.url    = data.cinematicUrl;
+            videoPlayer.url    = ResolveUrl(data.cinematicUrl);
         }
         else
         {
@@ -176,7 +176,7 @@ public class CinematicManager : MonoBehaviour
         else
         {
             videoPlayer.source = VideoSource.Url;
-            videoPlayer.url    = data.cinematicUrl;
+            videoPlayer.url    = ResolveUrl(data.cinematicUrl);
         }
 #endif
 
@@ -200,6 +200,34 @@ public class CinematicManager : MonoBehaviour
     private void OnFinished(VideoPlayer vp)
     {
         FinishCinematic();
+    }
+
+    // ── Resolución de URL ─────────────────────────────────────────────────────
+    /// <summary>
+    /// Convierte paths relativos de StreamingAssets en URLs absolutas.
+    /// - WebGL/builds: http://host/StreamingAssets/...
+    /// - Editor/standalone: file:///ruta/absoluta/...
+    /// URLs que ya empiezan con http/https/file se devuelven sin cambios.
+    /// </summary>
+    private string ResolveUrl(string url)
+    {
+        if (string.IsNullOrEmpty(url)) return url;
+        if (url.StartsWith("http://") || url.StartsWith("https://") || url.StartsWith("file://")) return url;
+
+        // Quitar prefijo "StreamingAssets/" si el usuario lo incluyó
+        string relative = url.StartsWith("StreamingAssets/")
+            ? url.Substring("StreamingAssets/".Length)
+            : url;
+
+        string basePath = Application.streamingAssetsPath;
+
+#if UNITY_EDITOR || UNITY_STANDALONE
+        // En editor/standalone el path es del sistema de archivos → necesita file://
+        return "file://" + basePath + "/" + relative;
+#else
+        // En WebGL streamingAssetsPath ya es una URL http completa
+        return basePath + "/" + relative;
+#endif
     }
 
     // ── Cierre y limpieza ─────────────────────────────────────────────────────

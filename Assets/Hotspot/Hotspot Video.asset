@@ -12,12 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1ef9622e3be7f0cdd8d063b28538a030, type: 3}
   m_Name: Hotspot Video
   m_EditorClassIdentifier: 
-  title: Hotspot
+  title: HS Video
   description: "Informaci\xF3n del hotspot."
   icon: {fileID: 0}
   actionType: 1
   cinematicClip: {fileID: 0}
-  cinematicUrl: 
+  cinematicUrl: StreamingAssets/Videos/PatoCorriendo.mp4
   cinematicAdvancesStage: 1
   dialogueData: {fileID: 0}
   triggerRadius: 3

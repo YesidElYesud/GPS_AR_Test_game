@@ -8,6 +8,7 @@ using UnityEngine;
 /// - SetInputBlocked(true) congela rotación y movimiento (usado por StageManager).
 /// </summary>
 [RequireComponent(typeof(Camera))]
+[RequireComponent(typeof(CharacterController))]
 public class ARCameraController : MonoBehaviour
 {
     [Header("Referencias")]
@@ -25,20 +26,35 @@ public class ARCameraController : MonoBehaviour
     [Tooltip("Velocidad de movimiento con joystick (unidades/segundo)")]
     public float joystickSpeed = 5f;
 
+    [Header("Teclado PC (WASD)")]
+    [Tooltip("Velocidad de movimiento con teclado WASD (unidades/segundo)")]
+    public float wasdSpeed = 5f;
+
+    [Tooltip("Sensibilidad del mouse para rotar cámara en PC (cuando no hay giroscopio)")]
+    public float mouseLookSensitivity = 3f;
+
     [Header("Modo")]
     [Tooltip("Forzar modo joystick aunque haya GPS. Útil para pruebas en editor.")]
     public bool forceJoystick = false;
 
+    [Header("Física / Terreno")]
+    [Tooltip("Gravedad aplicada al jugador (valor negativo). -20 es más responsivo que -9.8.")]
+    public float gravity = -20f;
+
     // ── Internos ──────────────────────────────────────────────────────────────
-    private Camera  _camera;
-    private Vector3 _cameraOrigin;
-    private bool    _arObjectPlaced = false;
-    private bool    _inputBlocked   = false;
+    private Camera            _camera;
+    private CharacterController _cc;
+    private Vector3           _cameraOrigin;
+    private bool              _arObjectPlaced   = false;
+    private bool              _inputBlocked     = false;
+    private float             _mlYaw, _mlPitch; // mouse look acumulado
+    private float             _verticalVelocity = 0f;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
     {
         _camera = GetComponent<Camera>();
+        _cc     = GetComponent<CharacterController>();
         _camera.clearFlags  = CameraClearFlags.Skybox;
         _camera.fieldOfView = 60f;
         _camera.depth       = 0;
@@ -66,22 +82,48 @@ public class ARCameraController : MonoBehaviour
         ApplyMovement();
     }
 
-    // ── Rotación: giroscopio en dispositivo, mouse en editor ──────────────────
+    // ── Rotación: giroscopio en dispositivo, mouse look en PC ─────────────────
     private void ApplyRotation()
     {
         if (_inputBlocked) return;
-        if (GyroscopeManager.Instance == null || !GyroscopeManager.Instance.IsAvailable) return;
-        transform.rotation = GyroscopeManager.Instance.DeviceRotation;
+
+        bool gyroOk = GyroscopeManager.Instance != null && GyroscopeManager.Instance.IsAvailable;
+        if (gyroOk)
+        {
+            transform.rotation = GyroscopeManager.Instance.DeviceRotation;
+            return;
+        }
+
+        // Sin giroscopio (PC): mouse look con botón derecho o arrastre
+        if (Input.GetMouseButton(1) || Input.GetMouseButton(0) && !IsPointerOverUI())
+        {
+            _mlYaw   += Input.GetAxis("Mouse X") * mouseLookSensitivity;
+            _mlPitch -= Input.GetAxis("Mouse Y") * mouseLookSensitivity;
+            _mlPitch  = Mathf.Clamp(_mlPitch, -89f, 89f);
+            transform.rotation = Quaternion.Euler(_mlPitch, _mlYaw, 0f);
+        }
+    }
+
+    private bool IsPointerOverUI()
+    {
+        return UnityEngine.EventSystems.EventSystem.current != null
+            && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
     }
 
     // ── Movimiento ────────────────────────────────────────────────────────────
     private void ApplyMovement()
     {
-        if (_inputBlocked) return;
         bool gpsOk = !forceJoystick
                   && GPSManager.Instance != null
                   && GPSManager.Instance.IsAvailable
                   && GPSManager.Instance.HasOrigin;
+
+        if (_inputBlocked)
+        {
+            // Sin input horizontal pero con gravedad activa para no flotar
+            ApplyGravityAndMove(Vector3.zero);
+            return;
+        }
 
         if (gpsOk) MoveCameraByGPS();
         else        MoveCameraByJoystick();
@@ -94,15 +136,34 @@ public class ARCameraController : MonoBehaviour
             _cameraOrigin.x + disp.x,
             transform.position.y,
             _cameraOrigin.z + disp.y);
-        transform.position = Vector3.Lerp(transform.position, target, Time.deltaTime * 2f);
+
+        // Delta horizontal hacia el target GPS (la Y la maneja la gravedad)
+        Vector3 delta = Vector3.Lerp(transform.position, target, Time.deltaTime * 2f)
+                      - transform.position;
+        delta.y = 0f;
+
+        ApplyGravityAndMove(delta);
     }
 
     private void MoveCameraByJoystick()
     {
-        if (joystickController == null) return;
+        // Joystick táctil
+        Vector2 joystickInput = joystickController != null
+            ? joystickController.InputDirection
+            : Vector2.zero;
 
-        Vector2 input = joystickController.InputDirection;
-        if (input.sqrMagnitude < 0.01f) return;
+        // Teclado WASD / flechas (funciona en editor y WebGL)
+        Vector2 wasdInput = new Vector2(
+            Input.GetAxis("Horizontal"),
+            Input.GetAxis("Vertical"));
+
+        // Combinar y limitar magnitud a 1 para que no se sumen velocidades
+        Vector2 input = Vector2.ClampMagnitude(joystickInput + wasdInput, 1f);
+
+        // Velocidad: joystick si viene del táctil, wasd si viene del teclado
+        float speed = joystickInput.sqrMagnitude > wasdInput.sqrMagnitude
+            ? joystickSpeed
+            : wasdSpeed;
 
         // Dirección basada en el yaw actual de la cámara (ignora pitch/roll)
         float   yaw     = transform.eulerAngles.y;
@@ -110,8 +171,25 @@ public class ARCameraController : MonoBehaviour
         Vector3 forward = new Vector3( Mathf.Sin(rad), 0f,  Mathf.Cos(rad));
         Vector3 right   = new Vector3( Mathf.Cos(rad), 0f, -Mathf.Sin(rad));
 
-        transform.position += (forward * input.y + right * input.x)
-                            * joystickSpeed * Time.deltaTime;
+        Vector3 horizontal = (forward * input.y + right * input.x) * speed * Time.deltaTime;
+        ApplyGravityAndMove(horizontal);
+    }
+
+    /// <summary>
+    /// Aplica el movimiento horizontal más gravedad acumulada usando CharacterController.
+    /// Maneja pendientes y desniveles automáticamente.
+    /// </summary>
+    private void ApplyGravityAndMove(Vector3 horizontalDelta)
+    {
+        if (_cc == null) return;
+
+        if (_cc.isGrounded && _verticalVelocity < 0f)
+            _verticalVelocity = -2f;   // pequeña fuerza constante para mantenerse anclado al suelo
+        else
+            _verticalVelocity += gravity * Time.deltaTime;
+
+        horizontalDelta.y = _verticalVelocity * Time.deltaTime;
+        _cc.Move(horizontalDelta);
     }
 
     // ── Objeto AR ─────────────────────────────────────────────────────────────
@@ -154,17 +232,4 @@ public class ARCameraController : MonoBehaviour
         Debug.Log("[AR] Recalibrado.");
     }
 
-    // ── Editor: rotar con botón derecho del mouse ─────────────────────────────
-#if UNITY_EDITOR
-    private float _eYaw, _ePitch;
-    private void Update()
-    {
-        if (_inputBlocked) return;
-        if (!Input.GetMouseButton(1)) return;
-        _eYaw   += Input.GetAxis("Mouse X") * 3f;
-        _ePitch -= Input.GetAxis("Mouse Y") * 3f;
-        _ePitch  = Mathf.Clamp(_ePitch, -89f, 89f);
-        transform.rotation = Quaternion.Euler(_ePitch, _eYaw, 0f);
-    }
-#endif
 }
