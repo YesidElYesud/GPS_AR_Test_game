@@ -14,6 +14,7 @@ Documentación del proyecto **Sistema de Alerta Temprana Comunitaria (SATCS)**.
 | [04_CREAR_ESCENA.md](04_CREAR_ESCENA.md) | Guía paso a paso para construir una escena desde cero |
 | [05_FLUJO_TRABAJO.md](05_FLUJO_TRABAJO.md) | Recetas prácticas: agregar hotspot, diálogo, video, audio, etapa |
 | [06_LIMITACIONES.md](06_LIMITACIONES.md) | Restricciones de plataforma, bugs conocidos, sistemas pendientes, FAQ |
+| [07_DESPLIEGUE.md](07_DESPLIEGUE.md) | Build WebGL, hosting (GitHub Pages, cPanel, VPS Nginx/Apache), HTTPS, checklist |
 
 ---
 
@@ -30,6 +31,9 @@ Documentación del proyecto **Sistema de Alerta Temprana Comunitaria (SATCS)**.
 
 **Tengo un problema técnico:**
 → Ver [06_LIMITACIONES.md — Preguntas frecuentes](06_LIMITACIONES.md#preguntas-frecuentes)
+
+**Quiero publicar el juego en un servidor:**
+→ Ver [07_DESPLIEGUE.md](07_DESPLIEGUE.md)
 
 ---
 

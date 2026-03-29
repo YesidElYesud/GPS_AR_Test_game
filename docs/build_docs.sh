@@ -4,20 +4,21 @@
 # CONFIGURACIÓN
 # ============================================
 
-OUTPUT="Documentacion_Unity.pdf"
+OUTPUT="Documentacion_Unity_SATC.pdf"
 TITLE="Documentación Técnica - Proyecto Unity"
-AUTHOR="Overwatch SAS"
+PROJECT="Experiencia educativa AR/VR sobre alertas tempranas comunitarias."
+AUTHOR="Equipo DEV Uni. Pascual Bravo"
 DATE=$(date +"%d de %B de %Y")
 
 # Archivos en orden (importante para la narrativa)
 FILES=(
   01_OVERVIEW.md
+  07_DESPLIEGUE.md
   02_ARQUITECTURA.md
   03_SCRIPTS.md
   04_CREAR_ESCENA.md
   05_FLUJO_TRABAJO.md
   06_LIMITACIONES.md
-  README.md
 )
 
 # ============================================
@@ -56,6 +57,7 @@ pandoc "${FILES[@]}" \
   -V sansfont="DejaVu Sans" \
   -V monofont="DejaVu Sans Mono" \
   -V title="$TITLE" \
+  -V subtitle="$PROJECT"\
   -V author="$AUTHOR" \
   -V date="$DATE"
 
