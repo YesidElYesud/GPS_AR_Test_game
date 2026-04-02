@@ -8369,7 +8369,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Texture: {fileID: 0}
+  m_Texture: {fileID: 2800000, guid: a38f0fcac713950ba946b61f8472b09f, type: 3}
   m_UVRect:
     serializedVersion: 2
     x: 0
@@ -10869,6 +10869,10 @@ PrefabInstance:
     - target: {fileID: 6952631150263401002, guid: 6d5eb1566662bf36c979f9860638742b, type: 3}
       propertyPath: m_Name
       value: HotspotPanel
+      objectReference: {fileID: 0}
+    - target: {fileID: 6952631150263401002, guid: 6d5eb1566662bf36c979f9860638742b, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

@@ -49,8 +49,9 @@ public class HotspotUIPanel : MonoBehaviour
         if (closeButton != null)
             closeButton.onClick.AddListener(OnCloseClicked);
 
-        // El panel arranca oculto
-        SetPanelActive(false);
+        // No llamar SetPanelActive(false) aquí: si Show() activa el GameObject,
+        // Unity dispara Awake en ese mismo frame y lo volvería a desactivar.
+        // El panel arranca inactivo desde el prefab/escena.
     }
 
     // ── API pública ───────────────────────────────────────────────────────────

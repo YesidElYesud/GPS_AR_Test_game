@@ -28,6 +28,7 @@ public class HotspotController : MonoBehaviour
     private bool      _isNearby    = false;
     private bool      _isPanelOpen = false;
     private Vector3   _baseScale;
+    private int       _proximityTriggerFrame = -1; // frame en que la proximidad disparó DispatchAction
 
     // ── Gizmos en editor ──────────────────────────────────────────────────────
     private void OnDrawGizmosSelected()
@@ -140,6 +141,7 @@ public class HotspotController : MonoBehaviour
         if (nowNearby && !_isNearby)
         {
             _isNearby = true;
+            _proximityTriggerFrame = Time.frameCount;
             Debug.Log($"[Hotspot] Entrando en rango de: {data.title}");
             DispatchAction();
         }
@@ -154,6 +156,10 @@ public class HotspotController : MonoBehaviour
     // ── Clic / Tap ────────────────────────────────────────────────────────────
     private void CheckClick()
     {
+        // Ignorar clicks en el mismo frame que la proximidad disparó el panel,
+        // para evitar que el click de rotación de cámara cierre el panel recién abierto.
+        if (Time.frameCount == _proximityTriggerFrame) return;
+
         if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
 
         bool clicked = false;
