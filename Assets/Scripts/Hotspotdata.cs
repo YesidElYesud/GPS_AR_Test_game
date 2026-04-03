@@ -14,6 +14,20 @@ using UnityEngine.Video;
 /// Crear via: Assets > Create > AR > Hotspot Data
 /// </summary>
 
+// ── Nivel de riesgo (Sistema 5 + Sistema 13) ─────────────────────────────────
+/// <summary>
+/// Nivel de riesgo asociado a un hotspot o zona.
+/// Usado por HotspotUIPanel (badge de color) y RiskLevelIndicator (HUD).
+/// </summary>
+public enum RiskLevel
+{
+    None = 0,   // Sin nivel asignado — badge oculto
+    N1   = 1,   // Bajo     — verde
+    N2   = 2,   // Moderado — amarillo
+    N3   = 3,   // Alto     — naranja
+    N4   = 4,   // Crítico  — rojo
+}
+
 // ── Enum de tipo de acción ────────────────────────────────────────────────────
 public enum HotspotActionType
 {
@@ -81,6 +95,16 @@ public class HotspotData : ScriptableObject
              "-1 = visible en todas las etapas (comportamiento original).\n" +
              " 0 = solo en Intro,  1 = Etapa1,  2 = Etapa2,  etc.")]
     public int requiredStage = -1;
+
+    // ── Panel enriquecido ─────────────────────────────────────────────────────
+    [Header("Panel Enriquecido")]
+    [Tooltip("Imagen de cabecera mostrada en la parte superior del panel informativo.\n" +
+             "Opcional: si es null el header se oculta automáticamente.")]
+    public Sprite headerImage;
+
+    [Tooltip("Nivel de riesgo de esta zona. Controla el color del badge en el panel\n" +
+             "y será leído por el RiskLevelIndicator (HUD). None = badge oculto.")]
+    public RiskLevel riskLevel = RiskLevel.None;
 
     // ── Visual ────────────────────────────────────────────────────────────────
     [Header("Visual")]
