@@ -13,6 +13,9 @@ public class UIManager : MonoBehaviour
     [Tooltip("Panel del joystick virtual")]
     public GameObject joystickPanel;
 
+    [Tooltip("Panel de estado GPS. Se oculta cuando el joystick está activo.")]
+    public GameObject statusPanel;
+
     [Header("Textos de estado")]
     public TextMeshProUGUI gpsStatusText;
     public TextMeshProUGUI gyroStatusText;
@@ -135,6 +138,7 @@ public class UIManager : MonoBehaviour
     {
         _joystickActive = active;
         SetJoystickPanelVisible(active);
+        if (statusPanel != null) statusPanel.SetActive(!active);
         if (cameraController != null)
             cameraController.SetForceJoystick(active);
         UpdateModeText();

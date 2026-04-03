@@ -195,6 +195,10 @@ public class HotspotController : MonoBehaviour
     {
         if (data == null) return;
 
+        // Actualizar el indicador de nivel de riesgo si el hotspot tiene nivel asignado
+        if (data.riskLevel != RiskLevel.None && RiskLevelIndicator.Instance != null)
+            RiskLevelIndicator.Instance.SetLevel(data.riskLevel);
+
         switch (data.actionType)
         {
             case HotspotActionType.InfoPanel:
