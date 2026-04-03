@@ -91,52 +91,60 @@ public class GyroscopeManager : MonoBehaviour
     {
         try
         {
-            string[] p = data.Split(',');
-            if (p.Length < 3) return;
+            Quaternion qUnity;
 
-            float alpha = float.Parse(p[0], System.Globalization.CultureInfo.InvariantCulture);
-            float beta  = float.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture);
-            float gamma = float.Parse(p[2], System.Globalization.CultureInfo.InvariantCulture);
+            if (data.StartsWith("Q:"))
+            {
+                // ── Ruta A: AbsoluteOrientationSensor (Android Chrome) ─────────
+                // Recibe quaternion crudo [x,y,z,w] en espacio ENU (device→earth).
+                // Conversión directa sin pasar por Euler; elimina el gimbal lock
+                // que ocurría cuando beta ≈ 90° (teléfono apuntando al frente).
+                //
+                // Derivación validada:
+                //   - Teléfono en portrait apuntando Norte → sensor q ≈ (0.707,0,0,0.707)
+                //   - Euler(-90,0,0) * (0.707,0,0,0.707) = identity ✓ (cámara al frente)
+                //   - Teléfono apuntando Este → resultado = (0,0.707,0,0.707)
+                //     = 90° rotación Y en Unity = cámara mirando al Este ✓
+                string[] p = data.Substring(2).Split(',');
+                if (p.Length < 4) return;
 
-            // ── Conversión W3C DeviceOrientation → Unity ──────────────────────
-            //
-            // W3C define la orientación como rotaciones intrínsecas ZXY:
-            //   1. Rotar alpha alrededor de Z (yaw en pantalla plana)
-            //   2. Rotar beta  alrededor de X (pitch)
-            //   3. Rotar gamma alrededor de Y (roll)
-            //
-            // Para un teléfono en portrait vertical mirando al frente:
-            //   alpha = compass heading (0=Norte, 90=Este, CW desde arriba)
-            //   beta  = 90° cuando la pantalla mira al frente horizontal
-            //   gamma = 0° cuando está vertical sin inclinar
-            //
-            // Conversión a Unity (Y-up, Z-forward, mano derecha):
-            //   - Construimos el quaternion desde los ángulos W3C directamente
-            //   - Aplicamos corrección de ejes: W3C usa ENU, Unity usa Y-up Z-forward
+                float qx = float.Parse(p[0], System.Globalization.CultureInfo.InvariantCulture);
+                float qy = float.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture);
+                float qz = float.Parse(p[2], System.Globalization.CultureInfo.InvariantCulture);
+                float qw = float.Parse(p[3], System.Globalization.CultureInfo.InvariantCulture);
 
-            // Quaternion W3C en su sistema nativo
-            Quaternion qAlpha = Quaternion.AngleAxis(-alpha,         Vector3.forward); // Z
-            Quaternion qBeta  = Quaternion.AngleAxis(-beta,          Vector3.right);   // X
-            Quaternion qGamma = Quaternion.AngleAxis( gamma,         Vector3.up);      // Y
-            Quaternion qW3C   = qAlpha * qBeta * qGamma;
+                qUnity = Quaternion.Euler(-90f, 0f, 0f) * new Quaternion(qx, qy, qz, qw);
+            }
+            else
+            {
+                // ── Ruta B: DeviceOrientationEvent fallback (iOS Safari / PC) ──
+                // W3C define rotaciones intrínsecas ZXY:
+                //   alpha = compass heading (0=Norte, 90=Este)
+                //   beta  = 90° con pantalla mirando al frente
+                //   gamma = 0° sin inclinar lateralmente
+                string[] p = data.Split(',');
+                if (p.Length < 3) return;
 
-            // Corrección: rotar -90° en X para convertir de ENU a Unity
-            Quaternion correction = Quaternion.Euler(-90f, 0f, 0f);
-            Quaternion qUnity = correction * qW3C;
+                float alpha = float.Parse(p[0], System.Globalization.CultureInfo.InvariantCulture);
+                float beta  = float.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture);
+                float gamma = float.Parse(p[2], System.Globalization.CultureInfo.InvariantCulture);
 
-            // Calibración: en la primera lectura guardamos el offset inverso
-            // para que la posición inicial del teléfono sea "mirando al frente"
+                Quaternion qAlpha = Quaternion.AngleAxis(-alpha, Vector3.forward); // Z
+                Quaternion qBeta  = Quaternion.AngleAxis(-beta,  Vector3.right);   // X
+                Quaternion qGamma = Quaternion.AngleAxis( gamma, Vector3.up);      // Y
+                qUnity = Quaternion.Euler(-90f, 0f, 0f) * (qAlpha * qBeta * qGamma);
+            }
+
+            // ── Calibración y offsets (compartido por ambas rutas) ────────────
             if (!_calibrated)
             {
                 _calibrationOffset = Quaternion.Inverse(qUnity);
                 _calibrated = true;
-                Debug.Log($"[Gyro] Calibrado. a={alpha:F1} b={beta:F1} g={gamma:F1}");
+                Debug.Log($"[Gyro] Calibrado. Ruta: {(data.StartsWith("Q:") ? "quaternion" : "euler")}");
             }
 
-            // Aplicar offset de calibración
             _target = qUnity * _calibrationOffset;
 
-            // Aplicar offset manual (ajuste fino por dispositivo)
             if (_eulerOffset != Vector3.zero)
                 _target = _target * Quaternion.Euler(_eulerOffset);
 

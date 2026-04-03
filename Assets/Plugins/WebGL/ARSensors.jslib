@@ -56,19 +56,11 @@ mergeInto(LibraryManager.library, {
         var sensor = new AbsoluteOrientationSensor({ frequency: 60, referenceFrame: 'screen' });
         sensor.addEventListener('reading', function() {
           var q = sensor.quaternion; // [x, y, z, w]
-          // Convertir quaternion a euler para mantener compatibilidad con OnGyroUpdate
-          var sinp = 2 * (q[3] * q[1] - q[2] * q[0]);
-          var pitch = Math.abs(sinp) >= 1 ? (Math.PI/2) * Math.sign(sinp) : Math.asin(sinp);
-          var siny  = 2 * (q[3] * q[2] + q[0] * q[1]);
-          var cosy  = 1 - 2 * (q[1]*q[1] + q[2]*q[2]);
-          var yaw   = Math.atan2(siny, cosy);
-          var sinr  = 2 * (q[3] * q[0] + q[1] * q[2]);
-          var cosr  = 1 - 2 * (q[0]*q[0] + q[1]*q[1]);
-          var roll  = Math.atan2(sinr, cosr);
-          var alpha = ((yaw   * 180 / Math.PI) + 360) % 360;
-          var beta  = pitch * 180 / Math.PI;
-          var gamma = roll  * 180 / Math.PI;
-          var data = alpha.toFixed(4) + ',' + beta.toFixed(4) + ',' + gamma.toFixed(4);
+          // Enviar quaternion crudo con prefijo "Q:" — la conversion de coordenadas
+          // se hace en C# (Gyroscopemanager.cs). Evita la conversion a Euler que
+          // introducía gimbal lock y contaminación de ejes en Android Chrome.
+          var data = 'Q:' + q[0].toFixed(6) + ',' + q[1].toFixed(6) + ','
+                          + q[2].toFixed(6) + ',' + q[3].toFixed(6);
           window.AR_STATE.lastGyro = data;
           SendMessage('GyroscopeManager', 'OnGyroUpdate', data);
         });
