@@ -113,7 +113,7 @@ public class GyroscopeManager : MonoBehaviour
                 float qz = float.Parse(p[2], System.Globalization.CultureInfo.InvariantCulture);
                 float qw = float.Parse(p[3], System.Globalization.CultureInfo.InvariantCulture);
 
-                qUnity = Quaternion.Euler(-90f, 0f, 0f) * new Quaternion(qx, qy, qz, qw);
+                qUnity = Quaternion.Euler(-90f, 0f, 0f) * new Quaternion(qx, qy, -qz, qw);
             }
             else
             {
