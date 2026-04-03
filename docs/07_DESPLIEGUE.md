@@ -35,18 +35,22 @@ Antes de subir al servidor hay que compilar el proyecto.
 
 ### 1.3 Estructura del build generado
 
-```
-WebGL_Build/
-├── index.html              ← página principal que carga el juego
-├── Build/
-│   ├── juego.loader.js     ← loader de Unity
-│   ├── juego.framework.js.br   ← framework comprimido (Brotli)
-│   ├── juego.data.br           ← assets del juego
-│   └── juego.wasm.br           ← código WebAssembly
-├── StreamingAssets/
-│   └── Videos/
-│       └── *.mp4           ← videos de cinemáticas
-└── TemplateData/           ← estilos y logo de la página
+```mermaid
+flowchart TD
+    ROOT["📁 WebGL_Build/"]
+
+    ROOT --> INDEX["📄 index.html\npágina principal que carga el juego"]
+    ROOT --> BUILD["📁 Build/"]
+    ROOT --> SA["📁 StreamingAssets/"]
+    ROOT --> TD["📁 TemplateData/\nestilos y logo de la página"]
+
+    BUILD --> LOADER["📄 juego.loader.js\nloader de Unity"]
+    BUILD --> FW["📄 juego.framework.js.br\nframework comprimido — Brotli"]
+    BUILD --> DATA["📄 juego.data.br\nassets del juego"]
+    BUILD --> WASM["📄 juego.wasm.br\ncódigo WebAssembly"]
+
+    SA --> VIDEOS["📁 Videos/"]
+    VIDEOS --> MP4["🎬 *.mp4\nvideos de cinemáticas"]
 ```
 
 ---

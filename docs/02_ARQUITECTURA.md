@@ -4,33 +4,31 @@
 
 El proyecto está dividido en capas que se comunican entre sí mediante eventos. Ningún sistema necesita conocer los detalles internos de los otros — solo escuchan eventos o llaman a APIs públicas.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      NAVEGADOR (JS)                         │
-│   ARSensors.jslib                                           │
-│   ├── GPS       → navigator.geolocation.watchPosition       │
-│   └── Giroscopio→ AbsoluteOrientationSensor / deviceorient  │
-└────────────┬────────────────────────┬───────────────────────┘
-             │ SendMessage            │ SendMessage
-             ▼                        ▼
-     GPSManager (C#)         GyroscopeManager (C#)
-             │                        │
-             └────────────┬───────────┘
-                          ▼
-              ARCameraController + CharacterController
-              ├── Rotación  ← giroscopio / mouse (PC)
-              └── Posición  ← GPS / joystick / WASD
-                          │
-          ┌───────────────┴────────────────┐
-          ▼                                ▼
-   StageManager                    HotspotController
-   (progresión)                    (interacción)
-          │                                │
-   OnStageChanged ──────────►  DispatchAction()
-          │                       ├── InfoPanel → HotspotUIPanel
-          ├──► CriticalModePanel  ├── Cinematic → CinematicManager
-          ├──► AudioStageManager  ├── NpcConversation → NpcDialoguePanel
-          └──► UIManager          └── SiataCall → SiataCallPanel
+```mermaid
+flowchart TD
+    subgraph JS["NAVEGADOR (JS) — ARSensors.jslib"]
+        GPS_JS["GPS\nnavigator.geolocation.watchPosition"]
+        GYRO_JS["Giroscopio\nAbsoluteOrientationSensor / deviceorientation"]
+    end
+
+    GPS_JS -->|SendMessage| GPSMgr["GPSManager (C#)"]
+    GYRO_JS -->|SendMessage| GyroMgr["GyroscopeManager (C#)"]
+
+    GPSMgr --> CAM["ARCameraController + CharacterController\nPosición: GPS / joystick / WASD\nRotación: giroscopio / mouse"]
+    GyroMgr --> CAM
+
+    CAM --> SM["StageManager\nprogresión"]
+    CAM --> HC["HotspotController\ninteracción"]
+
+    SM -->|OnStageChanged| HC
+    SM --> CMP["CriticalModePanel"]
+    SM --> ASM["AudioStageManager"]
+    SM --> UI["UIManager"]
+
+    HC -->|DispatchAction| IP["HotspotUIPanel\nInfoPanel"]
+    HC -->|DispatchAction| CM["CinematicManager"]
+    HC -->|DispatchAction| NDP["NpcDialoguePanel"]
+    HC -->|DispatchAction| SCP["SiataCallPanel"]
 ```
 
 ---
@@ -142,23 +140,17 @@ Interfaz general del jugador.
 
 ## Flujo de datos de un hotspot
 
-```
-Jugador se acerca al hotspot (3D)
-         ↓
-HotspotController.CheckProximity()
-  distancia < triggerRadius  →  DispatchAction()
-         ↓
-Lee HotspotData.actionType:
-  InfoPanel       → HotspotUIPanel.Show(data)
-  Cinematic       → CinematicManager.Play(data, this)
-  NpcConversation → NpcDialoguePanel.Instance.Show(data.dialogueData, this)
-  SiataCall       → SiataCallPanel.Instance.Show(data.dialogueData, this)
-         ↓
-StageManager.SetPlayerInputBlocked(true)  ← el jugador no puede moverse
-         ↓
-Usuario responde correctamente
-         ↓
-StageManager.NextStage()
-StageManager.SetPlayerInputBlocked(false)
-Panel.Hide() → HotspotController.ClosePanel()
+```mermaid
+flowchart TD
+    A["Jugador se acerca al hotspot 3D"] --> B["HotspotController.CheckProximity()\ndistancia < triggerRadius"]
+    B --> C["DispatchAction()\nlee HotspotData.actionType"]
+    C --> D{actionType}
+    D -->|InfoPanel| E["HotspotUIPanel.Show(data)"]
+    D -->|Cinematic| F["CinematicManager.Play(data)"]
+    D -->|NpcConversation| G["NpcDialoguePanel.Show(dialogueData)"]
+    D -->|SiataCall| H["SiataCallPanel.Show(dialogueData)"]
+    E & F & G & H --> I["SetPlayerInputBlocked(true)\njugador no puede moverse"]
+    I --> J["Usuario responde correctamente"]
+    J --> K["StageManager.NextStage()"]
+    K --> L["SetPlayerInputBlocked(false)\nPanel.Hide() — ClosePanel()"]
 ```

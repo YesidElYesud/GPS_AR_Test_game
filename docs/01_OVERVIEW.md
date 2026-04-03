@@ -46,7 +46,7 @@ El GDD define 3 barrios:
 |---|---|
 | Olaya Herrera | Quebrada La Iguaná |
 | La Cantera Sur | Quebrada La Cantera Ramal Sur |
-| Las Estancias | Quebrada Santa Elena |
+| San Antonio de Prado | Santa Rita, Quebrada la Maria |
 
 La escena actualmente activa es **CASAS_OLAYA**.
 
@@ -64,6 +64,15 @@ Cada escenario recorre 5 estados progresivos del mismo barrio:
 | Etapa 3 | Incremento de caudal | Alerta temprana, modo crítico activado |
 | Etapa 4 | Evento crítico | Situación de emergencia, decisiones urgentes |
 | Etapa 5 | Vista aérea | Observación del impacto desde arriba |
+
+```mermaid
+flowchart LR
+    Intro(["Intro\nBienvenida"]) --> E1["Etapa 1\nEstado normal"]
+    E1 --> E2["Etapa 2\nPrecipitacion"]
+    E2 --> E3["Etapa 3\nIncremento de caudal\nModo Critico"]
+    E3 --> E4["Etapa 4\nEvento critico"]
+    E4 --> E5(["Etapa 5\nVista aerea"])
+```
 
 ---
 

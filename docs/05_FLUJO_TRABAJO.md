@@ -8,6 +8,19 @@ Guías prácticas para las tareas más comunes del proyecto.
 
 Un hotspot es un punto de interés en la escena 3D que el jugador activa por proximidad o clic.
 
+```mermaid
+flowchart TD
+    A["Paso 1: Crear HotspotData\nScriptableObject"] --> B{Tipo de accion}
+    B -->|NpcConversation\no SiataCall| C["Paso 2: Crear NpcDialogueData\nasignar en dialogueData"]
+    B -->|InfoPanel\no Cinematic| D["Paso 3: Colocar objeto 3D\nen la escena"]
+    C --> D
+    D --> E["Adjuntar HotspotController\nasignar HotspotData"]
+    E --> F{Visibilidad}
+    F -->|Etapa especifica| G["requiredStage = N\no agregar a stageConfigs"]
+    F -->|Siempre visible| H["requiredStage = -1"]
+    G & H --> I["Probar en editor\nforceJoystick = true\nWASD + boton derecho"]
+```
+
 ### Paso 1 — Crear el ScriptableObject HotspotData
 
 1. En **Project**, ir a la carpeta `Assets/Hotspot/` (o donde estén los hotspots existentes)
