@@ -94,9 +94,10 @@ public class AudioStageManager : MonoBehaviour
         if (StageManager.Instance != null)
             StageManager.Instance.OnStageChanged += OnStageChanged;
 
-        // Arrancar con el audio de la etapa inicial
-        if (StageManager.Instance != null)
-            ApplyStageAudio((int)StageManager.Instance.CurrentStage, fade: false);
+        // No reproducir audio en Start(): iOS Safari suspende el AudioContext
+        // hasta recibir un gesto del usuario. El audio arranca cuando
+        // StageManager pasa de Intro a Etapa1 (botón "Comenzar" del WelcomePanel),
+        // momento en que OnStageChanged ya puede llamar Play() con el contexto activo.
     }
 
     private void OnDestroy()
