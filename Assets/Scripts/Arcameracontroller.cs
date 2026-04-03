@@ -47,6 +47,7 @@ public class ARCameraController : MonoBehaviour
     private Vector3           _cameraOrigin;
     private bool              _arObjectPlaced   = false;
     private bool              _inputBlocked     = false;
+    private bool              _aerialMode       = false;
     private float             _mlYaw, _mlPitch; // mouse look acumulado
     private float             _verticalVelocity = 0f;
 
@@ -85,7 +86,7 @@ public class ARCameraController : MonoBehaviour
     // ── Rotación: giroscopio en dispositivo, mouse look en PC ─────────────────
     private void ApplyRotation()
     {
-        if (_inputBlocked) return;
+        if (_inputBlocked || _aerialMode) return;
 
         bool gyroOk = GyroscopeManager.Instance != null && GyroscopeManager.Instance.IsAvailable;
         if (gyroOk)
@@ -113,6 +114,8 @@ public class ARCameraController : MonoBehaviour
     // ── Movimiento ────────────────────────────────────────────────────────────
     private void ApplyMovement()
     {
+        if (_aerialMode) return; // AerialViewController controla posición directamente
+
         bool gpsOk = !forceJoystick
                   && GPSManager.Instance != null
                   && GPSManager.Instance.IsAvailable
@@ -204,6 +207,16 @@ public class ARCameraController : MonoBehaviour
     }
 
     // ── API pública ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Activa o desactiva el modo aéreo: cede el control de posición/rotación
+    /// al AerialViewController y desactiva gravedad y CharacterController.
+    /// </summary>
+    public void SetAerialMode(bool value)
+    {
+        _aerialMode = value;
+        if (_cc != null) _cc.enabled = !value;
+    }
 
     /// <summary>
     /// Congela o descongela toda la entrada del jugador (rotación + movimiento).
