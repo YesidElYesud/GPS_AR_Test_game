@@ -4,25 +4,24 @@ using UnityEngine.Video;
 using TMPro;
 
 /// <summary>
-/// CinematicManager — Reproductor de video en pantalla completa.
-/// Sistema 6 del proyecto SATCS.
+/// CinematicManager v2 — Reproductor de video en pantalla completa.
 ///
-/// Responsabilidades:
-///   - Recibir VideoClip (editor) o URL (WebGL) desde HotspotController.
-///   - Renderizar el video en un RawImage a pantalla completa.
-///   - Bloquear input del jugador durante la reproducción.
-///   - Permitir saltar con el botón Skip.
-///   - Avanzar etapa al terminar/saltar si cinematicAdvancesStage = true.
+/// Fixes v2:
+///   - iOS Safari: requiere gesto del usuario para play(). Se añade playButton
+///     opcional: cuando está asignado, el video espera un tap para iniciar en
+///     lugar de reproducirse automáticamente al terminar Prepare().
+///   - Android layout: tras OnPrepared, la RenderTexture se redimensiona a la
+///     resolución real del video y se ajusta uvRect del RawImage para mantener
+///     la relación de aspecto sin deformar ni dejar franjas negras fuera del RT.
+///   - Lag: videoPlayer.skipOnDrop = true descarta frames tardíos en lugar de
+///     acumularlos, eliminando el retraso progresivo en Android WebGL.
 ///
 /// Setup en escena:
-///   1. Crear GameObject vacío "CinematicManager" en la raíz (junto a StageManager, etc.).
-///   2. Adjuntar este script y un componente VideoPlayer al mismo GameObject.
-///   3. En AR_Canvas crear "CinematicPanel" (inactivo por defecto):
-///        CinematicPanel
-///        ├── VideoRawImage   (RawImage — fullscreen, stretch)
-///        ├── LoadingText     (TextMeshProUGUI — "Cargando video...")
-///        └── SkipButton      (Button — esquina inferior derecha)
-///   4. Asignar referencias en el Inspector de CinematicManager.
+///   CinematicPanel (inactivo por defecto)
+///   ├── VideoRawImage   [RawImage — fullscreen stretch anchor 0,0→1,1]
+///   ├── LoadingText     [TextMeshProUGUI]
+///   ├── PlayButton      [Button — centrado, tap to play, SOLO iOS] ← nuevo opcional
+///   └── SkipButton      [Button — esquina inferior derecha]
 /// </summary>
 public class CinematicManager : MonoBehaviour
 {
@@ -31,30 +30,26 @@ public class CinematicManager : MonoBehaviour
 
     // ── Inspector ─────────────────────────────────────────────────────────────
     [Header("Panel UI")]
-    [Tooltip("GameObject raíz del panel de cinemática en AR_Canvas. Inactivo por defecto.")]
-    public GameObject cinematicPanel;
-
-    [Tooltip("RawImage de pantalla completa donde se renderiza el video.")]
-    public RawImage videoDisplay;
-
-    [Tooltip("Texto visible mientras el video está cargando ('Cargando video...').")]
+    public GameObject      cinematicPanel;
+    public RawImage        videoDisplay;
     public TextMeshProUGUI loadingText;
+    public Button          skipButton;
 
-    [Tooltip("Botón para saltar la cinemática.")]
-    public Button skipButton;
+    [Header("Compatibilidad iOS")]
+    [Tooltip("Botón central '▶ Toca para reproducir'.\n" +
+             "Aparece cuando el video está listo pero requiere gesto del usuario.\n" +
+             "Obligatorio en iOS Safari. Opcional en Android (puede quedar vacío).")]
+    public GameObject playButton;
 
     [Header("VideoPlayer")]
-    [Tooltip("Componente VideoPlayer. Puede estar en este mismo GameObject.")]
     public VideoPlayer videoPlayer;
 
     [Header("RenderTexture")]
-    [Tooltip("Ancho de la RenderTexture interna. 1280 es suficiente para WebGL.")]
+    [Tooltip("Resolución inicial del RT. Se redimensiona automáticamente al tamaño real del video en OnPrepared.")]
     public int renderWidth  = 1280;
-    [Tooltip("Alto de la RenderTexture interna.")]
     public int renderHeight = 720;
 
     [Header("Comportamiento")]
-    [Tooltip("Si no hay clip ni URL, cierra el panel y avanza etapa sin bloquear el juego.")]
     public bool skipIfNoContent = true;
 
     // ── Internos ──────────────────────────────────────────────────────────────
@@ -72,7 +67,6 @@ public class CinematicManager : MonoBehaviour
 
     private void Start()
     {
-        // RenderTexture creada en tiempo de ejecución (no necesita asset)
         _rt      = new RenderTexture(renderWidth, renderHeight, 0);
         _rt.name = "CinematicRT";
 
@@ -80,6 +74,7 @@ public class CinematicManager : MonoBehaviour
         {
             videoPlayer.renderMode    = VideoRenderMode.RenderTexture;
             videoPlayer.targetTexture = _rt;
+            videoPlayer.skipOnDrop    = true;   // FIX lag: descarta frames tardíos
             videoPlayer.prepareCompleted += OnPrepared;
             videoPlayer.loopPointReached += OnFinished;
         }
@@ -89,6 +84,13 @@ public class CinematicManager : MonoBehaviour
 
         if (skipButton != null)
             skipButton.onClick.AddListener(Skip);
+
+        if (playButton != null)
+        {
+            Button btn = playButton.GetComponent<Button>();
+            if (btn != null) btn.onClick.AddListener(OnPlayButtonClicked);
+            playButton.SetActive(false);
+        }
 
         if (cinematicPanel != null)
             cinematicPanel.SetActive(false);
@@ -101,41 +103,27 @@ public class CinematicManager : MonoBehaviour
             videoPlayer.prepareCompleted -= OnPrepared;
             videoPlayer.loopPointReached -= OnFinished;
         }
-
-        if (_rt != null)
-        {
-            _rt.Release();
-            Destroy(_rt);
-        }
+        if (_rt != null) { _rt.Release(); Destroy(_rt); }
     }
 
     // ── API pública ───────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Inicia la cinemática del hotspot indicado.
-    /// Llamado desde HotspotController.DispatchAction().
-    /// </summary>
     public void Play(HotspotData data, HotspotController source)
     {
-        if (data == null)
-        {
-            Debug.LogWarning("[CinematicManager] HotspotData es null.");
-            return;
-        }
+        if (data == null) { Debug.LogWarning("[CinematicManager] HotspotData es null."); return; }
 
         bool hasClip = data.cinematicClip != null;
         bool hasUrl  = !string.IsNullOrEmpty(data.cinematicUrl);
 
         if (!hasClip && !hasUrl)
         {
-            Debug.LogWarning($"[CinematicManager] '{data.title}' no tiene VideoClip ni URL de video asignados.");
+            Debug.LogWarning($"[CinematicManager] '{data.title}' sin video asignado.");
             if (skipIfNoContent)
             {
                 if (data.cinematicAdvancesStage && StageManager.Instance != null)
                     StageManager.Instance.NextStage();
                 source?.ClosePanel();
-                return;
             }
+            return;
         }
 
         _sourceHotspot = source;
@@ -145,16 +133,21 @@ public class CinematicManager : MonoBehaviour
         BlockInput(true);
         SetLoading(true);
 
+        if (playButton != null) playButton.SetActive(false);
+
+        // Resetear uvRect por si el video anterior lo cambió
+        if (videoDisplay != null)
+            videoDisplay.uvRect = new Rect(0, 0, 1, 1);
+
         if (videoPlayer == null)
         {
-            Debug.LogError("[CinematicManager] VideoPlayer no asignado en el Inspector.");
+            Debug.LogError("[CinematicManager] VideoPlayer no asignado.");
             return;
         }
 
         videoPlayer.Stop();
 
 #if UNITY_WEBGL && !UNITY_EDITOR
-        // WebGL solo soporta reproducción por URL (no VideoClip).
         if (hasUrl)
         {
             videoPlayer.source = VideoSource.Url;
@@ -162,12 +155,11 @@ public class CinematicManager : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning($"[CinematicManager] WebGL: '{data.title}' no tiene cinematicUrl. Se omite el video.");
+            Debug.LogWarning($"[CinematicManager] WebGL requiere cinematicUrl. '{data.title}' no la tiene.");
             FinishCinematic();
             return;
         }
 #else
-        // Editor / standalone: VideoClip tiene prioridad; URL como fallback.
         if (hasClip)
         {
             videoPlayer.source = VideoSource.VideoClip;
@@ -179,11 +171,9 @@ public class CinematicManager : MonoBehaviour
             videoPlayer.url    = ResolveUrl(data.cinematicUrl);
         }
 #endif
-
         videoPlayer.Prepare();
     }
 
-    /// <summary>Salta la cinemática actual inmediatamente.</summary>
     public void Skip()
     {
         if (videoPlayer != null) videoPlayer.Stop();
@@ -193,28 +183,109 @@ public class CinematicManager : MonoBehaviour
     // ── Callbacks VideoPlayer ─────────────────────────────────────────────────
     private void OnPrepared(VideoPlayer vp)
     {
+        // FIX Android layout: redimensionar RT a la resolución real del video
+        ResizeRenderTexture((int)vp.width, (int)vp.height);
+
+        // FIX Android layout: ajustar uvRect para mantener aspect ratio
+        AdjustAspectRatio(vp);
+
         SetLoading(false);
-        vp.Play();
+
+        // FIX iOS: solo mostrar playButton en iOS (requiere gesto del usuario).
+        // En Android y PC el video arranca automáticamente.
+        if (playButton != null && IsIOS())
+            playButton.SetActive(true);
+        else
+            vp.Play();
     }
 
-    private void OnFinished(VideoPlayer vp)
+    private void OnFinished(VideoPlayer vp) => FinishCinematic();
+
+    // ── Play button (iOS) ─────────────────────────────────────────────────────
+    private void OnPlayButtonClicked()
     {
-        FinishCinematic();
+        if (playButton != null) playButton.SetActive(false);
+        if (videoPlayer != null) videoPlayer.Play();
     }
+
+    // ── FIX: Redimensionar RenderTexture al tamaño real del video ─────────────
+    private void ResizeRenderTexture(int w, int h)
+    {
+        if (w == 0 || h == 0) return;
+        if (_rt != null && _rt.width == w && _rt.height == h) return;
+
+        if (_rt != null) { _rt.Release(); Destroy(_rt); }
+
+        _rt      = new RenderTexture(w, h, 0);
+        _rt.name = "CinematicRT";
+
+        videoPlayer.targetTexture = _rt;
+        if (videoDisplay != null) videoDisplay.texture = _rt;
+    }
+
+    // ── FIX: Ajustar uvRect para relación de aspecto correcta ─────────────────
+    private void AdjustAspectRatio(VideoPlayer vp)
+    {
+        if (videoDisplay == null || vp.width == 0 || vp.height == 0) return;
+
+        // Forzar recalculo del layout antes de leer rect
+        Canvas.ForceUpdateCanvases();
+
+        Rect panel = videoDisplay.rectTransform.rect;
+        if (panel.width <= 0 || panel.height <= 0) return;
+
+        float videoAspect = (float)vp.width  / vp.height;
+        float panelAspect = panel.width / panel.height;
+
+        if (Mathf.Abs(videoAspect - panelAspect) < 0.01f)
+        {
+            videoDisplay.uvRect = new Rect(0, 0, 1, 1);
+            return;
+        }
+
+        if (videoAspect > panelAspect)
+        {
+            // Video más ancho que el panel → letterbox (recorta arriba/abajo)
+            float h = panelAspect / videoAspect;
+            videoDisplay.uvRect = new Rect(0f, (1f - h) * 0.5f, 1f, h);
+        }
+        else
+        {
+            // Video más alto que el panel → pillarbox (recorta izquierda/derecha)
+            float w = videoAspect / panelAspect;
+            videoDisplay.uvRect = new Rect((1f - w) * 0.5f, 0f, w, 1f);
+        }
+    }
+
+    // ── Detección de plataforma ───────────────────────────────────────────────
+    /// <summary>
+    /// Devuelve true cuando el navegador está corriendo en un dispositivo iOS
+    /// (iPhone, iPad, iPod). En WebGL, SystemInfo.operatingSystem refleja el
+    /// user-agent del navegador, por lo que funciona en runtime sin jslib.
+    /// En editor siempre devuelve false para no bloquear pruebas en PC.
+    /// </summary>
+    private static bool IsIOS()
+    {
+#if UNITY_EDITOR
+        return false;
+#else
+        string os = SystemInfo.operatingSystem;
+        return os.Contains("iPhone") || os.Contains("iPad") || os.Contains("iPod");
+#endif
+    }
+
+    /// <summary>
+    /// Devuelve true en smartphones y tablets (Android o iOS).
+    /// Útil para adaptar otros comportamientos de UI si es necesario.
+    /// </summary>
+    private static bool IsMobile() => SystemInfo.deviceType == DeviceType.Handheld;
 
     // ── Resolución de URL ─────────────────────────────────────────────────────
-    /// <summary>
-    /// Convierte paths relativos de StreamingAssets en URLs absolutas.
-    /// - WebGL/builds: http://host/StreamingAssets/...
-    /// - Editor/standalone: file:///ruta/absoluta/...
-    /// URLs que ya empiezan con http/https/file se devuelven sin cambios.
-    /// </summary>
     private string ResolveUrl(string url)
     {
         if (string.IsNullOrEmpty(url)) return url;
         if (url.StartsWith("http://") || url.StartsWith("https://") || url.StartsWith("file://")) return url;
 
-        // Quitar prefijo "StreamingAssets/" si el usuario lo incluyó
         string relative = url.StartsWith("StreamingAssets/")
             ? url.Substring("StreamingAssets/".Length)
             : url;
@@ -222,10 +293,8 @@ public class CinematicManager : MonoBehaviour
         string basePath = Application.streamingAssetsPath;
 
 #if UNITY_EDITOR || UNITY_STANDALONE
-        // En editor/standalone el path es del sistema de archivos → necesita file://
         return "file://" + basePath + "/" + relative;
 #else
-        // En WebGL streamingAssetsPath ya es una URL http completa
         return basePath + "/" + relative;
 #endif
     }
@@ -233,24 +302,21 @@ public class CinematicManager : MonoBehaviour
     // ── Cierre y limpieza ─────────────────────────────────────────────────────
     private void FinishCinematic()
     {
+        if (playButton != null) playButton.SetActive(false);
+
         if (_advancesStage && StageManager.Instance != null)
             StageManager.Instance.NextStage();
 
         BlockInput(false);
         ShowPanel(false);
 
-        if (_sourceHotspot != null)
-        {
-            _sourceHotspot.ClosePanel();
-            _sourceHotspot = null;
-        }
+        if (_sourceHotspot != null) { _sourceHotspot.ClosePanel(); _sourceHotspot = null; }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     private void ShowPanel(bool visible)
     {
-        if (cinematicPanel != null)
-            cinematicPanel.SetActive(visible);
+        if (cinematicPanel != null) cinematicPanel.SetActive(visible);
     }
 
     private void SetLoading(bool loading)
