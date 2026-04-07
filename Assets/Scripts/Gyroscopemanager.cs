@@ -18,7 +18,9 @@ public class GyroscopeManager : MonoBehaviour
     public bool       IsAvailable    { get; private set; }
     public Quaternion DeviceRotation { get; private set; } = Quaternion.identity;
 
-    [Range(1f, 20f)] public float smoothSpeed = 10f;
+    [Tooltip("Velocidad de suavizado del giroscopio. Valores bajos = más suave (menos ruido). " +
+             "Android ruidoso: 5–7. iOS / PC: 8–12.")]
+    [Range(1f, 20f)] public float smoothSpeed = 6f;
 
     private Quaternion _target       = Quaternion.identity;
     private bool       _hasFirstRead = false;

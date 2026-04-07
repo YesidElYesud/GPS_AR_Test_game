@@ -23,11 +23,17 @@ public class HotspotController : MonoBehaviour
     [Tooltip("Panel UI de información. Se busca automáticamente si está vacío.")]
     public HotspotUIPanel uiPanel;
 
+    [Header("Malla (rotación)")]
+    [Tooltip("Transform hijo con la malla. Se detecta automáticamente si está vacío.")]
+    public Transform meshTransform;
+
+    [Tooltip("Grados por segundo de rotación sobre el eje Y")]
+    public float rotationSpeed = 60f;
+
     // ── Internos ──────────────────────────────────────────────────────────────
     private Transform _playerCamera;
     private bool      _isNearby    = false;
     private bool      _isPanelOpen = false;
-    private Vector3   _baseScale;
     private int       _proximityTriggerFrame = -1; // frame en que la proximidad disparó DispatchAction
 
     // ── Gizmos en editor ──────────────────────────────────────────────────────
@@ -48,7 +54,10 @@ public class HotspotController : MonoBehaviour
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Start()
     {
-        _baseScale = transform.localScale;
+        if (meshTransform == null && transform.childCount > 0)
+            meshTransform = transform.GetChild(0);
+
+        ApplyHotspotMaterial();
 
         if (Camera.main != null)
             _playerCamera = Camera.main.transform;
@@ -112,24 +121,36 @@ public class HotspotController : MonoBehaviour
         gameObject.SetActive(stageMatch);
     }
 
-    // ── Efecto de pulso visual ────────────────────────────────────────────────
-    /// <summary>
-    /// Oscila la escala del objeto para indicar que es interactuable.
-    /// Se detiene cuando el jugador está cerca o el panel está abierto.
-    /// </summary>
-    private void ApplyBlinkEffect()
+    // ── Material ──────────────────────────────────────────────────────────────
+    private void ApplyHotspotMaterial()
     {
-        if (data == null || !data.isBlinking) return;
+        if (data == null || data.hotspotMaterial == null || meshTransform == null) return;
 
-        if (_isNearby || _isPanelOpen)
+        Renderer rend = meshTransform.GetComponent<Renderer>();
+        if (rend == null) return;
+
+        Material[] mats = rend.sharedMaterials;
+        if (mats.Length < 2)
         {
-            // Restaurar escala base cuando está activo
-            transform.localScale = _baseScale;
+            Debug.LogWarning($"[Hotspot] '{gameObject.name}': la malla tiene menos de 2 slots de material.", this);
             return;
         }
 
-        float pulse = 1f + 0.12f * Mathf.Sin(Time.time * data.blinkSpeed * Mathf.PI * 2f);
-        transform.localScale = _baseScale * pulse;
+        mats[1] = data.hotspotMaterial;
+        rend.sharedMaterials = mats;
+    }
+
+    // ── Rotación de malla ─────────────────────────────────────────────────────
+    /// <summary>
+    /// Gira el hijo de malla sobre su eje Y a velocidad constante.
+    /// Se pausa cuando el jugador está cerca o el panel está abierto.
+    /// </summary>
+    private void ApplyBlinkEffect()
+    {
+        if (meshTransform == null) return;
+        if (_isNearby || _isPanelOpen) return;
+
+        meshTransform.Rotate(Vector3.right, rotationSpeed * Time.deltaTime, Space.Self);
     }
 
     // ── Proximidad ────────────────────────────────────────────────────────────

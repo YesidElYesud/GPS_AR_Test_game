@@ -22,9 +22,10 @@ MonoBehaviour:
   dialogueData: {fileID: 0}
   triggerRadius: 3
   allowClick: 1
-  requiredStage: 4
+  requiredStage: 3
   headerImage: {fileID: 0}
   riskLevel: 0
   markerColor: {r: 0.2, g: 0.8, b: 1, a: 0.9}
+  hotspotMaterial: {fileID: 0}
   isBlinking: 1
   blinkSpeed: 1.5

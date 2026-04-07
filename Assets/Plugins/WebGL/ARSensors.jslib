@@ -54,8 +54,17 @@ mergeInto(LibraryManager.library, {
     if (typeof AbsoluteOrientationSensor !== 'undefined') {
       try {
         var sensor = new AbsoluteOrientationSensor({ frequency: 60, referenceFrame: 'screen' });
+        window.AR_STATE.lastGyroQ = null; // ultimo cuaternion enviado
         sensor.addEventListener('reading', function() {
           var q = sensor.quaternion; // [x, y, z, w]
+          // Filtro de ruido: omitir si el cambio angular es menor a ~1 grado.
+          // dot > 0.9998 equivale a angulo < ~1.1 grados entre los dos cuaterniones.
+          var prev = window.AR_STATE.lastGyroQ;
+          if (prev) {
+            var dot = Math.abs(prev[0]*q[0] + prev[1]*q[1] + prev[2]*q[2] + prev[3]*q[3]);
+            if (dot > 0.9998) return;
+          }
+          window.AR_STATE.lastGyroQ = [q[0], q[1], q[2], q[3]];
           // Enviar quaternion crudo con prefijo "Q:" — la conversion de coordenadas
           // se hace en C# (Gyroscopemanager.cs). Evita la conversion a Euler que
           // introducía gimbal lock y contaminación de ejes en Android Chrome.

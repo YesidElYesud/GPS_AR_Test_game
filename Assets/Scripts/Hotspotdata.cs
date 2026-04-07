@@ -111,6 +111,10 @@ public class HotspotData : ScriptableObject
     [Tooltip("Color del marcador del hotspot en la escena")]
     public Color markerColor = new Color(0.2f, 0.8f, 1f, 0.9f);
 
+    [Tooltip("Material aplicado al segundo slot de la malla hija del hotspot.\n" +
+             "Opcional: si es null se mantiene el material original.")]
+    public Material hotspotMaterial;
+
     [Tooltip("Si está marcado, el objeto 3D del hotspot pulsa visualmente para llamar la atención")]
     public bool isBlinking = true;
 
