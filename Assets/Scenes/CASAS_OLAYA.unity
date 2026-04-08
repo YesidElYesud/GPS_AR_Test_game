@@ -6370,6 +6370,67 @@ VideoPlayer:
   m_WaitForFirstFrame: 1
   m_FrameReadyEventEnabled: 0
   m_VideoShaders: []
+--- !u!1001 &1117739493
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: d616c9f1d7cf845d595fb73100d32e48, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 53.43
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d616c9f1d7cf845d595fb73100d32e48, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -2.31
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d616c9f1d7cf845d595fb73100d32e48, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -39.06
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d616c9f1d7cf845d595fb73100d32e48, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.99663025
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d616c9f1d7cf845d595fb73100d32e48, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d616c9f1d7cf845d595fb73100d32e48, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.08202553
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d616c9f1d7cf845d595fb73100d32e48, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d616c9f1d7cf845d595fb73100d32e48, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d616c9f1d7cf845d595fb73100d32e48, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 9.41
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d616c9f1d7cf845d595fb73100d32e48, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: d616c9f1d7cf845d595fb73100d32e48, type: 3}
+      propertyPath: m_Name
+      value: casaplano01 (2)
+      objectReference: {fileID: 0}
+    - target: {fileID: 5360281815116879779, guid: d616c9f1d7cf845d595fb73100d32e48, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 2.49
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: d616c9f1d7cf845d595fb73100d32e48, type: 3}
 --- !u!114 &1154455390 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 115334890964179458, guid: 03a9ea8f93192117dad81e4a7e28dfac, type: 3}
@@ -8206,6 +8267,7 @@ SceneRoots:
   - {fileID: 1627335248}
   - {fileID: 1405506421}
   - {fileID: 638042005}
+  - {fileID: 1117739493}
   - {fileID: 919203454}
   - {fileID: 865826599}
   - {fileID: 36109931}
