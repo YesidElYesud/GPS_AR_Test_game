@@ -48,8 +48,10 @@ public class GyroscopeManager : MonoBehaviour
 
     private void Start()
     {
-        IsAvailable = Gyro_IsAvailable() == 1;
-        if (IsAvailable) Gyro_StartListening();
+        // IsAvailable se confirma solo cuando llega el primer dato real (OnGyroUpdate).
+        // Evita falsos positivos en PC donde DeviceOrientationEvent existe pero no hay hardware.
+        bool supported = Gyro_IsAvailable() == 1;
+        if (supported) Gyro_StartListening();
         else Debug.LogWarning("[Gyro] No disponible.");
 
         LoadSavedOffset();
@@ -154,6 +156,7 @@ public class GyroscopeManager : MonoBehaviour
             {
                 DeviceRotation = _target;
                 _hasFirstRead  = true;
+                IsAvailable    = true; // confirmar solo cuando hay datos reales del sensor
             }
         }
         catch (System.Exception e)
