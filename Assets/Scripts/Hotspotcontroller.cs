@@ -271,6 +271,19 @@ public class HotspotController : MonoBehaviour
                     OpenInfoPanel();
                 }
                 break;
+
+            case HotspotActionType.InfoSlidePanel:
+                if (InfoSlidePanel.Instance != null)
+                {
+                    _isPanelOpen = true;
+                    InfoSlidePanel.Instance.Show(data.infoSlides, this, data.infoSlideAdvancesStage);
+                }
+                else
+                {
+                    Debug.LogWarning($"[Hotspot] '{data.title}' → InfoSlidePanel no encontrado en escena. Usando InfoPanel.");
+                    OpenInfoPanel();
+                }
+                break;
         }
     }
 
