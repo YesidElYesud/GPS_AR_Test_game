@@ -3688,7 +3688,7 @@ MonoBehaviour:
   nextButtonLabel: {fileID: 5039879824530519345}
   counterText: {fileID: 1634201767547180039}
   labelNext: "Siguiente \u203A"
-  labelClose: x
+  labelClose: Continuar
 --- !u!222 &8824734473636791850
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -3710,7 +3710,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.43529412, g: 0.45882353, b: 0.627451, a: 1}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -8097,7 +8097,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.43529412, g: 0.45882353, b: 0.627451, a: 1}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -8106,7 +8106,7 @@ MonoBehaviour:
       m_Calls: []
   m_Sprite: {fileID: 0}
   m_Type: 0
-  m_PreserveAspect: 0
+  m_PreserveAspect: 1
   m_FillCenter: 1
   m_FillMethod: 4
   m_FillAmount: 1
@@ -8129,13 +8129,16 @@ MonoBehaviour:
   slideData:
   - title: 
     body: 
-    image: {fileID: 21300000, guid: dc8470849e027a8a7a5d411daba89b49, type: 3}
+    image: {fileID: 21300000, guid: f4488f2532b3c0d368f49af1621271ad, type: 3}
   - title: 
     body: 
-    image: {fileID: 21300000, guid: 9de8b4065090800a0baab94a2dd36047, type: 3}
+    image: {fileID: 21300000, guid: 4915602bb8c89453ea63192e208338eb, type: 3}
   - title: 
     body: 
-    image: {fileID: 21300000, guid: 0c9fa86e09d2bb77da577700383c3c85, type: 3}
+    image: {fileID: 21300000, guid: 7b4598e393aadd74aa4c69c221aa27b8, type: 3}
+  - title: 
+    body: 
+    image: {fileID: 21300000, guid: d8c064d7ef91f2c4aaa90deac0653e2b, type: 3}
   slideTemplate: {fileID: 5769240776730146611}
   slideTitle: {fileID: 6569542352989805799}
   slideBody: {fileID: 8542804252079957714}
@@ -11899,7 +11902,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.73794055, g: 0.9716981, b: 0.9129504, a: 1}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1

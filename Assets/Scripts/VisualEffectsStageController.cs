@@ -1,10 +1,15 @@
 using System;
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Rendering;
+
+#if UNITY_POST_PROCESSING_STACK_V2
+using UnityEngine.Rendering.PostProcessing;
+#endif
 
 /// <summary>
 /// VisualEffectsStageController — Efectos visuales por etapa (Sistema 15).
-/// Controla: partículas, skybox, iluminación ambiental y niebla.
+/// Controla: partículas, skybox, iluminación ambiental, niebla y post-processing.
 ///
 /// Patrón idéntico a AudioStageManager:
 ///   - Singleton + DontDestroyOnLoad
@@ -16,11 +21,25 @@ using UnityEngine;
 ///   2. Adjuntar este script.
 ///   3. Asignar stageConfigs con 6 entradas en el Inspector.
 ///   4. (Opcional) Arrastrar la Directional Light a sunLight.
+///   5. (Post-processing) Crear volúmenes globales en escena y asignarlos
+///      en el campo postProcessVolume de cada etapa. Solo el volumen
+///      de la etapa activa tendrá weight=1; los demás weight=0.
 /// </summary>
 public class VisualEffectsStageController : MonoBehaviour
 {
     // ── Singleton ─────────────────────────────────────────────────────────────
     public static VisualEffectsStageController Instance { get; private set; }
+
+    // ── Modo de ambiente ──────────────────────────────────────────────────────
+    public enum AmbientSourceMode
+    {
+        /// <summary>Color plano (comportamiento original). Usa ambientColor × ambientIntensity.</summary>
+        FlatColor,
+        /// <summary>El skybox asignado en la etapa ilumina el ambiente. Ignora ambientColor.</summary>
+        Skybox,
+        /// <summary>Trilight: sky/equator/ground por separado.</summary>
+        Trilight
+    }
 
     // ── Datos visuales por etapa ──────────────────────────────────────────────
     [Serializable]
@@ -29,18 +48,31 @@ public class VisualEffectsStageController : MonoBehaviour
         [Tooltip("Nombre descriptivo (solo visual en el Inspector)")]
         public string stageName;
 
+        // ── Skybox ────────────────────────────────────────────────────────────
         [Header("Skybox")]
         [Tooltip("Material de skybox para esta etapa. Null = mantener el actual.")]
         public Material skyboxMaterial;
 
+        // ── Iluminación Ambiental ─────────────────────────────────────────────
         [Header("Iluminación Ambiental")]
-        [Tooltip("Color de luz ambiental para esta etapa.")]
+        [Tooltip("FlatColor: color × intensidad. Skybox: el skybox asignado ilumina el ambiente.")]
+        public AmbientSourceMode ambientMode = AmbientSourceMode.FlatColor;
+
+        [Tooltip("Color de luz ambiental (solo modo FlatColor).")]
         public Color ambientColor = new Color(0.2f, 0.2f, 0.2f);
 
         [Tooltip("Intensidad de la luz ambiental (0–8).")]
         [Range(0f, 8f)]
         public float ambientIntensity = 1f;
 
+        [Tooltip("Sky color — solo modo Trilight.")]
+        public Color ambientSkyColor    = new Color(0.5f, 0.7f, 1.0f);
+        [Tooltip("Equator color — solo modo Trilight.")]
+        public Color ambientEquatorColor = new Color(0.4f, 0.4f, 0.4f);
+        [Tooltip("Ground color — solo modo Trilight.")]
+        public Color ambientGroundColor  = new Color(0.2f, 0.2f, 0.1f);
+
+        // ── Sol (Directional Light) ───────────────────────────────────────────
         [Header("Sol (Directional Light)")]
         [Tooltip("Color del sol para esta etapa. Alpha ignorado.")]
         public Color sunColor = Color.white;
@@ -49,6 +81,7 @@ public class VisualEffectsStageController : MonoBehaviour
         [Range(0f, 2f)]
         public float sunIntensity = 1f;
 
+        // ── Niebla ────────────────────────────────────────────────────────────
         [Header("Niebla")]
         [Tooltip("Activar niebla en esta etapa.")]
         public bool enableFog = false;
@@ -60,6 +93,21 @@ public class VisualEffectsStageController : MonoBehaviour
         [Range(0f, 0.1f)]
         public float fogDensity = 0.02f;
 
+        // ── Post-processing ───────────────────────────────────────────────────
+        [Header("Post-processing (requiere Post Processing Stack v2)")]
+        [Tooltip("Volumen de post-processing exclusivo de esta etapa. " +
+                 "Al activar la etapa su weight sube a 1; el de la etapa anterior baja a 0. " +
+                 "Crear GameObjects con PostProcessVolume en escena y arrastrarlo aquí.")]
+#if UNITY_POST_PROCESSING_STACK_V2
+        public PostProcessVolume postProcessVolume;
+#else
+        public UnityEngine.Object postProcessVolume;   // placeholder si el paquete no está
+#endif
+        [Tooltip("Duración del crossfade de post-processing (segundos).")]
+        [Range(0f, 3f)]
+        public float ppFadeDuration = 1.0f;
+
+        // ── Partículas ────────────────────────────────────────────────────────
         [Header("Partículas")]
         [Tooltip("Sistemas de partículas a ACTIVAR en esta etapa (p.ej. lluvia, chispas).")]
         public ParticleSystem[] particlesToPlay;
@@ -67,6 +115,7 @@ public class VisualEffectsStageController : MonoBehaviour
         [Tooltip("Sistemas de partículas a DETENER al entrar a esta etapa.")]
         public ParticleSystem[] particlesToStop;
 
+        // ── Transición ────────────────────────────────────────────────────────
         [Header("Transición")]
         [Tooltip("Duración del fade de iluminación y niebla al entrar a esta etapa (segundos).")]
         [Range(0f, 5f)]
@@ -78,12 +127,12 @@ public class VisualEffectsStageController : MonoBehaviour
     [Tooltip("6 entradas: índice 0=Intro, 1=Etapa1 … 5=Etapa5.")]
     public StageVisualConfig[] stageConfigs = new StageVisualConfig[]
     {
-        new StageVisualConfig { stageName = "Intro",  ambientIntensity = 1.0f, sunIntensity = 1.0f, transitionDuration = 1.0f },
-        new StageVisualConfig { stageName = "Etapa1", ambientIntensity = 1.0f, sunIntensity = 1.0f, transitionDuration = 1.5f },
-        new StageVisualConfig { stageName = "Etapa2", ambientIntensity = 0.8f, sunIntensity = 0.8f, enableFog = true,  fogDensity = 0.01f, transitionDuration = 2.0f },
-        new StageVisualConfig { stageName = "Etapa3", ambientIntensity = 0.5f, sunIntensity = 0.5f, enableFog = true,  fogDensity = 0.03f, transitionDuration = 1.0f },
-        new StageVisualConfig { stageName = "Etapa4", ambientIntensity = 0.3f, sunIntensity = 0.3f, enableFog = true,  fogDensity = 0.05f, transitionDuration = 0.8f },
-        new StageVisualConfig { stageName = "Etapa5", ambientIntensity = 1.0f, sunIntensity = 1.0f, enableFog = false, transitionDuration = 2.5f },
+        new StageVisualConfig { stageName = "Intro",  ambientMode = AmbientSourceMode.Skybox, ambientIntensity = 1.0f, sunIntensity = 1.0f,  sunColor = new Color(1.0f, 0.95f, 0.85f), transitionDuration = 1.0f },
+        new StageVisualConfig { stageName = "Etapa1", ambientMode = AmbientSourceMode.Skybox, ambientIntensity = 1.0f, sunIntensity = 1.0f,  sunColor = new Color(1.0f, 0.95f, 0.85f), transitionDuration = 1.5f },
+        new StageVisualConfig { stageName = "Etapa2", ambientMode = AmbientSourceMode.Skybox, ambientIntensity = 0.8f, sunIntensity = 0.7f,  sunColor = new Color(0.9f, 0.9f, 0.95f),  enableFog = true, fogDensity = 0.01f, transitionDuration = 2.0f },
+        new StageVisualConfig { stageName = "Etapa3", ambientMode = AmbientSourceMode.Skybox, ambientIntensity = 0.5f, sunIntensity = 0.4f,  sunColor = new Color(0.7f, 0.75f, 0.9f),  enableFog = true, fogDensity = 0.03f, transitionDuration = 1.0f },
+        new StageVisualConfig { stageName = "Etapa4", ambientMode = AmbientSourceMode.Skybox, ambientIntensity = 0.3f, sunIntensity = 0.25f, sunColor = new Color(0.5f, 0.55f, 0.7f),  enableFog = true, fogDensity = 0.05f, transitionDuration = 0.8f },
+        new StageVisualConfig { stageName = "Etapa5", ambientMode = AmbientSourceMode.Skybox, ambientIntensity = 0.9f, sunIntensity = 0.8f,  sunColor = new Color(0.9f, 0.85f, 0.75f), enableFog = false, transitionDuration = 2.5f },
     };
 
     [Header("Referencias")]
@@ -91,10 +140,12 @@ public class VisualEffectsStageController : MonoBehaviour
     public Light sunLight;
 
     [Header("Debug")]
-    public bool debugLogs = true;
+    public bool debugLogs = false;
 
     // ── Internos ──────────────────────────────────────────────────────────────
-    private Coroutine _transitionRoutine;
+    private Coroutine _lightTransitionRoutine;
+    private Coroutine _ppTransitionRoutine;
+    private int       _currentStageIndex = -1;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
@@ -108,6 +159,9 @@ public class VisualEffectsStageController : MonoBehaviour
     {
         if (sunLight == null)
             sunLight = FindObjectOfType<Light>();
+
+        // Desactivar todos los volúmenes de PP al inicio
+        SetAllPostProcessVolumesOff();
 
         if (StageManager.Instance != null)
             StageManager.Instance.OnStageChanged += OnStageChanged;
@@ -129,37 +183,148 @@ public class VisualEffectsStageController : MonoBehaviour
         ApplyVisuals((int)current, fade: true);
     }
 
+    // ── API pública ───────────────────────────────────────────────────────────
+    /// <summary>Fuerza un cambio de visuals a una etapa concreta (sin necesidad de cambiar de Stage).</summary>
+    public void ForceApplyStage(int stageIndex, bool fade = true)
+    {
+        ApplyVisuals(stageIndex, fade);
+    }
+
     // ── Lógica principal ──────────────────────────────────────────────────────
     private void ApplyVisuals(int stageIndex, bool fade)
     {
-        if (stageConfigs == null || stageIndex >= stageConfigs.Length) return;
+        if (stageConfigs == null || stageIndex < 0 || stageIndex >= stageConfigs.Length) return;
 
         StageVisualConfig config = stageConfigs[stageIndex];
         if (config == null) return;
 
         if (debugLogs)
-            Debug.Log($"[VisualFX] Aplicando etapa {stageIndex}: {config.stageName}");
+            Debug.Log($"[VisualFX] Etapa {stageIndex}: {config.stageName} | fade={fade}");
 
-        // Skybox: cambio inmediato (no interpolable de forma simple)
+        // ── Skybox: cambio inmediato ──────────────────────────────────────────
         if (config.skyboxMaterial != null)
         {
             RenderSettings.skybox = config.skyboxMaterial;
             DynamicGI.UpdateEnvironment();
         }
 
-        // Partículas: inmediatas
+        // ── Modo ambiente: skybox o flat ──────────────────────────────────────
+        ApplyAmbientMode(config);
+
+        // ── Partículas: inmediatas ────────────────────────────────────────────
         ApplyParticles(config);
 
-        // Iluminación y niebla: con o sin fade
-        if (_transitionRoutine != null)
-            StopCoroutine(_transitionRoutine);
+        // ── Post-processing: fade entre volúmenes ─────────────────────────────
+        CrossfadePostProcessVolume(stageIndex, config.ppFadeDuration, fade);
+
+        // ── Iluminación y niebla: con o sin fade ──────────────────────────────
+        if (_lightTransitionRoutine != null)
+            StopCoroutine(_lightTransitionRoutine);
 
         if (fade && config.transitionDuration > 0f)
-            _transitionRoutine = StartCoroutine(TransitionRoutine(config));
+            _lightTransitionRoutine = StartCoroutine(LightTransitionRoutine(config));
         else
-            ApplyImmediateValues(config);
+            ApplyImmediateLightValues(config);
+
+        _currentStageIndex = stageIndex;
     }
 
+    // ── Ambient mode ──────────────────────────────────────────────────────────
+    private void ApplyAmbientMode(StageVisualConfig config)
+    {
+        switch (config.ambientMode)
+        {
+            case AmbientSourceMode.Skybox:
+                RenderSettings.ambientMode      = AmbientMode.Skybox;
+                RenderSettings.ambientIntensity = config.ambientIntensity;
+                DynamicGI.UpdateEnvironment();
+                break;
+
+            case AmbientSourceMode.Trilight:
+                RenderSettings.ambientMode         = AmbientMode.Trilight;
+                RenderSettings.ambientSkyColor     = config.ambientSkyColor     * config.ambientIntensity;
+                RenderSettings.ambientEquatorColor = config.ambientEquatorColor * config.ambientIntensity;
+                RenderSettings.ambientGroundColor  = config.ambientGroundColor  * config.ambientIntensity;
+                break;
+
+            default: // FlatColor
+                RenderSettings.ambientMode  = AmbientMode.Flat;
+                RenderSettings.ambientLight = config.ambientColor * config.ambientIntensity;
+                break;
+        }
+    }
+
+    // ── Post-processing crossfade ─────────────────────────────────────────────
+    private void SetAllPostProcessVolumesOff()
+    {
+        if (stageConfigs == null) return;
+        foreach (var cfg in stageConfigs)
+        {
+#if UNITY_POST_PROCESSING_STACK_V2
+            if (cfg?.postProcessVolume != null)
+                cfg.postProcessVolume.weight = 0f;
+#endif
+        }
+    }
+
+    private void CrossfadePostProcessVolume(int targetIndex, float duration, bool fade)
+    {
+#if UNITY_POST_PROCESSING_STACK_V2
+        if (_ppTransitionRoutine != null)
+            StopCoroutine(_ppTransitionRoutine);
+
+        var targetVol = stageConfigs[targetIndex]?.postProcessVolume;
+
+        if (!fade || duration <= 0f)
+        {
+            SetAllPostProcessVolumesOff();
+            if (targetVol != null) targetVol.weight = 1f;
+            return;
+        }
+
+        // Obtener volumen anterior
+        PostProcessVolume prevVol = (_currentStageIndex >= 0 && _currentStageIndex < stageConfigs.Length)
+            ? stageConfigs[_currentStageIndex]?.postProcessVolume
+            : null;
+
+        _ppTransitionRoutine = StartCoroutine(PPFadeRoutine(prevVol, targetVol, duration));
+#endif
+    }
+
+#if UNITY_POST_PROCESSING_STACK_V2
+    private IEnumerator PPFadeRoutine(PostProcessVolume from, PostProcessVolume to, float duration)
+    {
+        float elapsed = 0f;
+        if (to != null) to.gameObject.SetActive(true);
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / duration));
+
+            if (from != null) from.weight = 1f - t;
+            if (to   != null) to.weight   = t;
+
+            yield return null;
+        }
+
+        // Valores finales exactos
+        if (from != null) { from.weight = 0f; }
+        if (to   != null) { to.weight   = 1f; }
+
+        // Desactivar volúmenes inactivos para ahorrar GPU
+        foreach (var cfg in stageConfigs)
+        {
+            if (cfg?.postProcessVolume == null) continue;
+            if (cfg.postProcessVolume != to)
+                cfg.postProcessVolume.gameObject.SetActive(false);
+        }
+
+        _ppTransitionRoutine = null;
+    }
+#endif
+
+    // ── Partículas ────────────────────────────────────────────────────────────
     private void ApplyParticles(StageVisualConfig config)
     {
         if (config.particlesToPlay != null)
@@ -183,13 +348,13 @@ public class VisualEffectsStageController : MonoBehaviour
         }
     }
 
-    private void ApplyImmediateValues(StageVisualConfig config)
+    // ── Valores de luz / niebla ───────────────────────────────────────────────
+    private void ApplyImmediateLightValues(StageVisualConfig config)
     {
-        RenderSettings.ambientLight     = config.ambientColor * config.ambientIntensity;
-        RenderSettings.fog              = config.enableFog;
-        RenderSettings.fogColor         = config.fogColor;
-        RenderSettings.fogDensity       = config.fogDensity;
-        RenderSettings.fogMode          = FogMode.ExponentialSquared;
+        RenderSettings.fog        = config.enableFog;
+        RenderSettings.fogColor   = config.fogColor;
+        RenderSettings.fogDensity = config.fogDensity;
+        RenderSettings.fogMode    = FogMode.ExponentialSquared;
 
         if (sunLight != null)
         {
@@ -198,34 +363,27 @@ public class VisualEffectsStageController : MonoBehaviour
         }
     }
 
-    private IEnumerator TransitionRoutine(StageVisualConfig target)
+    private IEnumerator LightTransitionRoutine(StageVisualConfig target)
     {
         float duration = target.transitionDuration;
         float elapsed  = 0f;
 
         // Capturar valores de inicio
-        Color  startAmbient      = RenderSettings.ambientLight;
-        Color  startFogColor     = RenderSettings.fogColor;
-        float  startFogDensity   = RenderSettings.fogDensity;
-        Color  startSunColor     = sunLight != null ? sunLight.color     : Color.white;
-        float  startSunIntensity = sunLight != null ? sunLight.intensity : 1f;
+        Color startFogColor     = RenderSettings.fogColor;
+        float startFogDensity   = RenderSettings.fogDensity;
+        Color startSunColor     = sunLight != null ? sunLight.color     : Color.white;
+        float startSunIntensity = sunLight != null ? sunLight.intensity : 1f;
 
-        Color  endAmbient   = target.ambientColor * target.ambientIntensity;
-        float  endFogDensity = target.enableFog ? target.fogDensity : 0f;
-
-        // Activar la niebla inmediatamente si la etapa la requiere,
-        // o desactivarla al final si no.
-        if (target.enableFog)
-            RenderSettings.fog = true;
+        float endFogDensity = target.enableFog ? target.fogDensity : 0f;
+        if (target.enableFog) RenderSettings.fog = true;
 
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
             float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / duration));
 
-            RenderSettings.ambientLight = Color.Lerp(startAmbient,    endAmbient,          t);
-            RenderSettings.fogColor     = Color.Lerp(startFogColor,    target.fogColor,     t);
-            RenderSettings.fogDensity   = Mathf.Lerp(startFogDensity, endFogDensity,        t);
+            RenderSettings.fogColor   = Color.Lerp(startFogColor,   target.fogColor,  t);
+            RenderSettings.fogDensity = Mathf.Lerp(startFogDensity, endFogDensity,    t);
 
             if (sunLight != null)
             {
@@ -236,13 +394,9 @@ public class VisualEffectsStageController : MonoBehaviour
             yield return null;
         }
 
-        // Asegurar valores finales exactos
-        ApplyImmediateValues(target);
+        ApplyImmediateLightValues(target);
+        if (!target.enableFog) RenderSettings.fog = false;
 
-        // Desactivar niebla después del fade si la etapa no la usa
-        if (!target.enableFog)
-            RenderSettings.fog = false;
-
-        _transitionRoutine = null;
+        _lightTransitionRoutine = null;
     }
 }

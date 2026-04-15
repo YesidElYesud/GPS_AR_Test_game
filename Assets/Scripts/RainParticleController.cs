@@ -1,80 +1,63 @@
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// RainParticleController — Sistema de lluvia autoconfigurado y optimizado para WebGL.
+/// RainParticleController — Sistema de lluvia para WebGL.
 ///
-/// Setup (una sola vez):
-///   1. Crear un GameObject vacío "Rain" en la escena.
-///   2. Adjuntar este script (agrega ParticleSystem automáticamente).
-///   3. Crear y asignar un Material de lluvia (ver comentario en campo rainMaterial).
-///   4. Guardar como Prefab.
+/// Correcciones respecto a versiones anteriores:
+///   · velocityScale reducido drásticamente (antes 0.05 → ahora 0.007):
+///     las gotas eran de ~85cm de largo; ahora son ~15cm (realistas).
+///   · RainGroundSplash se crea como objeto RAÍZ (no hijo):
+///     evita que el movimiento de Rain arrastre la posición del splash.
+///   · Start() propaga la intensidad inicial al splash system.
 ///
-/// Material recomendado:
-///   Project → Create → Material
-///   Shader: "Particles/Standard Unlit"  (o "Legacy Shaders/Particles/Alpha Blended")
-///   Rendering Mode: Transparent
-///   Color: RGBA (190, 220, 255, 130)  ← azul claro, ~50% alpha
-///   Sin textura necesaria para resultado básico.
-///
-/// API pública:
-///   SetIntensity(RainIntensity)      — None / Light / Medium / Heavy
-///   SetDensityNormalized(float 0-1)  — mapeo continuo a los 4 presets
-///
-/// Optimizaciones WebGL:
-///   - simulationSpace = World (sin recálculo por transform)
-///   - gravityModifier = 0 (sin física, velocidad constante via velocityOverLifetime)
-///   - Shadows OFF en renderer
-///   - maxParticles calculado exacto por preset (no derroche de memoria)
-///   - Ningún módulo opcional activo (sin noise, trails, collision, sub-emitters)
+/// Setup:
+///   1. Crear GameObject "Rain" en escena.
+///   2. Adjuntar este script.
+///   3. Presionar Play → RainGroundSplash se crea automáticamente como
+///      objeto raíz en la escena.
 /// </summary>
 [RequireComponent(typeof(ParticleSystem))]
 public class RainParticleController : MonoBehaviour
 {
-    // ── Enum público ──────────────────────────────────────────────────────────
     public enum RainIntensity { None, Light, Medium, Heavy }
 
     // ── Inspector ─────────────────────────────────────────────────────────────
     [Header("Intensidad")]
-    [Tooltip("Preset activo al iniciar.")]
     public RainIntensity intensity = RainIntensity.Light;
 
-    [Header("Área de lluvia")]
-    [Tooltip("Ancho y largo del área emisora en metros.")]
-    [Range(10f, 60f)]
-    public float areaSize = 25f;
+    [Tooltip("Duración del fundido al cambiar intensidad (seg).")]
+    [Range(0f, 3f)]
+    public float transitionDuration = 0.8f;
 
-    [Tooltip("Altura del emisor sobre la cámara en metros.")]
-    [Range(8f, 40f)]
-    public float height = 20f;
+    [Header("Área")]
+    [Range(10f, 60f)] public float areaSize   = 30f;
+    [Range(8f,  40f)] public float height     = 22f;
+    [Range(5f,  35f)] public float fallSpeed  = 16f;
 
-    [Header("Movimiento")]
-    [Tooltip("Velocidad de caída de las gotas (m/s).")]
-    [Range(5f, 35f)]
-    public float fallSpeed = 14f;
-
-    [Tooltip("Seguir a la Main Camera cada frame.")]
-    public bool followCamera = true;
+    [Header("Viento")]
+    [Tooltip("Dirección del viento en grados (0=Norte, 90=Este).")]
+    [Range(0f, 360f)] public float windAngle = 215f;
+    [Tooltip("Velocidad lateral. 0=vertical pura. 1.5=inclinación sutil.")]
+    [Range(0f, 5f)]   public float windSpeed = 1.5f;
 
     [Header("Visual")]
-    [Tooltip(
-        "Material de partícula para las gotas.\n" +
-        "Cómo crearlo:\n" +
-        "  1. Project → Create → Material\n" +
-        "  2. Shader: Particles/Standard Unlit\n" +
-        "  3. Rendering Mode: Transparent\n" +
-        "  4. Color: azul claro, ~50% alpha\n" +
-        "Null = usa el material default de Unity (rosa en editor, blanco en build)."
-    )]
+    [Tooltip("Null = material generado proceduralmente.")]
     public Material rainMaterial;
 
-    // ── Presets: (emissionRate, sizeMin, sizeMax) ─────────────────────────────
-    // Diseñados para WebGL móvil. Heavy = ~560 partículas simultáneas máximo.
-    private static readonly (float rate, float sMin, float sMax)[] k_Presets =
+    public bool followCamera = true;
+
+    // ── Presets: (rate, dropWidth, lengthScale, velocityScale) ───────────────
+    // Longitud resultante = dropWidth × lengthScale + fallSpeed × velocityScale
+    //   Light : 0.020 × 1.3 + 16 × 0.006 = 0.026 + 0.096 = ~12cm  ✓
+    //   Medium: 0.030 × 1.4 + 16 × 0.007 = 0.042 + 0.112 = ~15cm  ✓
+    //   Heavy : 0.040 × 1.5 + 16 × 0.008 = 0.060 + 0.128 = ~19cm  ✓
+    private static readonly (float rate, float width, float len, float vel)[] k_Presets =
     {
-        (  0f, 0.000f, 0.000f),   // None
-        ( 80f, 0.015f, 0.030f),   // Light   → ~112 partículas activas
-        (200f, 0.025f, 0.040f),   // Medium  → ~280 partículas activas
-        (400f, 0.035f, 0.055f),   // Heavy   → ~560 partículas activas
+        (  0f, 0.000f, 0.0f, 0.000f),   // None
+        ( 90f, 0.020f, 1.3f, 0.006f),   // Light
+        (240f, 0.030f, 1.4f, 0.007f),   // Medium
+        (480f, 0.040f, 1.5f, 0.008f),   // Heavy
     };
 
     // ── Internos ──────────────────────────────────────────────────────────────
@@ -82,27 +65,31 @@ public class RainParticleController : MonoBehaviour
     private ParticleSystemRenderer _renderer;
     private Transform              _cam;
     private float                  _cachedLifetime;
+    private float                  _currentRate;
+    private Coroutine              _transitionRoutine;
+    private RainGroundSplash       _splash;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
     {
-        _ps       = GetComponent<ParticleSystem>();
-        _renderer = GetComponent<ParticleSystemRenderer>();
-
-        // Sin rotación: la dirección de caída la controla velocityOverLifetime
-        // en espacio mundo → funciona independiente de la orientación del objeto.
+        _ps               = GetComponent<ParticleSystem>();
+        _renderer         = GetComponent<ParticleSystemRenderer>();
         transform.rotation = Quaternion.identity;
 
         BuildParticleSystem();
+        EnsureSplashSystem();
     }
 
     private void Start()
     {
-        Camera cam = Camera.main;
+        var cam = Camera.main;
         if (cam != null) _cam = cam.transform;
 
         SnapToCamera();
-        ApplyIntensity(intensity);
+
+        // Aplicar intensidad inicial + sincronizar splash
+        ApplyIntensityImmediate(intensity);
+        _splash?.SetIntensity(intensity);
     }
 
     private void LateUpdate()
@@ -112,113 +99,224 @@ public class RainParticleController : MonoBehaviour
     }
 
     // ── API pública ────────────────────────────────────────────────────────────
-
-    /// <summary>Cambia el preset de intensidad.</summary>
     public void SetIntensity(RainIntensity newIntensity)
     {
         intensity = newIntensity;
-        ApplyIntensity(newIntensity);
+
+        if (_transitionRoutine != null) StopCoroutine(_transitionRoutine);
+
+        if (transitionDuration > 0f)
+            _transitionRoutine = StartCoroutine(IntensityTransition(newIntensity));
+        else
+            ApplyIntensityImmediate(newIntensity);
+
+        _splash?.SetIntensity(newIntensity);
     }
 
-    /// <summary>Control continuo: 0 = sin lluvia · 1 = Heavy.</summary>
     public void SetDensityNormalized(float t)
-    {
-        t = Mathf.Clamp01(t);
-        SetIntensity((RainIntensity)Mathf.RoundToInt(t * 3f));
-    }
+        => SetIntensity((RainIntensity)Mathf.RoundToInt(Mathf.Clamp01(t) * 3f));
 
-    // ── Construcción del ParticleSystem (una vez en Awake) ────────────────────
+    // ── Construir PS ──────────────────────────────────────────────────────────
     private void BuildParticleSystem()
     {
-        _cachedLifetime = (height / fallSpeed) + 0.5f;   // tiempo de caída + buffer
-        int maxP = Mathf.CeilToInt(k_Presets[(int)RainIntensity.Heavy].rate * _cachedLifetime * 1.5f);
+        _cachedLifetime = (height / fallSpeed) + 0.4f;
+        int maxP = Mathf.CeilToInt(k_Presets[(int)RainIntensity.Heavy].rate * _cachedLifetime * 1.15f);
 
-        // ── Main ──────────────────────────────────────────────────────────────
-        var main = _ps.main;
+        // Main
+        var main             = _ps.main;
         main.loop            = true;
         main.playOnAwake     = false;
-        main.startSpeed      = 0f;          // la velocidad la define velocityOverLifetime
-        main.startLifetime   = new ParticleSystem.MinMaxCurve(_cachedLifetime * 0.85f,
-                                                               _cachedLifetime * 1.15f);
-        main.startSize       = new ParticleSystem.MinMaxCurve(0.02f, 0.04f);
+        main.startSpeed      = 0f;
+        main.startLifetime   = new ParticleSystem.MinMaxCurve(_cachedLifetime * 0.82f, _cachedLifetime * 1.18f);
+        main.startSize       = new ParticleSystem.MinMaxCurve(0.020f, 0.040f);
         main.startColor      = new ParticleSystem.MinMaxGradient(
-                                   new Color(0.72f, 0.87f, 1f, 0.30f),
-                                   new Color(0.88f, 0.95f, 1f, 0.55f));
+                                   new Color(0.72f, 0.86f, 1.00f, 0.30f),
+                                   new Color(0.90f, 0.96f, 1.00f, 0.65f));
         main.maxParticles    = maxP;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.gravityModifier = 0f;
         main.stopAction      = ParticleSystemStopAction.Disable;
 
-        // ── Shape: caja plana horizontal (sin rotación del transform) ──────────
-        var shape = _ps.shape;
+        // Shape: caja plana (emisor horizontal)
+        var shape       = _ps.shape;
         shape.enabled   = true;
         shape.shapeType = ParticleSystemShapeType.Box;
-        // Y = 0.2 → slab delgado en altura; X y Z = área de cobertura
         shape.scale     = new Vector3(areaSize, 0.2f, areaSize);
 
-        // ── VelocityOverLifetime: empuja las gotas hacia abajo en mundo ─────────
-        // Este módulo garantiza caída vertical sin importar la rotación del objeto.
-        var vol = _ps.velocityOverLifetime;
+        // VelocityOverLifetime: caída + viento
+        float rad = windAngle * Mathf.Deg2Rad;
+        float wx  = Mathf.Sin(rad) * windSpeed;
+        float wz  = Mathf.Cos(rad) * windSpeed;
+
+        var vol     = _ps.velocityOverLifetime;
         vol.enabled = true;
         vol.space   = ParticleSystemSimulationSpace.World;
-        // Los tres ejes deben usar el mismo modo (TwoConstants).
-        vol.x       = new ParticleSystem.MinMaxCurve(0f, 0f);
+        vol.x       = new ParticleSystem.MinMaxCurve(wx * 0.88f, wx * 1.12f);
         vol.y       = new ParticleSystem.MinMaxCurve(-fallSpeed * 1.08f, -fallSpeed * 0.92f);
-        vol.z       = new ParticleSystem.MinMaxCurve(0f, 0f);
+        vol.z       = new ParticleSystem.MinMaxCurve(wz * 0.88f, wz * 1.12f);
 
-        // ── Emission ──────────────────────────────────────────────────────────
-        var emission = _ps.emission;
+        // ColorOverLifetime: fade suave en el último 20% del lifetime
+        var colLife     = _ps.colorOverLifetime;
+        colLife.enabled = true;
+        var grad        = new Gradient();
+        grad.SetKeys(
+            new[] {
+                new GradientColorKey(new Color(0.78f, 0.89f, 1f), 0.00f),
+                new GradientColorKey(new Color(0.92f, 0.97f, 1f), 0.50f),
+                new GradientColorKey(Color.white,                  1.00f),
+            },
+            new[] {
+                new GradientAlphaKey(1.00f, 0.00f),
+                new GradientAlphaKey(1.00f, 0.80f),
+                new GradientAlphaKey(0.00f, 1.00f),
+            }
+        );
+        colLife.color = new ParticleSystem.MinMaxGradient(grad);
+
+        // Emission
+        var emission          = _ps.emission;
         emission.enabled      = true;
         emission.rateOverTime = 0f;
 
-        // ── Renderer: gotas alargadas según velocidad de caída ─────────────────
+        // Renderer: Stretch alineado con velocidad
         _renderer.renderMode        = ParticleSystemRenderMode.Stretch;
-        _renderer.velocityScale     = 0.04f;    // elongación proporcional a la velocidad
-        _renderer.lengthScale       = 1.8f;     // elongación base
+        _renderer.velocityScale     = k_Presets[(int)RainIntensity.Medium].vel;
+        _renderer.lengthScale       = k_Presets[(int)RainIntensity.Medium].len;
         _renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         _renderer.receiveShadows    = false;
         _renderer.sortingFudge      = -1f;
 
-        if (rainMaterial != null)
-            _renderer.material = rainMaterial;
+        _renderer.material = (rainMaterial != null) ? rainMaterial : BuildRainMaterial();
     }
 
-    // ── Aplicar preset ────────────────────────────────────────────────────────
-    private void ApplyIntensity(RainIntensity preset)
+    // ── Material procedural ────────────────────────────────────────────────────
+    private Material BuildRainMaterial()
     {
-        var (rate, sMin, sMax) = k_Presets[(int)preset];
+        var shader = Shader.Find("Legacy Shaders/Particles/Alpha Blended");
+        if (shader == null || !shader.isSupported)
+            shader = Shader.Find("Particles/Alpha Blended");
+        if (shader == null || !shader.isSupported)
+            shader = Shader.Find("Sprites/Default");
+
+        var mat         = new Material(shader) { name = "RainDrop_Auto" };
+        mat.mainTexture = BuildStreakTexture();
+        mat.color       = Color.white;
+        return mat;
+    }
+
+    /// <summary>
+    /// Textura 4×32 px: gradiente que da forma de streak de lluvia.
+    /// El eje Y se alinea con la dirección de velocidad en Stretch mode.
+    /// </summary>
+    private Texture2D BuildStreakTexture()
+    {
+        const int W = 4, H = 32;
+        var tex = new Texture2D(W, H, TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Bilinear,
+            wrapMode   = TextureWrapMode.Clamp,
+            name       = "RainStreak_Auto",
+        };
+        for (int y = 0; y < H; y++)
+        {
+            float t      = y / (float)(H - 1);
+            float alpha  = Mathf.SmoothStep(0f, 1f, t * 3.5f) * Mathf.SmoothStep(0f, 1f, 1f - t * 0.25f);
+            alpha        = Mathf.Clamp01(alpha) * 0.80f;
+            float bright = 0.80f + 0.16f * Mathf.Sin(t * Mathf.PI);
+            var   c      = new Color(bright * 0.82f, bright * 0.92f, bright * 1.00f, alpha);
+            for (int x = 0; x < W; x++) tex.SetPixel(x, y, c);
+        }
+        tex.Apply();
+        return tex;
+    }
+
+    // ── Splash system (objeto RAÍZ, no hijo) ──────────────────────────────────
+    /// <summary>
+    /// Crea RainGroundSplash como objeto raíz de la escena para que su
+    /// posicionamiento en suelo sea independiente del movimiento de Rain.
+    /// </summary>
+    private void EnsureSplashSystem()
+    {
+        _splash = FindObjectOfType<RainGroundSplash>();
+        if (_splash != null) return;
+
+        var go  = new GameObject("RainGroundSplash");
+        // Sin padre: objeto raíz independiente
+        _splash = go.AddComponent<RainGroundSplash>();
+        _splash.areaRadius = areaSize * 0.5f;   // sincronizar radio con el emisor de lluvia
+    }
+
+    // ── Intensidad ────────────────────────────────────────────────────────────
+    private void ApplyIntensityImmediate(RainIntensity preset)
+    {
+        var (rate, width, len, vel) = k_Presets[(int)preset];
         var emission = _ps.emission;
 
         if (preset == RainIntensity.None)
         {
             emission.rateOverTime = 0f;
             _ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            _currentRate = 0f;
             return;
         }
 
-        int maxP = Mathf.CeilToInt(rate * _cachedLifetime * 1.5f);
+        var main          = _ps.main;
+        main.startSize    = new ParticleSystem.MinMaxCurve(width * 0.65f, width * 1.35f);
+        main.maxParticles = Mathf.CeilToInt(rate * _cachedLifetime * 1.15f);
 
-        var main = _ps.main;
-        main.startSize    = new ParticleSystem.MinMaxCurve(sMin, sMax);
-        main.maxParticles = maxP;
-
-        emission.rateOverTime = rate;
+        _renderer.lengthScale   = len;
+        _renderer.velocityScale = vel;
+        emission.rateOverTime   = rate;
+        _currentRate            = rate;
 
         if (!_ps.isPlaying) _ps.Play();
     }
 
-    // ── Helper ────────────────────────────────────────────────────────────────
+    private IEnumerator IntensityTransition(RainIntensity target)
+    {
+        var (targetRate, width, len, vel) = k_Presets[(int)target];
+        float startRate = _currentRate;
+        float elapsed   = 0f;
+
+        if (target != RainIntensity.None)
+        {
+            var main          = _ps.main;
+            main.startSize    = new ParticleSystem.MinMaxCurve(width * 0.65f, width * 1.35f);
+            main.maxParticles = Mathf.CeilToInt(targetRate * _cachedLifetime * 1.15f);
+            _renderer.lengthScale   = len;
+            _renderer.velocityScale = vel;
+            if (!_ps.isPlaying) _ps.Play();
+        }
+
+        var emission = _ps.emission;
+        while (elapsed < transitionDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t  = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / transitionDuration));
+            emission.rateOverTime = Mathf.Lerp(startRate, targetRate, t);
+            _currentRate          = emission.rateOverTime.constant;
+            yield return null;
+        }
+
+        emission.rateOverTime = targetRate;
+        _currentRate          = targetRate;
+
+        if (target == RainIntensity.None)
+            _ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+
+        _transitionRoutine = null;
+    }
+
     private void SnapToCamera()
     {
-        Vector3 p = _cam.position;
+        Vector3 p      = _cam.position;
         transform.position = new Vector3(p.x, p.y + height, p.z);
     }
 
-    // ── Editor: preview en Play mode ──────────────────────────────────────────
     private void OnValidate()
     {
         if (!Application.isPlaying) return;
         if (_ps == null) _ps = GetComponent<ParticleSystem>();
-        if (_ps != null) ApplyIntensity(intensity);
+        if (_ps != null) SetIntensity(intensity);
     }
 }
