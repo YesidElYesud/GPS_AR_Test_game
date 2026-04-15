@@ -42,9 +42,6 @@ public enum HotspotActionType
 
     /// <summary>Simula una llamada al SIATA con opciones de reporte (Sistema 10).</summary>
     SiataCall       = 3,
-
-    /// <summary>Muestra slides secuenciales de contenido educativo (Programación 1+).</summary>
-    InfoSlidePanel  = 4,
 }
 
 // ── ScriptableObject ──────────────────────────────────────────────────────────
@@ -85,16 +82,6 @@ public class HotspotData : ScriptableObject
 
     [Tooltip("Datos del diálogo. Solo se usa cuando actionType = NpcConversation o SiataCall.")]
     public NpcDialogueData dialogueData;
-
-    [Tooltip("Slides a mostrar cuando actionType = InfoSlidePanel.\n" +
-             "Ejemplo Botón 1:\n" +
-             "  [0] ¿Qué es una cuenca torrencial?\n" +
-             "  [1] Historia de crecientes en La Iguaná\n" +
-             "  [2] Cómo la morfología influye en el riesgo")]
-    public InfoSlideData[] infoSlides;
-
-    [Tooltip("Si true, al cerrar el último slide se avanza a la siguiente etapa (NextStage).")]
-    public bool infoSlideAdvancesStage = true;
 
     // ── Activación ────────────────────────────────────────────────────────────
     [Header("Activación")]

@@ -3,161 +3,97 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// WelcomePanel — Panel de bienvenida con onboarding (Programación 0).
-///
-/// Dos modos de slides (se puede usar uno o ambos en el mismo panel):
-///
-///   MODO A — Data-driven (recomendado):
-///     Rellena el array "slideData" con título + cuerpo + imágenes opcionales.
-///     El script reutiliza un único "slideTemplate" y lo puebla con cada entrada.
-///     Jerarquía mínima:
-///       WelcomePanel
-///         SlideTemplate    ← asignar a "slideTemplate"
-///           TitleText      ← asignar a "slideTitle"
-///           BodyText       ← asignar a "slideBody"
-///           SlideImage     ← asignar a "slideImage"  (Image, opcional)
-///         NavRow
-///           PreviousButton
-///           NextButton
-///           StartButton
-///         CounterText
-///
-///   MODO B — GameObjects hijos (modo original, retrocompatible):
-///     Llena el array "slides" con GameObjects existentes.
-///     slideTemplate debe quedar vacío para que no haya conflicto.
+/// WelcomePanel — Panel de bienvenida y tutorial de controles.
 ///
 /// Flujo:
-///   Intro → onboarding → "Comenzar" → GoToStage(Etapa1)
+///   1. El panel arranca activo en escena (Stage.Intro).
+///   2. Bloquea el movimiento del jugador al iniciarse.
+///   3. El usuario navega entre slides con Anterior / Siguiente.
+///   4. En el último slide aparece "Comenzar" → desbloquea input y va a Etapa1.
+///
+/// Setup en editor:
+///   1. Crear un panel hijo del Canvas llamado "WelcomePanel" (activo al inicio).
+///   2. Adjuntar este script al panel.
+///   3. Crear slides como GameObjects hijos y asignarlos al array "slides".
+///   4. Asignar los botones, contador y (opcionalmente) cameraController.
+///   5. En StageManager → stageConfigs[0] (Intro):
+///        objectsToActivate  → WelcomePanel
+///        objectsToDeactivate → (vacío, ya estaba activo)
+///
+/// Dependencias:
+///   - StageManager.Instance  → para bloquear input y avanzar a Etapa1.
+///   - ARCameraController     → fallback directo si StageManager no está listo.
 /// </summary>
 public class WelcomePanel : MonoBehaviour
 {
-    // ── Slide data (Modo A) ───────────────────────────────────────────────────
-    [System.Serializable]
-    public class WelcomeSlideData
-    {
-        [Tooltip("Título del slide.")]
-        public string title;
+    // ── Inspector ─────────────────────────────────────────────────────────────
 
-        [TextArea(3, 8)]
-        [Tooltip("Texto principal del slide.")]
-        public string body;
-
-        [Tooltip("Imagen ilustrativa (diagrama de controles, mapa, etc.). Opcional.")]
-        public Sprite image;
-    }
-
-    [Header("Slides — Modo A: datos en Inspector")]
-    [Tooltip("Define aquí el contenido de cada slide. Si está vacío, se usa el array 'slides' (Modo B).")]
-    public WelcomeSlideData[] slideData = new WelcomeSlideData[]
-    {
-        new WelcomeSlideData
-        {
-            title = "Controles",
-            body  =
-                "MÓVIL\n" +
-                "· Joystick en pantalla para moverte\n" +
-                "· Gira el teléfono para rotar la vista\n" +
-                "· Toca los objetos para interactuar\n\n" +
-                "PC\n" +
-                "· WASD para moverte\n" +
-                "· Arrastra el mouse para girar la cámara\n" +
-                "· Clic en los objetos para interactuar"
-        },
-        new WelcomeSlideData
-        {
-            title = "¿Qué es el SATC?",
-            body  =
-                "El Sistema de Alerta Temprana Comunitaria (SATC) " +
-                "te permite conocer el nivel de riesgo de tu barrio " +
-                "ante crecientes de la quebrada La Iguaná.\n\n" +
-                "En esta experiencia aprenderás a reconocer las señales " +
-                "de alerta, a comunicarte con el SIATA y a actuar como " +
-                "líder comunitario ante una emergencia hidrológica.\n\n" +
-                "¡Tu participación activa puede salvar vidas!"
-        }
-    };
-
-    [Header("Plantilla UI (Modo A)")]
-    [Tooltip("GameObject que contiene los elementos de texto/imagen del slide. Se puebla con cada entrada de slideData.")]
-    public GameObject slideTemplate;
-
-    [Tooltip("TextMeshProUGUI del título dentro de slideTemplate.")]
-    public TextMeshProUGUI slideTitle;
-
-    [Tooltip("TextMeshProUGUI del cuerpo dentro de slideTemplate.")]
-    public TextMeshProUGUI slideBody;
-
-    [Tooltip("Image dentro de slideTemplate para la ilustración. Se oculta si el slide no tiene imagen.")]
-    public Image slideImage;
-
-    // ── Slides — Modo B (retrocompatible) ────────────────────────────────────
-    [Header("Slides — Modo B: GameObjects hijos")]
-    [Tooltip("Array de GameObjects ya diseñados. Solo se usa si slideTemplate está vacío.")]
+    [Header("Slides (hijos del panel, en orden)")]
+    [Tooltip("Cada slide es un GameObject hijo. Se muestran de a uno en orden.")]
     public GameObject[] slides;
 
-    // ── Navegación ────────────────────────────────────────────────────────────
     [Header("Botones de navegación")]
+    [Tooltip("Botón para ir al slide anterior. Se oculta en el primer slide.")]
     public Button previousButton;
+
+    [Tooltip("Botón para ir al siguiente slide. Se oculta en el último slide.")]
     public Button nextButton;
 
-    [Tooltip("Solo visible en el último slide.")]
+    [Tooltip("Botón para iniciar la experiencia. Solo visible en el último slide.")]
     public Button startButton;
 
     [Header("Indicador de progreso (opcional)")]
+    [Tooltip("Muestra '1 / 3', '2 / 3', etc. Puede quedar vacío.")]
     public TextMeshProUGUI slideCounterText;
 
     [Header("Debug")]
-    [Tooltip("Salta el onboarding directamente. Útil en editor.")]
+    [Tooltip("Botón para saltar el onboarding directamente (útil en editor). Puede quedar vacío.")]
     public Button skipButton;
 
-    [Header("Referencia directa de cámara (fallback)")]
+    [Header("Referencia directa de cámara")]
+    [Tooltip("Fallback si StageManager no encontró aún la cámara. Se busca automáticamente.")]
     public ARCameraController cameraController;
 
     // ── Internos ──────────────────────────────────────────────────────────────
-    private int  _currentSlide;
-    private bool _usingDataMode;   // true = Modo A, false = Modo B
-    private int  SlideCount
-    {
-        get
-        {
-            if (_usingDataMode)
-                return (slideData != null && slideData.Length > 0) ? slideData.Length : 1;
-            return (slides != null) ? slides.Length : 0;
-        }
-    }
+    private int _currentSlide = 0;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Start()
     {
+        // Buscar cámara si no está asignada (fallback)
         if (cameraController == null)
             cameraController = FindObjectOfType<ARCameraController>();
 
-        // Modo A si hay plantilla asignada, independiente de si slideData tiene contenido.
-        // (Unity no aplica defaults de código a componentes ya serializados, por eso
-        //  no se puede depender de slideData.Length > 0 como condición.)
-        _usingDataMode = (slideTemplate != null);
-
+        // Bloquear input del jugador mientras el panel esté visible
         BlockPlayerInput(true);
 
+        // Conectar botones
         if (previousButton != null) previousButton.onClick.AddListener(OnPrevious);
         if (nextButton     != null) nextButton.onClick.AddListener(OnNext);
         if (startButton    != null) startButton.onClick.AddListener(OnStart);
         if (skipButton     != null) skipButton.onClick.AddListener(OnStart);
 
+        // Mostrar primer slide
         ShowSlide(0);
     }
 
     // ── Navegación ────────────────────────────────────────────────────────────
     private void OnPrevious()
     {
-        if (_currentSlide > 0) ShowSlide(_currentSlide - 1);
+        if (_currentSlide > 0)
+            ShowSlide(_currentSlide - 1);
     }
 
     private void OnNext()
     {
-        if (_currentSlide < SlideCount - 1) ShowSlide(_currentSlide + 1);
+        if (_currentSlide < slides.Length - 1)
+            ShowSlide(_currentSlide + 1);
     }
 
+    /// <summary>
+    /// Llamado al presionar "Comenzar" o el botón skip.
+    /// Desbloquea input, avanza a Etapa1 y oculta este panel.
+    /// </summary>
     private void OnStart()
     {
         BlockPlayerInput(false);
@@ -168,82 +104,71 @@ public class WelcomePanel : MonoBehaviour
         gameObject.SetActive(false);
     }
 
-    // ── Visualización ─────────────────────────────────────────────────────────
+    // ── Visualización de slides ───────────────────────────────────────────────
     private void ShowSlide(int index)
     {
-        if (SlideCount == 0) return;
+        if (slides == null || slides.Length == 0) return;
 
-        _currentSlide = Mathf.Clamp(index, 0, SlideCount - 1);
+        index = Mathf.Clamp(index, 0, slides.Length - 1);
+        _currentSlide = index;
 
-        if (_usingDataMode)
-            PopulateTemplate(_currentSlide);
-        else
-            ActivateSlideObject(_currentSlide);
+        // Activar solo el slide actual
+        for (int i = 0; i < slides.Length; i++)
+        {
+            if (slides[i] != null)
+                slides[i].SetActive(i == _currentSlide);
+        }
 
         RefreshButtons();
         UpdateCounter();
     }
 
-    /// <summary>Modo A — puebla la plantilla con los datos del slide.</summary>
-    private void PopulateTemplate(int index)
-    {
-        // Asegurar que la plantilla esté visible
-        slideTemplate.SetActive(true);
-
-        // Desactivar slides del Modo B para que no se solapen
-        if (slides != null)
-            foreach (var s in slides)
-                if (s != null && s != slideTemplate) s.SetActive(false);
-
-        if (slideData == null || index >= slideData.Length) return;
-
-        WelcomeSlideData data = slideData[index];
-
-        if (slideTitle != null) slideTitle.text = data.title;
-        if (slideBody  != null) slideBody.text  = data.body;
-
-        if (slideImage != null)
-        {
-            bool hasImage = data.image != null;
-            slideImage.gameObject.SetActive(hasImage);
-            if (hasImage) slideImage.sprite = data.image;
-        }
-    }
-
-    /// <summary>Modo B — activa solo el GameObject correspondiente.</summary>
-    private void ActivateSlideObject(int index)
-    {
-        for (int i = 0; i < slides.Length; i++)
-            if (slides[i] != null) slides[i].SetActive(i == index);
-    }
-
     private void RefreshButtons()
     {
         bool isFirst = _currentSlide == 0;
-        bool isLast  = _currentSlide >= SlideCount - 1;
+        bool isLast  = _currentSlide >= slides.Length - 1;
 
-        if (previousButton != null) previousButton.gameObject.SetActive(!isFirst);
-        if (nextButton     != null) nextButton.gameObject.SetActive(!isLast);
-        if (startButton    != null) startButton.gameObject.SetActive(isLast);
+        // "Anterior" solo visible si no estamos en el primero
+        if (previousButton != null)
+            previousButton.gameObject.SetActive(!isFirst);
+
+        // "Siguiente" solo visible si no estamos en el último
+        if (nextButton != null)
+            nextButton.gameObject.SetActive(!isLast);
+
+        // "Comenzar" solo visible en el último slide
+        if (startButton != null)
+            startButton.gameObject.SetActive(isLast);
     }
 
     private void UpdateCounter()
     {
-        if (slideCounterText == null) return;
-        slideCounterText.text = $"{_currentSlide + 1} / {SlideCount}";
+        if (slideCounterText == null || slides == null || slides.Length == 0) return;
+        slideCounterText.text = $"{_currentSlide + 1} / {slides.Length}";
     }
 
-    // ── Bloqueo de input ──────────────────────────────────────────────────────
+    // ── Bloqueo de input ─────────────────────────────────────────────────────
+    /// <summary>
+    /// Bloquea/desbloquea el movimiento del jugador.
+    /// Intenta StageManager primero; si no está listo, actúa directamente sobre la cámara.
+    /// </summary>
     private void BlockPlayerInput(bool block)
     {
         if (StageManager.Instance != null)
+        {
             StageManager.Instance.SetPlayerInputBlocked(block);
+        }
         else if (cameraController != null)
+        {
+            // Fallback directo — puede ocurrir si el orden de Start() no favorece a StageManager
             cameraController.SetInputBlocked(block);
+        }
     }
 
     // ── API pública ───────────────────────────────────────────────────────────
-    /// <summary>Muestra el panel desde código (ej: botón "Ver controles" en pausa).</summary>
+    /// <summary>
+    /// Muestra el panel desde código (ej: botón "Ver controles" en pausa).
+    /// </summary>
     public void Show()
     {
         gameObject.SetActive(true);
