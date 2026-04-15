@@ -3,7 +3,67 @@ guid: 191b30300f1be42dab78af3fc7df654f
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Agua
+    second: {fileID: 2100000, guid: c791b3501bd794cc3937a8b926d855d0, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Camino_1
+    second: {fileID: 2100000, guid: 85ec42cabb9971c9cbe98a11a7d15243, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Camino_2
+    second: {fileID: 2100000, guid: 80ac325373d68aaba900697cd9504d28, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Camino_3
+    second: {fileID: 2100000, guid: c2394e454d46e24d08a33cd5856bfc3e, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: barandas
+    second: {fileID: 2100000, guid: 58f9bf41533c21c638fd2c8e03f0f434, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: puente
+    second: {fileID: 2100000, guid: 16a5371efc2e5756d9dec18fb8c02200, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: rio.001
+    second: {fileID: 2100000, guid: c8bd12c564102ce5eb9bdf4390fab7d1, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: rocas
+    second: {fileID: 2100000, guid: ca025d854a66023de8f140e0298c78c5, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: terreno
+    second: {fileID: 2100000, guid: ea8e8e783af33a1de86043f60228dda3, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: trasparent grass1
+    second: {fileID: 2100000, guid: 9545d48bcc3fb9cf1821defd44cbb9d5, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: trasparent grass3
+    second: {fileID: 2100000, guid: 51b9d6f4664a66416bf63f7fc6208e6b, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: trasparent grass4
+    second: {fileID: 2100000, guid: 580af679073dacccf925ca54978c4309, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

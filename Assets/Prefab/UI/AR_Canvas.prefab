@@ -3436,7 +3436,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Saltar
+  m_text: x
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: fa7eb171821e697488ff45629806c11e, type: 2}
   m_sharedMaterial: {fileID: 8959680312773936344, guid: fa7eb171821e697488ff45629806c11e, type: 2}
@@ -3688,7 +3688,7 @@ MonoBehaviour:
   nextButtonLabel: {fileID: 5039879824530519345}
   counterText: {fileID: 1634201767547180039}
   labelNext: "Siguiente \u203A"
-  labelClose: Cerrar
+  labelClose: x
 --- !u!222 &8824734473636791850
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -3785,16 +3785,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.42673767, g: 0.42673767, b: 0.42673767, a: 1}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
+  m_Sprite: {fileID: 21300000, guid: 0c9fa86e09d2bb77da577700383c3c85, type: 3}
   m_Type: 0
-  m_PreserveAspect: 0
+  m_PreserveAspect: 1
   m_FillCenter: 1
   m_FillMethod: 4
   m_FillAmount: 1
@@ -4694,7 +4694,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: de7af93fab95014f7876975f8f42114d, type: 3}
+  m_Sprite: {fileID: 21300000, guid: b62a318ea63ad316fa86e70eddaa7e7a, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -4890,7 +4890,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: de7af93fab95014f7876975f8f42114d, type: 3}
+  m_Sprite: {fileID: 21300000, guid: b62a318ea63ad316fa86e70eddaa7e7a, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -5310,10 +5310,10 @@ RectTransform:
   - {fileID: 1213195924747236857}
   m_Father: {fileID: 6592940519649197058}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 51, y: -27}
-  m_SizeDelta: {x: 79.899994, y: 30}
+  m_AnchorMin: {x: 1, y: 1}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: -27, y: -27}
+  m_SizeDelta: {x: 30, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3101416038738310520
 CanvasRenderer:
@@ -8127,19 +8127,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   slideData:
-  - title: Controles
-    body: "M\xD3VIL\n\xB7 Joystick en pantalla para moverte\n\xB7 Gira el tel\xE9fono
-      para rotar la vista\n\xB7 Toca los objetos para interactuar\n\nPC\n\xB7 WASD
-      para moverte\n\xB7 Arrastra el mouse para girar la c\xE1mara\n\xB7 Clic en
-      los objetos para interactuar"
-    image: {fileID: 0}
-  - title: "\xBFQu\xE9 es el SATC?"
-    body: "El Sistema de Alerta Temprana Comunitaria (SATC) te permite conocer el
-      nivel de riesgo de tu barrio ante crecientes de la quebrada La Iguan\xE1.\n\nEn
-      esta experiencia aprender\xE1s a reconocer las se\xF1ales de alerta, a comunicarte
-      con el SIATA y a actuar como l\xEDder comunitario ante una emergencia hidrol\xF3gica.\n\n\xA1Tu
-      participaci\xF3n activa puede salvar vidas!"
-    image: {fileID: 0}
+  - title: 
+    body: 
+    image: {fileID: 21300000, guid: dc8470849e027a8a7a5d411daba89b49, type: 3}
+  - title: 
+    body: 
+    image: {fileID: 21300000, guid: 9de8b4065090800a0baab94a2dd36047, type: 3}
+  - title: 
+    body: 
+    image: {fileID: 21300000, guid: 0c9fa86e09d2bb77da577700383c3c85, type: 3}
   slideTemplate: {fileID: 5769240776730146611}
   slideTitle: {fileID: 6569542352989805799}
   slideBody: {fileID: 8542804252079957714}

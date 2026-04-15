@@ -22,8 +22,14 @@ public class GyroscopeManager : MonoBehaviour
              "Android ruidoso: 5–7. iOS / PC: 8–12.")]
     [Range(1f, 20f)] public float smoothSpeed = 6f;
 
+    [Tooltip("Elimina el roll (inclinación lateral del teléfono) de la rotación de cámara.\n" +
+             "Corrige el efecto de 'giro lateral' al mirar hacia abajo en Android.\n" +
+             "Recomendado: activado para navegación AR en portrait.")]
+    [SerializeField] private bool suppressRoll = true;
+
     private Quaternion _target       = Quaternion.identity;
     private bool       _hasFirstRead = false;
+    private float      _lastYaw      = 0f;   // yaw preservado cuando pitch → ±90°
 
     // Offset de calibración automática: se fija en la primera lectura para que
     // "donde apunta el teléfono al inicio" sea el frente de la escena.
@@ -151,6 +157,34 @@ public class GyroscopeManager : MonoBehaviour
 
             if (_eulerOffset != Vector3.zero)
                 _target = _target * Quaternion.Euler(_eulerOffset);
+
+            // ── Supresión de roll ────────────────────────────────────────────
+            // Extrae yaw y pitch desde el vector forward para evitar que el
+            // roll del dispositivo contamine la rotación lateral de la cámara
+            // cuando el pitch se acerca a ±90° (mirar hacia abajo/arriba).
+            if (suppressRoll)
+            {
+                Vector3 fwd     = _target * Vector3.forward;
+                Vector3 flatFwd = new Vector3(fwd.x, 0f, fwd.z);
+                float   flatLen = flatFwd.magnitude;
+
+                // Pitch: ángulo entre el forward y el plano horizontal
+                float pitch = Mathf.Atan2(-fwd.y, flatLen) * Mathf.Rad2Deg;
+
+                // Yaw: dirección horizontal del forward; preservar si flatFwd ≈ 0
+                float yaw;
+                if (flatLen > 0.01f)
+                {
+                    yaw      = Mathf.Atan2(flatFwd.x, flatFwd.z) * Mathf.Rad2Deg;
+                    _lastYaw = yaw;
+                }
+                else
+                {
+                    yaw = _lastYaw;   // mirando casi recto arriba/abajo: no hay yaw definido
+                }
+
+                _target = Quaternion.Euler(pitch, yaw, 0f);
+            }
 
             if (!_hasFirstRead)
             {
