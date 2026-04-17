@@ -4,86 +4,418 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <title>GPS VR Test</title>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="theme-color" content="#F4F6F9"/>
+  <title>SATCS — Olaya Herrera · SIRMED Medellín</title>
+
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    html, body { width:100%; height:100%; overflow:hidden; background:#000; }
+    /* ── Fuentes Metropolis ──────────────────────────────────────────────── */
+    @font-face {
+      font-family: 'Metropolis';
+      src: url('fonts/Metropolis-Light.otf') format('opentype');
+      font-weight: 300; font-style: normal;
+    }
+    @font-face {
+      font-family: 'Metropolis';
+      src: url('fonts/Metropolis-Regular.otf') format('opentype');
+      font-weight: 400; font-style: normal;
+    }
+    @font-face {
+      font-family: 'Metropolis';
+      src: url('fonts/Metropolis-SemiBold.otf') format('opentype');
+      font-weight: 600; font-style: normal;
+    }
+    @font-face {
+      font-family: 'Metropolis';
+      src: url('fonts/Metropolis-ExtraBold.otf') format('opentype');
+      font-weight: 800; font-style: normal;
+    }
 
+    /* ── Reset y variables ───────────────────────────────────────────────── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:          #F4F6F9;
+      --bg-card:     #FFFFFF;
+      --border:      #D8DDE6;
+      --accent:      #D95F00;        /* naranja quemado — visible en sol directo */
+      --accent-lt:   #FFF0E5;
+      --accent-glow: rgba(217,95,0,0.18);
+      --blue:        #1A5FAD;        /* azul institucional, alto contraste */
+      --blue-lt:     #E8F0FB;
+      --text-hi:     #111827;        /* casi negro — máximo contraste */
+      --text-mid:    #374151;        /* gris oscuro */
+      --text-lo:     #6B7280;        /* gris medio */
+      --radius:      18px;
+      --radius-sm:   11px;
+      --ff:          'Metropolis', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: var(--ff);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Canvas Unity ────────────────────────────────────────────────────── */
     #unity-canvas {
-      position:fixed; top:0; left:0;
-      width:100% !important; height:100% !important;
+      position: fixed; top: 0; left: 0;
+      width: 100% !important; height: 100% !important;
     }
 
+    /* ── Fondo: gradiente suave + patrón de puntos ───────────────────────── */
+    .page-bg {
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 70% 55% at 15% 0%,   #FDE8D4 0%, transparent 55%),
+        radial-gradient(ellipse 55% 45% at 92% 100%,  #DAE9F8 0%, transparent 50%),
+        #F4F6F9;
+    }
+    .page-bg::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image: radial-gradient(circle, rgba(0,0,0,0.07) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+
+    /* ── Pantalla de inicio ──────────────────────────────────────────────── */
     #start-screen {
-      position:fixed; inset:0; z-index:200; background:#111;
-      display:flex; flex-direction:column; align-items:center;
-      justify-content:center; gap:20px; padding:40px; text-align:center;
+      position: fixed; inset: 0; z-index: 200;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: clamp(16px, 4vw, 40px);
+      overflow-y: auto;
     }
-    #start-screen h2 { font:bold 22px monospace; color:#00ff88; letter-spacing:3px; }
-    #start-screen p  { font:13px monospace; color:#888; line-height:1.8; }
-    #start-btn {
-      background:#00ff88; color:#000; border:none; border-radius:12px;
-      padding:16px 48px; font:bold 18px monospace; cursor:pointer;
-    }
-    #start-status { font:12px monospace; color:#555; min-height:18px; }
 
-    #loading-overlay {
-      position:fixed; inset:0; z-index:100; background:#111;
-      display:none; flex-direction:column;
-      align-items:center; justify-content:center; gap:20px;
-      transition:opacity 0.5s;
+    .card {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 460px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: clamp(28px, 6vw, 48px) clamp(22px, 5vw, 40px);
+      display: flex; flex-direction: column;
+      align-items: center;
+      box-shadow:
+        0 1px 3px rgba(0,0,0,0.07),
+        0 12px 40px rgba(0,0,0,0.10),
+        0 32px 64px rgba(0,0,0,0.06);
     }
-    #loading-overlay.hidden { opacity:0; pointer-events:none; }
-    .ld-title { font:bold 20px monospace; color:#00ff88; letter-spacing:4px; }
-    .ld-bar-w { width:220px; height:3px; background:#222; border-radius:2px; overflow:hidden; }
-    .ld-bar   { height:100%; width:0; background:linear-gradient(90deg,#00ff88,#00cfff); transition:width .3s; }
-    .ld-pct   { font:13px monospace; color:#00ff88; }
+
+    /* Barra de acento superior */
+    .card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent), #F59E0B, var(--blue));
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+
+    /* ── Logo ────────────────────────────────────────────────────────────── */
+    .logo-wrap {
+      margin-bottom: 24px;
+      padding: 12px 18px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .logo-wrap img {
+      display: block;
+      height: clamp(46px, 10vw, 62px);
+      width: auto;
+      object-fit: contain;
+    }
+
+    /* ── Titulares ───────────────────────────────────────────────────────── */
+    .tag {
+      font-size: clamp(10px, 2.4vw, 12px);
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    .title-main {
+      font-size: clamp(28px, 8vw, 40px);
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      line-height: 1.1;
+      color: var(--text-hi);
+      text-align: center;
+      margin-bottom: 6px;
+    }
+    .title-main span { color: var(--accent); }
+
+    .title-sub {
+      font-size: clamp(13px, 3.2vw, 15px);
+      font-weight: 600;
+      color: var(--blue);
+      letter-spacing: 0.04em;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    /* ── Separador ───────────────────────────────────────────────────────── */
+    .divider {
+      width: 100%; height: 1px;
+      background: var(--border);
+      margin-bottom: 22px;
+    }
+
+    /* ── Descripción ─────────────────────────────────────────────────────── */
+    .description {
+      font-size: clamp(13.5px, 3.2vw, 15px);
+      font-weight: 400;
+      color: var(--text-mid);
+      line-height: 1.75;
+      text-align: center;
+      margin-bottom: 22px;
+    }
+    .description strong {
+      font-weight: 700;
+      color: var(--text-hi);
+    }
+
+    /* ── Badges institucionales ──────────────────────────────────────────── */
+    .badges {
+      display: flex; flex-wrap: wrap;
+      gap: 8px; justify-content: center;
+      margin-bottom: 24px;
+    }
+    .badge {
+      font-size: 11.5px; font-weight: 600;
+      letter-spacing: 0.06em;
+      padding: 5px 13px;
+      border-radius: 999px;
+      border: 1.5px solid;
+    }
+    .badge-orange {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: var(--accent-lt);
+    }
+    .badge-blue {
+      color: var(--blue);
+      border-color: var(--blue);
+      background: var(--blue-lt);
+    }
+
+    /* ── Permisos requeridos ─────────────────────────────────────────────── */
+    .permissions {
+      display: flex; gap: 14px; justify-content: center;
+      margin-bottom: 26px;
+      flex-wrap: wrap;
+    }
+    .perm-item {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 500;
+      color: var(--text-mid);
+    }
+    .perm-icon {
+      width: 30px; height: 30px;
+      border-radius: 8px;
+      border: 1.5px solid var(--border);
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+    }
+
+    /* ── Botón principal ─────────────────────────────────────────────────── */
+    #start-btn {
+      width: 100%;
+      padding: clamp(15px, 4vw, 18px) 0;
+      background: var(--accent);
+      color: #FFFFFF;
+      border: none; border-radius: var(--radius-sm);
+      font-family: var(--ff);
+      font-size: clamp(14px, 3.6vw, 16px);
+      font-weight: 800;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+      box-shadow: 0 6px 20px var(--accent-glow);
+      -webkit-tap-highlight-color: transparent;
+    }
+    #start-btn:hover  { background: #BF5200; transform: translateY(-1px); box-shadow: 0 10px 28px var(--accent-glow); }
+    #start-btn:active { background: #A34600; transform: translateY(1px);  box-shadow: 0 3px 8px  var(--accent-glow); }
+    #start-btn:disabled { background: #CCC; box-shadow: none; cursor: not-allowed; transform: none; }
+
+    /* ── Estado ──────────────────────────────────────────────────────────── */
+    #start-status {
+      margin-top: 14px;
+      font-size: 12px; font-weight: 500;
+      color: var(--text-lo);
+      min-height: 16px;
+      text-align: center;
+    }
+
+    /* ── Créditos ────────────────────────────────────────────────────────── */
+    .credits {
+      margin-top: 20px;
+      font-size: 11px; font-weight: 400;
+      color: var(--text-lo);
+      text-align: center;
+      line-height: 1.75;
+    }
+
+    /* ── Pantalla de carga ───────────────────────────────────────────────── */
+    #loading-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      transition: opacity 0.5s;
+      background:
+        radial-gradient(ellipse 70% 55% at 15% 0%,   #FDE8D4 0%, transparent 55%),
+        radial-gradient(ellipse 55% 45% at 92% 100%,  #DAE9F8 0%, transparent 50%),
+        #F4F6F9;
+    }
+    #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+    .ld-logo {
+      height: clamp(40px, 9vw, 54px);
+      width: auto; object-fit: contain;
+      margin-bottom: 32px;
+    }
+    .ld-title {
+      font-size: clamp(11px, 2.8vw, 13px);
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-lo);
+      margin-bottom: 18px;
+    }
+    .ld-bar-wrap {
+      width: clamp(200px, 58vw, 270px);
+      height: 4px;
+      background: var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .ld-bar {
+      height: 100%; width: 0;
+      background: linear-gradient(90deg, var(--accent), var(--blue));
+      border-radius: 999px;
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .ld-pct {
+      font-size: 13px; font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Responsive altura reducida (móvil landscape) ────────────────────── */
+    @media (max-height: 580px) {
+      .card { padding: 18px 20px; }
+      .logo-wrap { margin-bottom: 12px; padding: 8px 14px; }
+      .logo-wrap img { height: 36px; }
+      .description, .badges, .permissions { margin-bottom: 12px; }
+      .divider { margin-bottom: 12px; }
+      .credits { display: none; }
+    }
   </style>
 </head>
+
 <body>
   <canvas id="unity-canvas"></canvas>
 
-  <div id="start-screen">
-    <h2>GPS · VR · TEST</h2>
-    <p>Toca para iniciar.<br><br>
-       Se pedirá permiso para:<br>
-       📍 Ubicación GPS<br>
-       🔄 Giroscopio / Orientación
-    </p>
-    <button id="start-btn" onclick="onStart()">INICIAR</button>
-    <div id="start-status"></div>
+  <div class="page-bg" aria-hidden="true"></div>
+
+  <!-- ── PANTALLA DE INICIO ─────────────────────────────────────────────── -->
+  <div id="start-screen" role="main">
+    <div class="card">
+
+      <div class="logo-wrap">
+        <img src="images/logo_DAGRD.png" alt="DAGRD — Gestión del Riesgo de Desastres" loading="eager"/>
+      </div>
+
+      <p class="tag">Sistema de Alerta Temprana Comunitaria</p>
+
+      <h1 class="title-main">SAT <span>Olaya Herrera</span></h1>
+      <p class="title-sub">Quebrada La Iguaná · Medellín</p>
+
+      <div class="divider"></div>
+
+      <p class="description">
+        Experiencia educativa en <strong>Realidad Aumentada</strong> para el reconocimiento
+        de señales de alerta ante crecientes súbitas e inundaciones.<br><br>
+        Recorre el barrio, interactúa con los puntos de alerta y aprende a
+        <strong>leer el riesgo</strong> junto a tu comunidad.
+      </p>
+
+      <div class="badges">
+        <span class="badge badge-orange">SIRMED Medellín</span>
+        <span class="badge badge-blue">DAGRD</span>
+        <span class="badge badge-blue">I.U. Pascual Bravo</span>
+      </div>
+
+      <div class="permissions" aria-label="Permisos requeridos">
+        <div class="perm-item">
+          <div class="perm-icon">📍</div>
+          <span>Ubicación GPS</span>
+        </div>
+        <div class="perm-item">
+          <div class="perm-icon">🔄</div>
+          <span>Giroscopio</span>
+        </div>
+      </div>
+
+      <button id="start-btn" onclick="onStart()">
+        Iniciar experiencia
+      </button>
+
+      <div id="start-status" role="status" aria-live="polite"></div>
+
+      <p class="credits">
+        Proyecto SATCS · Medellín, Colombia<br>
+        Desarrollado con el apoyo del SIRMED —<br>
+        Sistema de Respuesta ante Emergencias de Medellín
+      </p>
+
+    </div>
   </div>
 
-  <div id="loading-overlay">
-    <div class="ld-title">CARGANDO</div>
-    <div class="ld-bar-w"><div class="ld-bar" id="progress-bar"></div></div>
-    <div class="ld-pct" id="loading-percent">0%</div>
+  <!-- ── PANTALLA DE CARGA ──────────────────────────────────────────────── -->
+  <div id="loading-overlay" role="status" aria-label="Cargando experiencia">
+    <img class="ld-logo" src="images/logo_DAGRD.png" alt="DAGRD"/>
+    <p class="ld-title">Cargando experiencia</p>
+    <div class="ld-bar-wrap">
+      <div class="ld-bar" id="progress-bar"></div>
+    </div>
+    <p class="ld-pct" id="loading-percent">0%</p>
   </div>
 
+  <!-- ── Scripts ───────────────────────────────────────────────────────── -->
   <script src="Build/{{{ LOADER_FILENAME }}}"></script>
   <script>
     var unityInstance = null;
 
-    function onStart() {
-      document.getElementById('start-btn').disabled = true;
-      document.getElementById('start-status').textContent = 'Iniciando...';
+    function setStatus(msg) {
+      document.getElementById('start-status').textContent = msg;
+    }
 
-      // iOS 13+: pedir permiso de giroscopio con el gesto del usuario
+    function onStart() {
+      var btn = document.getElementById('start-btn');
+      btn.disabled = true;
+      setStatus('Iniciando…');
+
+      // iOS 13+: permiso de giroscopio desde gesto del usuario
       if (typeof DeviceOrientationEvent !== 'undefined' &&
           typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission()
           .then(function(state) {
-            document.getElementById('start-status').textContent =
-              'Giroscopio: ' + state;
+            setStatus(state === 'granted' ? 'Giroscopio activado ✓' : 'Giroscopio: ' + state);
             loadUnity();
           })
-          .catch(function(e) {
-            document.getElementById('start-status').textContent =
-              'Giroscopio denegado. Cargando igual...';
+          .catch(function() {
+            setStatus('Permiso denegado. Continuando…');
             loadUnity();
           });
       } else {
-        // Android / otros — no necesita permiso
         loadUnity();
       }
     }
@@ -112,8 +444,8 @@
         setTimeout(function() { ov.style.display = 'none'; }, 600);
       })
       .catch(function(err) {
-        document.getElementById('loading-percent').textContent = 'Error: ' + err;
-        console.error(err);
+        document.getElementById('loading-percent').textContent = 'Error al cargar';
+        console.error('[SATCS]', err);
       });
     }
 

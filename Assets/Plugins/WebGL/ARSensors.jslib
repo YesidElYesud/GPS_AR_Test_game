@@ -46,63 +46,113 @@ mergeInto(LibraryManager.library, {
 
   Gyro_StartListening: function() {
     if (!window.AR_STATE) window.AR_STATE = {};
+
+    // Limpiar handlers previos
     if (window.AR_STATE.gyroHandler) {
       window.removeEventListener('deviceorientation', window.AR_STATE.gyroHandler, true);
+      window.AR_STATE.gyroHandler = null;
+    }
+    if (window.AR_STATE.orientationSensor) {
+      try { window.AR_STATE.orientationSensor.stop(); } catch(e) {}
+      window.AR_STATE.orientationSensor = null;
     }
 
-    // Intentar AbsoluteOrientationSensor primero (funciona durante toques en iOS 17+)
-    if (typeof AbsoluteOrientationSensor !== 'undefined') {
+    // ── Fallback final: deviceorientation ─────────────────────────────────────
+    // Funciona en iOS Safari y en Android como ultimo recurso.
+    // El pulso de 16ms garantiza actualizaciones continuas durante toques (iOS).
+    function setupDeviceOrientation() {
+      if (window.AR_STATE.gyroHandler) return; // ya configurado
+      window.AR_STATE.gyroHandler = function(e) {
+        if (e.alpha === null && e.beta === null && e.gamma === null) return;
+        var a = (e.alpha !== null) ? e.alpha.toFixed(4) : '0';
+        var b = (e.beta  !== null) ? e.beta.toFixed(4)  : '0';
+        var g = (e.gamma !== null) ? e.gamma.toFixed(4) : '0';
+        window.AR_STATE.lastGyro = a + ',' + b + ',' + g;
+        SendMessage('GyroscopeManager', 'OnGyroUpdate', window.AR_STATE.lastGyro);
+      };
+      window.addEventListener('deviceorientation', window.AR_STATE.gyroHandler, true);
+      if (!window.AR_STATE.gyroPulse) {
+        window.AR_STATE.gyroPulse = setInterval(function() {
+          if (window.AR_STATE.lastGyro) {
+            SendMessage('GyroscopeManager', 'OnGyroUpdate', window.AR_STATE.lastGyro);
+          }
+        }, 16);
+      }
+      console.log('[AR] Usando DeviceOrientation (fallback)');
+    }
+
+    // ── Intenta crear un Generic Sensor con fallback automático ───────────────
+    // SensorClass : RelativeOrientationSensor o AbsoluteOrientationSensor
+    // label       : nombre para logs
+    // onFail      : función a llamar si el sensor arranca pero luego falla
+    function tryOrientationSensor(SensorClass, label, onFail) {
+      if (!SensorClass) return false;
       try {
-        var sensor = new AbsoluteOrientationSensor({ frequency: 60, referenceFrame: 'screen' });
-        window.AR_STATE.lastGyroQ = null; // ultimo cuaternion enviado
+        var sensor = new SensorClass({ frequency: 60, referenceFrame: 'screen' });
+        window.AR_STATE.lastGyroQ = null;
+
         sensor.addEventListener('reading', function() {
           var q = sensor.quaternion; // [x, y, z, w]
-          // Filtro de ruido: omitir si el cambio angular es menor a ~1 grado.
-          // dot > 0.9998 equivale a angulo < ~1.1 grados entre los dos cuaterniones.
+          // Filtro de ruido: ignora cambios < ~0.1° (cos(0.05°) ≈ 0.999999).
+          // IMPORTANTE: umbral = 0.99999, NO 0.9998 — el anterior bloqueaba
+          // movimientos lentos (< 120°/s), haciendo la cámara incontrolable.
           var prev = window.AR_STATE.lastGyroQ;
           if (prev) {
             var dot = Math.abs(prev[0]*q[0] + prev[1]*q[1] + prev[2]*q[2] + prev[3]*q[3]);
-            if (dot > 0.9998) return;
+            if (dot > 0.99999) return;
           }
           window.AR_STATE.lastGyroQ = [q[0], q[1], q[2], q[3]];
-          // Enviar quaternion crudo con prefijo "Q:" — la conversion de coordenadas
-          // se hace en C# (Gyroscopemanager.cs). Evita la conversion a Euler que
-          // introducía gimbal lock y contaminación de ejes en Android Chrome.
+          // Prefijo "Q:" → Ruta A en Gyroscopemanager.cs (conversión ENU→Unity sin Euler)
           var data = 'Q:' + q[0].toFixed(6) + ',' + q[1].toFixed(6) + ','
                           + q[2].toFixed(6) + ',' + q[3].toFixed(6);
           window.AR_STATE.lastGyro = data;
           SendMessage('GyroscopeManager', 'OnGyroUpdate', data);
         });
+
         sensor.addEventListener('error', function(e) {
-          console.warn('[AR] AbsoluteOrientationSensor error:', e.error);
+          var name = (e.error && e.error.name) ? e.error.name : String(e);
+          console.warn('[AR] ' + label + ' error: ' + name);
+          if (window.AR_STATE.orientationSensor === sensor) {
+            try { sensor.stop(); } catch(se) {}
+            window.AR_STATE.orientationSensor = null;
+          }
+          onFail();
         });
+
         sensor.start();
         window.AR_STATE.orientationSensor = sensor;
-        console.log('[AR] Usando AbsoluteOrientationSensor');
-        return; // No necesitamos DeviceOrientation si esto funciona
+        console.log('[AR] Usando ' + label);
+        return true;
       } catch(e) {
-        console.warn('[AR] AbsoluteOrientationSensor no disponible:', e);
+        console.warn('[AR] ' + label + ' no disponible: ' + (e.message || e));
+        return false;
       }
     }
-    window.AR_STATE.gyroHandler = function(e) {
-      if (e.alpha === null && e.beta === null && e.gamma === null) return;
-      var a = (e.alpha !== null) ? e.alpha.toFixed(4) : '0';
-      var b = (e.beta  !== null) ? e.beta.toFixed(4)  : '0';
-      var g = (e.gamma !== null) ? e.gamma.toFixed(4) : '0';
-      // Guardar ultimo valor conocido
-      window.AR_STATE.lastGyro = a + ',' + b + ',' + g;
-      SendMessage('GyroscopeManager', 'OnGyroUpdate', window.AR_STATE.lastGyro);
-    };
-    window.addEventListener('deviceorientation', window.AR_STATE.gyroHandler, true);
 
-    // Pulso independiente: re-envia el ultimo giroscopio conocido cada 16ms (60fps)
-    // Esto asegura que Unity recibe rotacion aunque iOS pause DeviceOrientation durante toques
-    if (!window.AR_STATE.gyroPulse) {
-      window.AR_STATE.gyroPulse = setInterval(function() {
-        if (window.AR_STATE.lastGyro) {
-          SendMessage('GyroscopeManager', 'OnGyroUpdate', window.AR_STATE.lastGyro);
-        }
-      }, 16);
+    // ── Cadena de sensores (orden de preferencia) ─────────────────────────────
+    //
+    // 1. RelativeOrientationSensor — giroscopio + acelerómetro, SIN magnetómetro.
+    //    Ventaja clave: no hay deriva de brújula en interiores (edificios, aulas).
+    //    La calibración automática en la primera lectura cubre la orientación inicial.
+    //
+    // 2. AbsoluteOrientationSensor — incluye magnetómetro (puede derivar en interiores,
+    //    pero funciona en espacios abiertos y proporciona norte real).
+    //
+    // 3. DeviceOrientation — fallback universal (iOS Safari, Android sin Sensor API,
+    //    o cuando los permisos de sensor son denegados).
+    var RelSensor = typeof RelativeOrientationSensor !== 'undefined' ? RelativeOrientationSensor : null;
+    var AbsSensor = typeof AbsoluteOrientationSensor !== 'undefined' ? AbsoluteOrientationSensor : null;
+
+    if (!tryOrientationSensor(RelSensor, 'RelativeOrientationSensor', function() {
+          // Si RelativeOrientationSensor falla en tiempo de ejecución, intentar Absolute
+          if (!tryOrientationSensor(AbsSensor, 'AbsoluteOrientationSensor', setupDeviceOrientation)) {
+            setupDeviceOrientation();
+          }
+        })) {
+      // RelativeOrientationSensor no disponible en tiempo de carga → intentar Absolute
+      if (!tryOrientationSensor(AbsSensor, 'AbsoluteOrientationSensor', setupDeviceOrientation)) {
+        setupDeviceOrientation();
+      }
     }
   },
 
