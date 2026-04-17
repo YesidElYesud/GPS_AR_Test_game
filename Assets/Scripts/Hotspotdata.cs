@@ -45,6 +45,13 @@ public enum HotspotActionType
 
     /// <summary>Muestra slides secuenciales de contenido educativo (Programación 1+).</summary>
     InfoSlidePanel  = 4,
+
+    /// <summary>
+    /// Ejecuta una secuencia de tomas de cámara en tiempo real sobre la escena del juego.
+    /// Usa CinematicSequencer (componente en escena) — no requiere video externo.
+    /// Ideal para mostrar el estado atmosférico/ambiental actual (Programación 2, 5, etc.).
+    /// </summary>
+    CameraSequence  = 5,
 }
 
 // ── ScriptableObject ──────────────────────────────────────────────────────────
@@ -95,6 +102,10 @@ public class HotspotData : ScriptableObject
 
     [Tooltip("Si true, al cerrar el último slide se avanza a la siguiente etapa (NextStage).")]
     public bool infoSlideAdvancesStage = true;
+
+    [Tooltip("Si true, al terminar (o saltar) la secuencia de cámara se avanza a la siguiente etapa.\n" +
+             "Solo aplica cuando actionType = CameraSequence.")]
+    public bool sequenceAdvancesStage = true;
 
     // ── Activación ────────────────────────────────────────────────────────────
     [Header("Activación")]

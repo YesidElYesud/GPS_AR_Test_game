@@ -23,6 +23,11 @@ public class HotspotController : MonoBehaviour
     [Tooltip("Panel UI de información. Se busca automáticamente si está vacío.")]
     public HotspotUIPanel uiPanel;
 
+    [Header("Secuencia de Cámara")]
+    [Tooltip("Componente CinematicSequencer en la escena que se ejecutará cuando actionType = CameraSequence.\n" +
+             "Arrastra aquí el GameObject que contiene el CinematicSequencer y sus anchors hijos.")]
+    public CinematicSequencer cameraSequencer;
+
     [Header("Malla (rotación)")]
     [Tooltip("Transform hijo con la malla. Se detecta automáticamente si está vacío.")]
     public Transform meshTransform;
@@ -281,6 +286,20 @@ public class HotspotController : MonoBehaviour
                 else
                 {
                     Debug.LogWarning($"[Hotspot] '{data.title}' → InfoSlidePanel no encontrado en escena. Usando InfoPanel.");
+                    OpenInfoPanel();
+                }
+                break;
+
+            case HotspotActionType.CameraSequence:
+                if (cameraSequencer != null)
+                {
+                    _isPanelOpen = true;
+                    cameraSequencer.Play(this, data.sequenceAdvancesStage);
+                }
+                else
+                {
+                    Debug.LogWarning($"[Hotspot] '{data.title}' → cameraSequencer no asignado en el HotspotController. " +
+                                     "Arrastra el CinematicSequencer al campo 'Camera Sequencer' del Inspector.");
                     OpenInfoPanel();
                 }
                 break;
