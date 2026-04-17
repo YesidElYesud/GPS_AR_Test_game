@@ -15,25 +15,17 @@ MonoBehaviour:
   title: Hotspot
   description: "Informaci\xF3n del hotspot."
   icon: {fileID: 0}
-  actionType: 4
+  actionType: 5
   cinematicClip: {fileID: 0}
   cinematicUrl: 
   cinematicAdvancesStage: 1
   dialogueData: {fileID: 0}
-  infoSlides:
-  - title: 
-    body: 
-    image: {fileID: 21300000, guid: dc8470849e027a8a7a5d411daba89b49, type: 3}
-  - title: 
-    body: 
-    image: {fileID: 21300000, guid: 9de8b4065090800a0baab94a2dd36047, type: 3}
-  - title: 
-    body: 
-    image: {fileID: 21300000, guid: 0c9fa86e09d2bb77da577700383c3c85, type: 3}
-  infoSlideAdvancesStage: 1
+  infoSlides: []
+  infoSlideAdvancesStage: 0
+  sequenceAdvancesStage: 0
   triggerRadius: 3
   allowClick: 1
-  requiredStage: 1
+  requiredStage: -1
   headerImage: {fileID: 0}
   riskLevel: 0
   markerColor: {r: 0.2, g: 0.8, b: 1, a: 0.9}
