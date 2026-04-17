@@ -66,6 +66,16 @@ public class CinematicSequencer : MonoBehaviour
              "Debe estar en el Canvas encima de los paneles del juego.")]
     public Image fadeOverlay;
 
+    [Header("Joystick")]
+    [Tooltip("Panel del joystick táctil. Se oculta al iniciar y se restaura al terminar o saltar.")]
+    public GameObject joystickPanel;
+
+    [Header("Indicador de Progreso")]
+    [Tooltip("Image circular que se llena conforme avanza la secuencia.\n" +
+             "Configurar en Inspector: Image Type=Filled · Fill Method=Radial360 · Fill Origin=Top · Clockwise=true.\n" +
+             "Empieza inactiva; el script la activa y desactiva automáticamente.")]
+    public Image progressRing;
+
     // ── Estado ────────────────────────────────────────────────────────────────
     public  bool IsPlaying      { get; private set; }
     private bool _skipRequested;
@@ -120,6 +130,25 @@ public class CinematicSequencer : MonoBehaviour
         _skipRequested = false;
         _cam           = Camera.main.transform;
 
+        // Guardar posición y rotación del jugador antes de cualquier movimiento
+        Vector3    savedPos = _cam.position;
+        Quaternion savedRot = _cam.rotation;
+
+        // Ocultar joystick (guardamos si estaba activo para restaurarlo igual)
+        bool joystickWasActive = joystickPanel != null && joystickPanel.activeSelf;
+        if (joystickPanel != null) joystickPanel.SetActive(false);
+
+        // Calcular duración total y arrancar anillo de progreso
+        float totalDuration = 0f;
+        foreach (var s in shots) totalDuration += s.moveDuration + s.holdDuration;
+        Coroutine ringRoutine = null;
+        if (progressRing != null)
+        {
+            progressRing.fillAmount = 0f;
+            progressRing.gameObject.SetActive(true);
+            ringRoutine = StartCoroutine(UpdateProgressRing(totalDuration));
+        }
+
         // 1. Bloquear input del jugador y ceder control de la cámara
         var arCtrl = Camera.main.GetComponent<ARCameraController>();
         arCtrl?.SetAerialMode(true);
@@ -169,15 +198,27 @@ public class CinematicSequencer : MonoBehaviour
             }
         }
 
-        // 7. Ocultar skip button
+        // 7. Ocultar skip button y detener/ocultar anillo de progreso
         if (skipButton != null) skipButton.SetActive(false);
+        if (ringRoutine != null) StopCoroutine(ringRoutine);
+        if (progressRing != null) progressRing.gameObject.SetActive(false);
 
         // 8. Fade a negro (cubrir el retorno a la cámara del jugador)
         yield return StartCoroutine(DoFade(0f, 1f, fadeDuration));
 
-        // 9. Restaurar cámara del jugador
+        // 9. Restaurar posición del jugador (bajo el fade negro — el corte no se ve)
+        //    CharacterController resiste el teletransporte: hay que desactivarlo un frame.
+        var cc = Camera.main.GetComponent<CharacterController>();
+        if (cc != null) cc.enabled = false;
+        _cam.position = savedPos;
+        _cam.rotation = savedRot;
+        if (cc != null) cc.enabled = true;
+
         arCtrl?.SetAerialMode(false);
         StageManager.Instance?.SetPlayerInputBlocked(false);
+
+        // Restaurar joystick bajo el fade negro (ya visible cuando el mundo aparezca)
+        if (joystickWasActive && joystickPanel != null) joystickPanel.SetActive(true);
 
         // 10. Notificar al hotspot que puede cerrar su estado
         _caller?.ClosePanel();
@@ -247,6 +288,19 @@ public class CinematicSequencer : MonoBehaviour
         if (fadeOverlay == null) return;
         Color c = fadeOverlay.color;
         fadeOverlay.color = new Color(c.r, c.g, c.b, alpha);
+    }
+
+    // ── Anillo de progreso ────────────────────────────────────────────────────
+    private IEnumerator UpdateProgressRing(float totalDuration)
+    {
+        float elapsed = 0f;
+        while (elapsed < totalDuration)
+        {
+            elapsed += Time.deltaTime;
+            progressRing.fillAmount = Mathf.Clamp01(elapsed / totalDuration);
+            yield return null;
+        }
+        progressRing.fillAmount = 1f;
     }
 
     // ── Gizmos: visualizar los anchors en la escena ───────────────────────────
