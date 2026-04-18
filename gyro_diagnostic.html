@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Gyro Diagnostic — SATCS</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Courier New', monospace; background: #0d1117; color: #e6edf3; font-size: 13px; }
+
+  h1 { font-size: 16px; font-weight: bold; color: #58a6ff; padding: 12px 16px 4px; }
+  h2 { font-size: 12px; font-weight: bold; color: #8b949e; text-transform: uppercase;
+       letter-spacing: 1px; padding: 8px 16px 4px; border-top: 1px solid #21262d; margin-top: 4px; }
+
+  .section { padding: 4px 16px 8px; }
+
+  .row { display: flex; justify-content: space-between; padding: 2px 0; }
+  .label { color: #8b949e; flex-shrink: 0; margin-right: 8px; }
+  .val { color: #79c0ff; text-align: right; font-weight: bold; }
+  .val.green { color: #3fb950; }
+  .val.yellow { color: #e3b341; }
+  .val.red { color: #f85149; }
+  .val.gray { color: #8b949e; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px;
+           font-weight: bold; margin-bottom: 4px; }
+  .badge-blue { background: #1f6feb; color: #fff; }
+  .badge-green { background: #238636; color: #fff; }
+  .badge-yellow { background: #9e6a03; color: #fff; }
+  .badge-red { background: #da3633; color: #fff; }
+  .badge-gray { background: #21262d; color: #8b949e; }
+
+  .compass-wrap { display: flex; gap: 16px; padding: 8px 16px; align-items: center; }
+  canvas { border: 1px solid #21262d; border-radius: 4px; }
+
+  .pitch-bar-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .pitch-label { font-size: 10px; color: #8b949e; }
+
+  .buttons { display: flex; gap: 8px; padding: 8px 16px; flex-wrap: wrap; }
+  button { padding: 8px 14px; border: 1px solid #30363d; border-radius: 6px; background: #21262d;
+           color: #e6edf3; cursor: pointer; font-size: 12px; font-family: inherit; }
+  button:active { background: #30363d; }
+  button.primary { border-color: #1f6feb; background: #1f6feb; }
+  button.danger { border-color: #da3633; color: #f85149; }
+
+  #log { height: 160px; overflow-y: auto; padding: 4px 16px 8px;
+         border-top: 1px solid #21262d; font-size: 11px; }
+  .log-entry { padding: 1px 0; border-bottom: 1px solid #161b22; }
+  .log-entry .ts { color: #484f58; margin-right: 6px; }
+  .log-entry .msg { color: #adbac7; }
+  .log-entry.warn .msg { color: #e3b341; }
+  .log-entry.error .msg { color: #f85149; }
+  .log-entry.snap .msg { color: #3fb950; }
+  .log-entry.info .msg { color: #58a6ff; }
+
+  .divider { border: none; border-top: 1px solid #21262d; margin: 0; }
+
+  #permission-btn { margin: 16px; padding: 14px 20px; font-size: 16px; width: calc(100% - 32px);
+                    border: 2px solid #1f6feb; background: #1f6feb; border-radius: 8px;
+                    color: #fff; font-weight: bold; display: none; }
+
+  .steps-table { width: 100%; border-collapse: collapse; }
+  .steps-table td { padding: 3px 0; vertical-align: top; }
+  .steps-table .step-num { color: #484f58; width: 18px; text-align: right; padding-right: 6px; }
+  .steps-table .step-name { color: #8b949e; width: 140px; padding-right: 8px; }
+  .steps-table .step-val { color: #79c0ff; font-weight: bold; word-break: break-all; }
+
+  .toggle-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .toggle { position: relative; width: 36px; height: 20px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+                   background: #21262d; border: 1px solid #30363d; border-radius: 10px; cursor: pointer; }
+  .toggle-slider:before { position: absolute; content: ''; height: 14px; width: 14px;
+                           left: 2px; bottom: 2px; background: #8b949e; border-radius: 50%;
+                           transition: 0.2s; }
+  .toggle input:checked + .toggle-slider { background: #238636; border-color: #238636; }
+  .toggle input:checked + .toggle-slider:before { transform: translateX(16px); background: #fff; }
+
+  #copy-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+                background: #238636; color: #fff; padding: 8px 20px; border-radius: 20px;
+                font-size: 13px; display: none; z-index: 999; }
+</style>
+</head>
+<body>
+
+<h1>🔬 Gyro Diagnostic — SATCS</h1>
+
+<!-- Permission button for iOS -->
+<button id="permission-btn" onclick="requestIOSPermission()">🔓 Permitir giroscopio (iOS)</button>
+
+<!-- ── ESTADO SENSOR ─── -->
+<h2>Sensor Activo</h2>
+<div class="section">
+  <div class="row">
+    <span class="label">Sensor:</span>
+    <span id="sensor-badge" class="badge badge-gray">Esperando…</span>
+  </div>
+  <div class="row">
+    <span class="label">Lecturas recibidas:</span>
+    <span class="val" id="read-count">0</span>
+  </div>
+  <div class="row">
+    <span class="label">Frecuencia:</span>
+    <span class="val" id="freq-hz">-- Hz</span>
+  </div>
+  <div class="row">
+    <span class="label">Calibrado:</span>
+    <span class="val" id="calibrated-val" class="gray">No</span>
+  </div>
+</div>
+
+<!-- ── VISUALIZACIÓN ─── -->
+<h2>Vista en Tiempo Real</h2>
+<div class="compass-wrap">
+  <div>
+    <canvas id="compass" width="120" height="120"></canvas>
+    <div style="text-align:center;color:#484f58;font-size:10px;margin-top:2px">Brújula (Yaw)</div>
+  </div>
+  <div style="flex:1">
+    <div class="row"><span class="label">Pitch:</span><span class="val" id="v-pitch">--°</span></div>
+    <div class="row"><span class="label">Yaw:</span><span class="val" id="v-yaw">--°</span></div>
+    <div class="row"><span class="label">Roll:</span><span class="val gray" id="v-roll">-- (suprimido)</span></div>
+    <canvas id="pitch-canvas" width="30" height="100" style="margin-top:8px"></canvas>
+    <div style="color:#484f58;font-size:10px;margin-top:2px">Pitch</div>
+  </div>
+</div>
+
+<!-- ── PIPELINE ─── -->
+<h2>Pipeline (igual que Unity)</h2>
+<div class="section">
+  <div class="toggle-row">
+    <label class="toggle"><input type="checkbox" id="toggle-suppress" checked onchange="onSuppressToggle()">
+      <span class="toggle-slider"></span></label>
+    <span style="color:#adbac7">suppressRoll</span>
+    <span style="color:#484f58;font-size:11px">(activado en producción)</span>
+  </div>
+  <table class="steps-table" style="margin-top:6px">
+    <tr><td class="step-num">1</td><td class="step-name">Raw sensor</td>
+        <td class="step-val" id="p1">--</td></tr>
+    <tr><td class="step-num">2</td><td class="step-name">Swap qy↔qz (Ruta A)</td>
+        <td class="step-val" id="p2">--</td></tr>
+    <tr><td class="step-num">3</td><td class="step-name">× Euler(-90,0,0)</td>
+        <td class="step-val" id="p3">--</td></tr>
+    <tr><td class="step-num">4</td><td class="step-name">× calibOffset</td>
+        <td class="step-val" id="p4">--</td></tr>
+    <tr><td class="step-num">5</td><td class="step-name">forward vector</td>
+        <td class="step-val" id="p5">--</td></tr>
+    <tr><td class="step-num">6</td><td class="step-name">pitch / yaw final</td>
+        <td class="step-val" id="p6">--</td></tr>
+  </table>
+</div>
+
+<!-- ── DATOS CRUDOS ─── -->
+<h2>Datos Crudos del Sensor</h2>
+<div class="section">
+  <div id="raw-ruta-a">
+    <div class="row"><span class="label">qx:</span><span class="val" id="raw-qx">--</span></div>
+    <div class="row"><span class="label">qy:</span><span class="val" id="raw-qy">--</span></div>
+    <div class="row"><span class="label">qz:</span><span class="val" id="raw-qz">--</span></div>
+    <div class="row"><span class="label">qw:</span><span class="val" id="raw-qw">--</span></div>
+  </div>
+  <div id="raw-ruta-b" style="display:none">
+    <div class="row"><span class="label">alpha (brújula):</span><span class="val" id="raw-alpha">--</span></div>
+    <div class="row"><span class="label">beta (adelante/atrás):</span><span class="val" id="raw-beta">--</span></div>
+    <div class="row"><span class="label">gamma (inclinación):</span><span class="val" id="raw-gamma">--</span></div>
+  </div>
+</div>
+
+<!-- ── CONTROLES ─── -->
+<div class="buttons">
+  <button class="primary" onclick="takeSnapshot()">📸 Snapshot</button>
+  <button onclick="recalibrate()">🔁 Recalibrar</button>
+  <button onclick="copyReport()">📋 Copiar reporte</button>
+  <button class="danger" onclick="clearLog()">🗑 Limpiar log</button>
+</div>
+
+<!-- ── INFO DISPOSITIVO ─── -->
+<h2>Dispositivo</h2>
+<div class="section" id="device-info">
+  <div class="row"><span class="label">UA:</span><span class="val" id="ua-val" style="font-size:10px;word-break:break-all;max-width:75%">--</span></div>
+  <div class="row"><span class="label">RelativeOrientSensor:</span><span class="val" id="cap-rel">--</span></div>
+  <div class="row"><span class="label">AbsoluteOrientSensor:</span><span class="val" id="cap-abs">--</span></div>
+  <div class="row"><span class="label">DeviceOrientation:</span><span class="val" id="cap-dev">--</span></div>
+  <div class="row"><span class="label">Permissions API:</span><span class="val" id="cap-perm">--</span></div>
+</div>
+
+<!-- ── LOG ─── -->
+<h2>Log de Eventos</h2>
+<div id="log"></div>
+
+<div id="copy-toast">✓ Copiado al portapapeles</div>
+
+<script>
+// ── Estado global ─────────────────────────────────────────────────────────────
+const state = {
+  sensorType: null,           // 'RelativeOrientation' | 'AbsoluteOrientation' | 'DeviceOrientation'
+  readCount: 0,
+  lastReadTime: 0,
+  freqSamples: [],
+  calibrated: false,
+  calibOffset: {x:0, y:0, z:0, w:1},  // identity
+  suppressRoll: true,
+  lastYaw: 0,
+  lastPitch: 0,
+  lastYawRaw: 0,
+  rawData: null,
+  pipeline: {},
+  orientationSensor: null,
+  gyroHandler: null,
+  gyroPulse: null,
+  lastGyro: null,
+  lastGyroQ: null,
+  snapshots: [],
+  logEntries: []
+};
+
+// ── Quaternion helpers ────────────────────────────────────────────────────────
+function qMul(a, b) {
+  return {
+    x: a.w*b.x + a.x*b.w + a.y*b.z - a.z*b.y,
+    y: a.w*b.y - a.x*b.z + a.y*b.w + a.z*b.x,
+    z: a.w*b.z + a.x*b.y - a.y*b.x + a.z*b.w,
+    w: a.w*b.w - a.x*b.x - a.y*b.y - a.z*b.z
+  };
+}
+function qInverse(q) { return {x:-q.x, y:-q.y, z:-q.z, w:q.w}; }
+function qRotVec(q, v) {
+  const qv = {x:v.x, y:v.y, z:v.z, w:0};
+  const t = qMul(q, qv);
+  const r = qMul(t, qInverse(q));
+  return {x:r.x, y:r.y, z:r.z};
+}
+function qFromAxisAngle(ax, ay, az, deg) {
+  const r = deg * Math.PI / 180 / 2;
+  const s = Math.sin(r);
+  return {x:ax*s, y:ay*s, z:az*s, w:Math.cos(r)};
+}
+function qToEuler(q) {
+  // Returns pitch, yaw, roll in degrees (Unity order Y-X-Z)
+  const sinr = 2*(q.w*q.x + q.y*q.z);
+  const cosr = 1 - 2*(q.x*q.x + q.y*q.y);
+  const roll = Math.atan2(sinr, cosr) * 180/Math.PI;
+  const sinp = 2*(q.w*q.y - q.z*q.x);
+  const pitch = Math.abs(sinp) >= 1
+    ? Math.sign(sinp)*90
+    : Math.asin(sinp) * 180/Math.PI;
+  const siny = 2*(q.w*q.z + q.x*q.y);
+  const cosy = 1 - 2*(q.y*q.y + q.z*q.z);
+  const yaw = Math.atan2(siny, cosy) * 180/Math.PI;
+  return {pitch, yaw, roll};
+}
+function qNorm(q) {
+  const len = Math.sqrt(q.x*q.x+q.y*q.y+q.z*q.z+q.w*q.w);
+  return {x:q.x/len, y:q.y/len, z:q.z/len, w:q.w/len};
+}
+function qFmt(q) {
+  return `(${q.x.toFixed(4)}, ${q.y.toFixed(4)}, ${q.z.toFixed(4)}, ${q.w.toFixed(4)})`;
+}
+function vecFmt(v) {
+  return `(${v.x.toFixed(4)}, ${v.y.toFixed(4)}, ${v.z.toFixed(4)})`;
+}
+
+// Quaternion Euler(-90, 0, 0): axis=(1,0,0), angle=-90
+const EULER_NEG90X = qFromAxisAngle(1, 0, 0, -90);
+
+// ── Pipeline (espejo de GyroscopeManager.cs) ──────────────────────────────────
+function processData(data) {
+  state.readCount++;
+  const now = performance.now();
+  if (state.lastReadTime > 0) {
+    const dt = now - state.lastReadTime;
+    state.freqSamples.push(1000/dt);
+    if (state.freqSamples.length > 20) state.freqSamples.shift();
+  }
+  state.lastReadTime = now;
+
+  let qUnity;
+  let raw = {};
+  let p = {};
+
+  if (data.startsWith('Q:')) {
+    // ── Ruta A: cuaternión del sensor ─────────────────────────────────────────
+    const parts = data.substring(2).split(',');
+    const qx = parseFloat(parts[0]);
+    const qy = parseFloat(parts[1]);
+    const qz = parseFloat(parts[2]);
+    const qw = parseFloat(parts[3]);
+    raw = {route:'A', qx, qy, qz, qw};
+
+    p.step1 = `Q:[${qx.toFixed(5)}, ${qy.toFixed(5)}, ${qz.toFixed(5)}, ${qw.toFixed(5)}]`;
+
+    // Negar qz
+    // Swap qy ↔ qz (ENU Z=up → Unity Y=up)
+    const qSwapped = {x:qx, y:qz, z:qy, w:qw};
+    p.step2 = `swap qy↔qz → [${qSwapped.x.toFixed(5)}, ${qSwapped.y.toFixed(5)}, ${qSwapped.z.toFixed(5)}, ${qSwapped.w.toFixed(5)}]`;
+
+    // Euler(-90,0,0) * qSwapped
+    qUnity = qNorm(qMul(EULER_NEG90X, qSwapped));
+    p.step3 = qFmt(qUnity);
+
+  } else {
+    // ── Ruta B: deviceorientation ──────────────────────────────────────────────
+    const parts = data.split(',');
+    const alpha = parseFloat(parts[0]);
+    const beta  = parseFloat(parts[1]);
+    const gamma = parseFloat(parts[2]);
+    raw = {route:'B', alpha, beta, gamma};
+
+    p.step1 = `alpha=${alpha.toFixed(2)}° beta=${beta.toFixed(2)}° gamma=${gamma.toFixed(2)}°`;
+    p.step2 = '(N/A — Ruta B no usa quaternion crudo)';
+
+    const qAlpha = qFromAxisAngle(0, 0, 1, -alpha);
+    const qBeta  = qFromAxisAngle(1, 0, 0, -beta);
+    const qGamma = qFromAxisAngle(0, 1, 0,  gamma);
+    qUnity = qNorm(qMul(EULER_NEG90X, qMul(qAlpha, qMul(qBeta, qGamma))));
+    p.step3 = qFmt(qUnity);
+  }
+
+  // Calibración automática (primera lectura)
+  if (!state.calibrated) {
+    state.calibOffset = qInverse(qUnity);
+    state.calibrated = true;
+    addLog('info', `Calibrado. Ruta ${raw.route}. calibOffset=${qFmt(state.calibOffset)}`);
+  }
+
+  // _target = qUnity * calibOffset
+  let target = qNorm(qMul(qUnity, state.calibOffset));
+  p.step4 = qFmt(target);
+
+  // Forward vector = target * (0,0,1)
+  const fwd = qRotVec(target, {x:0, y:0, z:1});
+  p.step5 = vecFmt(fwd);
+
+  // suppressRoll
+  const flatFwd = {x:fwd.x, y:0, z:fwd.z};
+  const flatLen = Math.sqrt(flatFwd.x*flatFwd.x + flatFwd.z*flatFwd.z);
+  const pitch = Math.atan2(-fwd.y, flatLen) * 180/Math.PI;
+  let yaw;
+  if (flatLen > 0.01) {
+    yaw = Math.atan2(flatFwd.x, flatFwd.z) * 180/Math.PI;
+    state.lastYaw = yaw;
+  } else {
+    yaw = state.lastYaw;
+  }
+
+  if (state.suppressRoll) {
+    target = qFromAxisAngle(1,0,0,pitch);
+    const qY = qFromAxisAngle(0,1,0,yaw);
+    // Unity: Quaternion.Euler(pitch, yaw, 0) = Yaw * Pitch
+    target = qNorm(qMul(qY, target));
+  }
+
+  p.step6 = `pitch=${pitch.toFixed(2)}°  yaw=${yaw.toFixed(2)}°`;
+
+  // Euler del target final (para mostrar roll real antes de suprimir)
+  const euler = qToEuler(target);
+
+  state.rawData = raw;
+  state.pipeline = p;
+  state.lastPitch = pitch;
+  state.lastYaw = yaw;
+  state.lastYawRaw = euler.yaw;
+
+  updateUI(raw, p, pitch, yaw, euler);
+}
+
+// ── UI update ─────────────────────────────────────────────────────────────────
+function updateUI(raw, p, pitch, yaw, euler) {
+  document.getElementById('read-count').textContent = state.readCount;
+
+  const freq = state.freqSamples.length > 0
+    ? (state.freqSamples.reduce((a,b)=>a+b,0)/state.freqSamples.length).toFixed(1)
+    : '--';
+  document.getElementById('freq-hz').textContent = freq + ' Hz';
+  document.getElementById('calibrated-val').textContent = state.calibrated ? 'Sí ✓' : 'No';
+  document.getElementById('calibrated-val').className = 'val ' + (state.calibrated ? 'green' : 'yellow');
+
+  document.getElementById('v-pitch').textContent = pitch.toFixed(1) + '°';
+  document.getElementById('v-yaw').textContent   = yaw.toFixed(1) + '°';
+  document.getElementById('v-roll').textContent  = euler.roll.toFixed(1) + '° (suprimido)';
+
+  document.getElementById('p1').textContent = p.step1;
+  document.getElementById('p2').textContent = p.step2;
+  document.getElementById('p3').textContent = p.step3;
+  document.getElementById('p4').textContent = p.step4;
+  document.getElementById('p5').textContent = p.step5;
+  document.getElementById('p6').textContent = p.step6;
+
+  if (raw.route === 'A') {
+    document.getElementById('raw-ruta-a').style.display = 'block';
+    document.getElementById('raw-ruta-b').style.display = 'none';
+    document.getElementById('raw-qx').textContent = raw.qx.toFixed(6);
+    document.getElementById('raw-qy').textContent = raw.qy.toFixed(6);
+    document.getElementById('raw-qz').textContent = raw.qz.toFixed(6);
+    document.getElementById('raw-qw').textContent = raw.qw.toFixed(6);
+  } else {
+    document.getElementById('raw-ruta-a').style.display = 'none';
+    document.getElementById('raw-ruta-b').style.display = 'block';
+    document.getElementById('raw-alpha').textContent = raw.alpha.toFixed(4) + '°';
+    document.getElementById('raw-beta').textContent  = raw.beta.toFixed(4) + '°';
+    document.getElementById('raw-gamma').textContent = raw.gamma.toFixed(4) + '°';
+  }
+
+  drawCompass(yaw);
+  drawPitch(pitch);
+}
+
+function drawCompass(yawDeg) {
+  const c = document.getElementById('compass');
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height, R = W/2 - 6;
+  const cx = W/2, cy = H/2;
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#161b22';
+  ctx.fillRect(0,0,W,H);
+
+  // Ring
+  ctx.strokeStyle = '#30363d'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.stroke();
+
+  // Cardinal points
+  const labels = ['N','E','S','O'];
+  const angles = [0, 90, 180, 270];
+  ctx.fillStyle = '#8b949e'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  angles.forEach((a, i) => {
+    const rad = (a - 90) * Math.PI / 180;
+    const x = cx + (R-8)*Math.cos(rad);
+    const y = cy + (R-8)*Math.sin(rad);
+    ctx.fillStyle = i===0 ? '#f85149' : '#8b949e';
+    ctx.fillText(labels[i], x, y);
+  });
+
+  // Needle (yaw 0 = looking at +Z = "forward" in scene)
+  const needleRad = (yawDeg - 90) * Math.PI / 180;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(needleRad);
+  ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, -R+12); ctx.lineTo(0, R-12); ctx.stroke();
+  // Arrowhead
+  ctx.fillStyle = '#58a6ff';
+  ctx.beginPath(); ctx.moveTo(0, -R+14); ctx.lineTo(-5, -R+22); ctx.lineTo(5, -R+22); ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  // Yaw text
+  ctx.fillStyle = '#79c0ff'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(yawDeg.toFixed(0)+'°', cx, cy);
+}
+
+function drawPitch(pitchDeg) {
+  const c = document.getElementById('pitch-canvas');
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#161b22'; ctx.fillRect(0,0,W,H);
+
+  // Pitch bar: -90 (up) = top, +90 (down) = bottom, 0 = center
+  const clamp = Math.max(-90, Math.min(90, pitchDeg));
+  const y = H/2 + (clamp/90)*(H/2 - 4);
+
+  // Track
+  ctx.strokeStyle = '#30363d'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(W/2, 4); ctx.lineTo(W/2, H-4); ctx.stroke();
+
+  // Marker
+  ctx.fillStyle = '#58a6ff';
+  ctx.fillRect(4, y-3, W-8, 6);
+
+  // Zero line
+  ctx.strokeStyle = '#484f58'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(2, H/2); ctx.lineTo(W-2, H/2); ctx.stroke();
+}
+
+// ── Sensor setup (espejo de ARSensors.jslib) ──────────────────────────────────
+function setSensorBadge(label, cls) {
+  const el = document.getElementById('sensor-badge');
+  el.textContent = label;
+  el.className = 'badge ' + cls;
+}
+
+function setupDeviceOrientation() {
+  if (state.gyroHandler) return;
+  addLog('warn', 'Cayendo a DeviceOrientation (fallback)');
+  setSensorBadge('DeviceOrientation (Ruta B)', 'badge-yellow');
+  state.sensorType = 'DeviceOrientation';
+
+  state.gyroHandler = function(e) {
+    if (e.alpha === null && e.beta === null && e.gamma === null) return;
+    const a = (e.alpha !== null ? e.alpha : 0).toFixed(4);
+    const b = (e.beta  !== null ? e.beta  : 0).toFixed(4);
+    const g = (e.gamma !== null ? e.gamma : 0).toFixed(4);
+    processData(a + ',' + b + ',' + g);
+  };
+  window.addEventListener('deviceorientation', state.gyroHandler, true);
+
+  if (!state.gyroPulse) {
+    state.gyroPulse = setInterval(() => {
+      if (state.lastGyro) processData(state.lastGyro);
+    }, 16);
+  }
+}
+
+function tryOrientationSensor(SensorClass, label, badgeLabel, badgeCls, onFail) {
+  if (!SensorClass) return false;
+  try {
+    const sensor = new SensorClass({ frequency: 60, referenceFrame: 'screen' });
+    state.lastGyroQ = null;
+
+    sensor.addEventListener('reading', function() {
+      const q = sensor.quaternion;
+      const prev = state.lastGyroQ;
+      if (prev) {
+        const dot = Math.abs(prev[0]*q[0]+prev[1]*q[1]+prev[2]*q[2]+prev[3]*q[3]);
+        if (dot > 0.99999) return; // filtro ruido
+      }
+      state.lastGyroQ = [q[0],q[1],q[2],q[3]];
+      const data = 'Q:' + q[0].toFixed(6)+','+q[1].toFixed(6)+','+q[2].toFixed(6)+','+q[3].toFixed(6);
+      state.lastGyro = data;
+      processData(data);
+    });
+
+    sensor.addEventListener('error', function(e) {
+      const name = (e.error && e.error.name) ? e.error.name : String(e);
+      addLog('error', label + ' ERROR en ejecución: ' + name);
+      if (state.orientationSensor === sensor) {
+        try { sensor.stop(); } catch(se) {}
+        state.orientationSensor = null;
+      }
+      onFail();
+    });
+
+    sensor.start();
+    state.orientationSensor = sensor;
+    state.sensorType = label;
+    setSensorBadge(badgeLabel + ' (Ruta A)', badgeCls);
+    addLog('info', label + ' iniciado OK');
+    return true;
+  } catch(e) {
+    addLog('warn', label + ' no disponible: ' + (e.message || e));
+    return false;
+  }
+}
+
+function startSensors() {
+  const RelSensor = typeof RelativeOrientationSensor !== 'undefined' ? RelativeOrientationSensor : null;
+  const AbsSensor = typeof AbsoluteOrientationSensor !== 'undefined' ? AbsoluteOrientationSensor : null;
+
+  if (!tryOrientationSensor(RelSensor, 'RelativeOrientationSensor', 'RelativeOrientation', 'badge-green',
+      function() {
+        if (!tryOrientationSensor(AbsSensor, 'AbsoluteOrientationSensor', 'AbsoluteOrientation', 'badge-blue', setupDeviceOrientation)) {
+          setupDeviceOrientation();
+        }
+      })) {
+    if (!tryOrientationSensor(AbsSensor, 'AbsoluteOrientationSensor', 'AbsoluteOrientation', 'badge-blue', setupDeviceOrientation)) {
+      setupDeviceOrientation();
+    }
+  }
+}
+
+// ── iOS Permission ────────────────────────────────────────────────────────────
+function requestIOSPermission() {
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then(result => {
+        addLog('info', 'iOS permiso: ' + result);
+        if (result === 'granted') startSensors();
+      })
+      .catch(e => addLog('error', 'iOS permiso error: ' + e));
+  }
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────────
+function recalibrate() {
+  state.calibrated = false;
+  addLog('info', 'Recalibrado — próxima lectura será el nuevo origen');
+  document.getElementById('calibrated-val').textContent = 'Recalibrando…';
+  document.getElementById('calibrated-val').className = 'val yellow';
+}
+
+function onSuppressToggle() {
+  state.suppressRoll = document.getElementById('toggle-suppress').checked;
+  addLog('info', 'suppressRoll = ' + state.suppressRoll);
+}
+
+function takeSnapshot() {
+  const ts = new Date().toISOString().substring(11,23);
+  let snap = `=== SNAPSHOT ${ts} ===\n`;
+  snap += `Sensor: ${state.sensorType || 'ninguno'}\n`;
+  snap += `Lecturas: ${state.readCount}  Freq: ${state.freqSamples.length>0 ? (state.freqSamples.reduce((a,b)=>a+b,0)/state.freqSamples.length).toFixed(1) : '--'} Hz\n`;
+  snap += `Calibrado: ${state.calibrated}\n`;
+  snap += `suppressRoll: ${state.suppressRoll}\n`;
+  if (state.rawData) {
+    if (state.rawData.route === 'A') {
+      snap += `Raw Q: [${state.rawData.qx.toFixed(6)}, ${state.rawData.qy.toFixed(6)}, ${state.rawData.qz.toFixed(6)}, ${state.rawData.qw.toFixed(6)}]\n`;
+    } else {
+      snap += `Raw DO: alpha=${state.rawData.alpha.toFixed(4)} beta=${state.rawData.beta.toFixed(4)} gamma=${state.rawData.gamma.toFixed(4)}\n`;
+    }
+  }
+  const p = state.pipeline;
+  if (p.step1) {
+    snap += `Step1 raw:      ${p.step1}\n`;
+    snap += `Step2 neg-qz:   ${p.step2}\n`;
+    snap += `Step3 ×E90:     ${p.step3}\n`;
+    snap += `Step4 ×calib:   ${p.step4}\n`;
+    snap += `Step5 forward:  ${p.step5}\n`;
+    snap += `Step6 p/y:      ${p.step6}\n`;
+  }
+  snap += `Pitch=${state.lastPitch.toFixed(2)}°  Yaw=${state.lastYaw.toFixed(2)}°`;
+
+  state.snapshots.push(snap);
+  addLog('snap', `Snapshot guardado — Pitch=${state.lastPitch.toFixed(1)}° Yaw=${state.lastYaw.toFixed(1)}°`);
+}
+
+function buildReport() {
+  let report = '=== GYRO DIAGNOSTIC REPORT ===\n';
+  report += `Fecha: ${new Date().toISOString()}\n`;
+  report += `UA: ${navigator.userAgent}\n`;
+  report += `RelativeOrientSensor: ${typeof RelativeOrientationSensor !== 'undefined'}\n`;
+  report += `AbsoluteOrientSensor: ${typeof AbsoluteOrientationSensor !== 'undefined'}\n`;
+  report += `DeviceOrientEvent: ${'DeviceOrientationEvent' in window}\n`;
+  report += `Sensor activo: ${state.sensorType || 'ninguno'}\n`;
+  report += `Total lecturas: ${state.readCount}\n\n`;
+
+  if (state.snapshots.length === 0) {
+    report += '(No hay snapshots — presionar el botón 📸 Snapshot en varias posiciones)\n\n';
+  } else {
+    state.snapshots.forEach(s => { report += s + '\n\n'; });
+  }
+
+  report += '=== LOG ===\n';
+  state.logEntries.forEach(e => { report += `[${e.ts}] ${e.msg}\n`; });
+  return report;
+}
+
+function copyReport() {
+  const text = buildReport();
+  navigator.clipboard.writeText(text).then(() => {
+    const t = document.getElementById('copy-toast');
+    t.style.display = 'block';
+    setTimeout(() => { t.style.display = 'none'; }, 2000);
+  }).catch(() => {
+    // Fallback para dispositivos sin clipboard API
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const t = document.getElementById('copy-toast');
+    t.style.display = 'block';
+    setTimeout(() => { t.style.display = 'none'; }, 2000);
+  });
+}
+
+function clearLog() {
+  state.logEntries = [];
+  document.getElementById('log').innerHTML = '';
+}
+
+// ── Log ───────────────────────────────────────────────────────────────────────
+function addLog(type, msg) {
+  const ts = new Date().toISOString().substring(11,19);
+  state.logEntries.push({ts, msg});
+  const logEl = document.getElementById('log');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry ' + type;
+  entry.innerHTML = `<span class="ts">${ts}</span><span class="msg">${msg}</span>`;
+  logEl.appendChild(entry);
+  logEl.scrollTop = logEl.scrollHeight;
+  // Limitar a 200 entradas
+  while (logEl.children.length > 200) logEl.removeChild(logEl.firstChild);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+window.addEventListener('load', function() {
+  // Capabilities
+  document.getElementById('ua-val').textContent = navigator.userAgent;
+  document.getElementById('cap-rel').textContent = typeof RelativeOrientationSensor !== 'undefined' ? 'Sí' : 'No';
+  document.getElementById('cap-rel').className = 'val ' + (typeof RelativeOrientationSensor !== 'undefined' ? 'green' : 'red');
+  document.getElementById('cap-abs').textContent = typeof AbsoluteOrientationSensor !== 'undefined' ? 'Sí' : 'No';
+  document.getElementById('cap-abs').className = 'val ' + (typeof AbsoluteOrientationSensor !== 'undefined' ? 'green' : 'red');
+  document.getElementById('cap-dev').textContent = 'DeviceOrientationEvent' in window ? 'Sí' : 'No';
+  document.getElementById('cap-dev').className = 'val ' + ('DeviceOrientationEvent' in window ? 'green' : 'red');
+  document.getElementById('cap-perm').textContent = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function' ? 'Requerido (iOS)' : 'No requerido';
+
+  // iOS: mostrar botón de permiso
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    document.getElementById('permission-btn').style.display = 'block';
+    addLog('warn', 'iOS detectado — presionar botón para dar permiso al giroscopio');
+  } else {
+    startSensors();
+  }
+
+  addLog('info', 'Diagnostic cargado. UA: ' + navigator.userAgent.substring(0,60) + '…');
+});
+</script>
+</body>
+</html>

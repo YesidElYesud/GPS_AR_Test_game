@@ -73,7 +73,9 @@ public class WelcomePanel : MonoBehaviour
                 "En esta experiencia aprenderás a reconocer las señales " +
                 "de alerta, a comunicarte con el SIATA y a actuar como " +
                 "líder comunitario ante una emergencia hidrológica.\n\n" +
-                "¡Tu participación activa puede salvar vidas!"
+                "📱 Antes de presionar COMENZAR:\n" +
+                "Sostén el teléfono frente a ti, en posición vertical, " +
+                "apuntando hacia el horizonte."
         }
     };
 
@@ -161,6 +163,13 @@ public class WelcomePanel : MonoBehaviour
     private void OnStart()
     {
         BlockPlayerInput(false);
+
+        // Recalibrar giroscopio en este momento: el usuario ya tiene el teléfono
+        // en la posición AR correcta para jugar (acaba de leer las instrucciones).
+        // En Android el sensor arranca automáticamente al cargar la página (sin
+        // diálogo de permiso), por lo que la calibración inicial puede haber
+        // ocurrido con el teléfono plano sobre una superficie.
+        GyroscopeManager.Instance?.Recalibrate();
 
         if (StageManager.Instance != null)
             StageManager.Instance.GoToStage(StageManager.Stage.Etapa1);

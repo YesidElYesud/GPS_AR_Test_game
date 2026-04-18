@@ -318,6 +318,31 @@
       .divider { margin-bottom: 12px; }
       .credits { display: none; }
     }
+
+    /* ── Debug console (solo en desarrollo) ─────────────────────────────── */
+    #debug-console {
+      display: none;
+      position: fixed; bottom: 0; left: 0; right: 0;
+      z-index: 9999;
+      max-height: 35vh;
+      overflow-y: auto;
+      background: rgba(0,0,0,0.88);
+      font-family: monospace;
+      font-size: 11px;
+      color: #f8f8f8;
+      padding: 8px;
+    }
+    #debug-console.visible { display: block; }
+    #debug-console .err  { color: #ff6b6b; }
+    #debug-console .warn { color: #ffd43b; }
+    #debug-close {
+      position: sticky; top: 0;
+      float: right;
+      background: #ff4444; color: #fff;
+      border: none; border-radius: 4px;
+      padding: 2px 8px; cursor: pointer;
+      font-size: 11px;
+    }
   </style>
 </head>
 
@@ -378,6 +403,12 @@
       </p>
 
     </div>
+  </div>
+
+  <!-- ── Debug console ────────────────────────────────────────────────── -->
+  <div id="debug-console">
+    <button id="debug-close" onclick="document.getElementById('debug-console').classList.remove('visible')">✕</button>
+    <div id="debug-log"></div>
   </div>
 
   <!-- ── PANTALLA DE CARGA ──────────────────────────────────────────────── -->
@@ -457,6 +488,30 @@
     document.addEventListener('touchmove', function(e) {
       if (e.touches.length > 1) e.preventDefault();
     }, { passive: false });
+
+    // ── Debug console: captura errores JS y Unity ─────────────────────────
+    (function() {
+      var dc  = document.getElementById('debug-console');
+      var log = document.getElementById('debug-log');
+      function addLine(text, cls) {
+        dc.classList.add('visible');
+        var d = document.createElement('div');
+        if (cls) d.className = cls;
+        d.textContent = new Date().toISOString().substr(11,8) + ' ' + text;
+        log.appendChild(d);
+        dc.scrollTop = dc.scrollHeight;
+      }
+      window.addEventListener('error', function(e) {
+        addLine('JS ERROR: ' + e.message + ' @ ' + e.filename + ':' + e.lineno, 'err');
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        addLine('PROMISE: ' + (e.reason || e), 'err');
+      });
+      var _err  = console.error.bind(console);
+      var _warn = console.warn.bind(console);
+      console.error = function() { addLine(Array.from(arguments).join(' '), 'err');  _err.apply(console, arguments); };
+      console.warn  = function() { addLine(Array.from(arguments).join(' '), 'warn'); _warn.apply(console, arguments); };
+    })();
   </script>
 </body>
 </html>

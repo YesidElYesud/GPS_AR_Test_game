@@ -102,19 +102,28 @@ public class GyroscopeManager : MonoBehaviour
         try
         {
             Quaternion qUnity;
+            bool isRouteA = data.StartsWith("Q:");
 
-            if (data.StartsWith("Q:"))
+            if (isRouteA)
             {
-                // ── Ruta A: AbsoluteOrientationSensor (Android Chrome) ─────────
-                // Recibe quaternion crudo [x,y,z,w] en espacio ENU (device→earth).
-                // Conversión directa sin pasar por Euler; elimina el gimbal lock
-                // que ocurría cuando beta ≈ 90° (teléfono apuntando al frente).
+                // ── Ruta A: RelativeOrientationSensor / AbsoluteOrientationSensor ──
+                // El sensor reporta q en espacio ENU con Z = gravedad (arriba).
+                // Unity usa Y = arriba, por lo que se necesita reasignar ejes:
+                //   ENU X (este)   → Unity X (derecha)   : qx sin cambio
+                //   ENU Y (norte)  → Unity Z (adelante)  : qy → qz  (swap)
+                //   ENU Z (arriba) → Unity Y (arriba)    : qz → qy  (swap)
                 //
-                // Derivación validada:
-                //   - Teléfono en portrait apuntando Norte → sensor q ≈ (0.707,0,0,0.707)
-                //   - Euler(-90,0,0) * (0.707,0,0,0.707) = identity ✓ (cámara al frente)
-                //   - Teléfono apuntando Este → resultado = (0,0.707,0,0.707)
-                //     = 90° rotación Y en Unity = cámara mirando al Este ✓
+                // INCORRECTO era: new Quaternion(qx, qy, -qz, qw) — el -qz
+                // convertía el yaw (Z_ENU) en roll (Z_Unity), causando que
+                // girar el cuerpo no moviera la cámara y que el roll lateral
+                // sí la moviera. El swap (qx, qz, qy, qw) corrige el mapeo.
+                //
+                // Validación tras el swap:
+                //   Portrait apuntando Norte: q ≈ (0.707,0,0,0.707)
+                //   → swap: (0.707,0,0,0.707) [sin cambio, qy=qz=0]
+                //   → Euler(-90,0,0) × (0.707,0,0,0.707) = identity ✓
+                //   Giro derecha 90°: qUnity = AngleAxis(-90°, Y) = yaw ✓
+                //   Inclinar arriba:  pitch negativo = cámara mira arriba ✓
                 string[] p = data.Substring(2).Split(',');
                 if (p.Length < 4) return;
 
@@ -123,7 +132,12 @@ public class GyroscopeManager : MonoBehaviour
                 float qz = float.Parse(p[2], System.Globalization.CultureInfo.InvariantCulture);
                 float qw = float.Parse(p[3], System.Globalization.CultureInfo.InvariantCulture);
 
-                qUnity = Quaternion.Euler(-90f, 0f, 0f) * new Quaternion(qx, qy, -qz, qw);
+                // ENU (RH: X=East,Y=North,Z=Up) → Unity (LH: X=Right,Y=Up,Z=Forward):
+                //   qx_ENU (East rotation) → qx_Unity  (mismo eje)
+                //   qy_ENU (North rot.)    → -qy_Unity  (Unity Y=Up; RH vs LH invierte yaw)
+                //   qz_ENU (Up rot. = yaw)→ -qz_Unity  (RH vs LH invierte roll)
+                // Nota: sin los signos negativos, un giro izquierda da roll en vez de yaw.
+                qUnity = Quaternion.Euler(-90f, 0f, 0f) * new Quaternion(qx, -qy, -qz, qw);
             }
             else
             {
@@ -150,7 +164,7 @@ public class GyroscopeManager : MonoBehaviour
             {
                 _calibrationOffset = Quaternion.Inverse(qUnity);
                 _calibrated = true;
-                Debug.Log($"[Gyro] Calibrado. Ruta: {(data.StartsWith("Q:") ? "quaternion" : "euler")}");
+                Debug.Log($"[Gyro] Calibrado. Ruta: {(isRouteA ? "A (quaternion)" : "B (euler)}")}");
             }
 
             _target = qUnity * _calibrationOffset;
@@ -168,8 +182,8 @@ public class GyroscopeManager : MonoBehaviour
                 Vector3 flatFwd = new Vector3(fwd.x, 0f, fwd.z);
                 float   flatLen = flatFwd.magnitude;
 
-                // Pitch: ángulo entre el forward y el plano horizontal
-                float pitch = Mathf.Atan2(-fwd.y, flatLen) * Mathf.Rad2Deg;
+                // Pitch: Ruta A (Android) tiene el eje Y del forward invertido
+                float pitch = Mathf.Atan2(isRouteA ? fwd.y : -fwd.y, flatLen) * Mathf.Rad2Deg;
 
                 // Yaw: dirección horizontal del forward; preservar si flatFwd ≈ 0
                 float yaw;
@@ -180,7 +194,7 @@ public class GyroscopeManager : MonoBehaviour
                 }
                 else
                 {
-                    yaw = _lastYaw;   // mirando casi recto arriba/abajo: no hay yaw definido
+                    yaw = _lastYaw;
                 }
 
                 _target = Quaternion.Euler(pitch, yaw, 0f);
