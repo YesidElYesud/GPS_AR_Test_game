@@ -26872,7 +26872,8 @@ MonoBehaviour:
     objectsToActivate: []
     objectsToDeactivate: []
   - stageName: Etapa2
-    objectsToActivate: []
+    objectsToActivate:
+    - {fileID: 1479059822}
     objectsToDeactivate:
     - {fileID: 1275488531}
   - stageName: Etapa3
