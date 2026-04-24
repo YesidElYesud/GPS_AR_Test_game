@@ -53,6 +53,7 @@ public class NpcDialoguePanel : MonoBehaviour
     private NpcDialogueData   _currentData;
     private HotspotController _sourceHotspot;
     private Coroutine         _correctRoutine;
+    private System.Action     _onCorrectCallback;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
@@ -68,7 +69,7 @@ public class NpcDialoguePanel : MonoBehaviour
     /// Muestra el panel con los datos del diálogo indicado.
     /// Llamado desde HotspotController (NpcConversation y SiataCall).
     /// </summary>
-    public void Show(NpcDialogueData data, HotspotController source)
+    public void Show(NpcDialogueData data, HotspotController source, System.Action onCorrect = null)
     {
         if (data == null)
         {
@@ -76,8 +77,9 @@ public class NpcDialoguePanel : MonoBehaviour
             return;
         }
 
-        _currentData   = data;
-        _sourceHotspot = source;
+        _currentData       = data;
+        _sourceHotspot     = source;
+        _onCorrectCallback = onCorrect;
 
         PopulateNpcInfo();
         SetupChoicePanel();
@@ -108,7 +110,8 @@ public class NpcDialoguePanel : MonoBehaviour
             _sourceHotspot = null;
         }
 
-        _currentData = null;
+        _currentData       = null;
+        _onCorrectCallback = null;
         gameObject.SetActive(false);
     }
 
@@ -176,7 +179,10 @@ public class NpcDialoguePanel : MonoBehaviour
                 StageManager.Instance.NextStage();
         }
 
+        // Guardar callback antes de Hide() porque Hide() lo limpia
+        System.Action walkerCallback = _onCorrectCallback;
         Hide();
+        walkerCallback?.Invoke();
     }
 
     // ── Input ─────────────────────────────────────────────────────────────────

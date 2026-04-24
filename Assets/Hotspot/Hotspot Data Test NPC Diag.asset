@@ -20,11 +20,15 @@ MonoBehaviour:
   cinematicUrl: 
   cinematicAdvancesStage: 1
   dialogueData: {fileID: 11400000, guid: 3eb617d410c77a5d9a1dd55920097bbc, type: 2}
-  triggerRadius: 3
+  infoSlides: []
+  infoSlideAdvancesStage: 0
+  sequenceAdvancesStage: 1
+  triggerRadius: 0.5
   allowClick: 1
   requiredStage: 1
   headerImage: {fileID: 0}
   riskLevel: 0
   markerColor: {r: 0.2, g: 0.8, b: 1, a: 0.9}
+  hotspotMaterial: {fileID: 0}
   isBlinking: 1
   blinkSpeed: 1.5

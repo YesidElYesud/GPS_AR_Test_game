@@ -28,6 +28,11 @@ public class HotspotController : MonoBehaviour
              "Arrastra aquí el GameObject que contiene el CinematicSequencer y sus anchors hijos.")]
     public CinematicSequencer cameraSequencer;
 
+    [Header("NPC Walker (opcional)")]
+    [Tooltip("Si este hotspot abre un diálogo NPC, arrastra aquí el NPCWaypointWalker del NPC " +
+             "para que empiece a caminar automáticamente al responder correctamente.")]
+    [SerializeField] private NPCWaypointWalker linkedWalker;
+
     [Header("Malla (rotación)")]
     [Tooltip("Transform hijo con la malla. Se detecta automáticamente si está vacío.")]
     public Transform meshTransform;
@@ -248,7 +253,8 @@ public class HotspotController : MonoBehaviour
                 if (NpcDialoguePanel.Instance != null)
                 {
                     _isPanelOpen = true;
-                    NpcDialoguePanel.Instance.Show(data.dialogueData, this);
+                    System.Action walkerCb = linkedWalker != null ? (System.Action)linkedWalker.StartWalking : null;
+                    NpcDialoguePanel.Instance.Show(data.dialogueData, this, walkerCb);
                 }
                 else
                 {
