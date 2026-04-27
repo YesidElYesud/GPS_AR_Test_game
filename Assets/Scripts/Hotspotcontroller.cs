@@ -33,6 +33,11 @@ public class HotspotController : MonoBehaviour
              "para que empiece a caminar automáticamente al responder correctamente.")]
     [SerializeField] private NPCWaypointWalker linkedWalker;
 
+    [Header("Botón de repetición (opcional — solo CameraSequence)")]
+    [Tooltip("GameObject de un botón oculto en el HUD. Se activa la primera vez que el jugador " +
+             "entra en contacto con este hotspot. El OnClick del botón debe llamar a ReplaySequence().")]
+    [SerializeField] private GameObject replayButton;
+
     [Header("Malla (rotación)")]
     [Tooltip("Transform hijo con la malla. Se detecta automáticamente si está vacío.")]
     public Transform meshTransform;
@@ -44,6 +49,7 @@ public class HotspotController : MonoBehaviour
     private Transform _playerCamera;
     private bool      _isNearby    = false;
     private bool      _isPanelOpen = false;
+    private bool      _replayButtonActivated = false;
     private int       _proximityTriggerFrame = -1; // frame en que la proximidad disparó DispatchAction
 
     // ── Gizmos en editor ──────────────────────────────────────────────────────
@@ -213,7 +219,9 @@ public class HotspotController : MonoBehaviour
     {
         if (Camera.main == null) return false;
         Ray ray = Camera.main.ScreenPointToRay(screenPos);
-        return Physics.Raycast(ray, out RaycastHit hit) && hit.collider.gameObject == gameObject;
+        if (!Physics.Raycast(ray, out RaycastHit hit)) return false;
+        // Acepta impacto en este GO o en cualquier hijo (NPC prefabs con colisores en hijos)
+        return hit.collider.transform.IsChildOf(transform) || hit.collider.gameObject == gameObject;
     }
 
     // ── Dispatch por tipo de acción ───────────────────────────────────────────
@@ -302,6 +310,7 @@ public class HotspotController : MonoBehaviour
                 {
                     _isPanelOpen = true;
                     cameraSequencer.Play(this, data.sequenceAdvancesStage);
+                    ActivateReplayButton();
                 }
                 else
                 {
@@ -325,5 +334,29 @@ public class HotspotController : MonoBehaviour
     {
         _isPanelOpen = false;
         if (uiPanel != null) uiPanel.Hide();
+    }
+
+    // ── Repetición de secuencia ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Activa el botón de repetición la primera vez que se juega la secuencia.
+    /// Solo ocurre una vez por sesión de juego.
+    /// </summary>
+    private void ActivateReplayButton()
+    {
+        if (replayButton == null || _replayButtonActivated) return;
+        replayButton.SetActive(true);
+        _replayButtonActivated = true;
+    }
+
+    /// <summary>
+    /// Repite la secuencia de cámara SIN avanzar de etapa.
+    /// Conectar al OnClick del botón de repetición en el Inspector.
+    /// Si la secuencia ya está en curso, la llamada se ignora.
+    /// </summary>
+    public void ReplaySequence()
+    {
+        if (cameraSequencer == null || cameraSequencer.IsPlaying) return;
+        cameraSequencer.Play(null, false);
     }
 }

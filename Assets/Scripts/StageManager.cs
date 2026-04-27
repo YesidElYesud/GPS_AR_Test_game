@@ -148,28 +148,20 @@ public class StageManager : MonoBehaviour
     }
 
     // ── Privados ──────────────────────────────────────────────────────────────
-
-    // Aplica en orden TODOS los configs desde 0 hasta 'stage', no solo el actual.
-    // Esto garantiza que saltar directamente a cualquier etapa (startStage en debug,
-    // o GoToStage desde código) siempre deja los objetos en el estado correcto,
-    // porque reproduce la historia completa de activaciones/desactivaciones.
     private void ApplyStageConfig(Stage stage)
     {
-        if (stageConfigs == null) return;
-        int targetIndex = (int)stage;
+        int index = (int)stage;
+        if (stageConfigs == null || index >= stageConfigs.Length) return;
 
-        for (int i = 0; i <= targetIndex && i < stageConfigs.Length; i++)
-        {
-            StageConfig config = stageConfigs[i];
-            if (config == null) continue;
+        StageConfig config = stageConfigs[index];
+        if (config == null) return;
 
-            if (config.objectsToActivate != null)
-                foreach (var go in config.objectsToActivate)
-                    if (go != null) go.SetActive(true);
+        if (config.objectsToActivate != null)
+            foreach (var go in config.objectsToActivate)
+                if (go != null) go.SetActive(true);
 
-            if (config.objectsToDeactivate != null)
-                foreach (var go in config.objectsToDeactivate)
-                    if (go != null) go.SetActive(false);
-        }
+        if (config.objectsToDeactivate != null)
+            foreach (var go in config.objectsToDeactivate)
+                if (go != null) go.SetActive(false);
     }
 }
