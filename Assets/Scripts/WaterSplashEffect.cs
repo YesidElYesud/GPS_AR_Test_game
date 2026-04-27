@@ -220,7 +220,7 @@ public class WaterSplashEffect : MonoBehaviour
 
         // StretchedBillboard: el jet se ve elongado según la velocidad de la partícula
         var rend = ps.GetComponent<ParticleSystemRenderer>();
-        rend.renderMode        = ParticleSystemRenderMode.StretchedBillboard;
+        rend.renderMode        = ParticleSystemRenderMode.Stretch;
         rend.velocityScale     = 0.14f;
         rend.lengthScale       = 1.3f;
         rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -281,7 +281,7 @@ public class WaterSplashEffect : MonoBehaviour
         col.color   = MakeAlphaGradient(0f, 0.05f, 1.0f, 0.55f, 0.7f, 0.0f, 1.0f);
 
         var rend = ps.GetComponent<ParticleSystemRenderer>();
-        rend.renderMode        = ParticleSystemRenderMode.StretchedBillboard;
+        rend.renderMode        = ParticleSystemRenderMode.Stretch;
         rend.velocityScale     = 0.08f;
         rend.lengthScale       = 1.1f;
         rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
