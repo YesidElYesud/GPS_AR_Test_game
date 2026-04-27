@@ -131,8 +131,10 @@ public class StageManager : MonoBehaviour
         if (debugLogs)
             Debug.Log($"[StageManager] {previous} → {target}");
 
-        ApplyStageConfig(target);
+        // OnStageChanged primero: sistemas reaccionan (audio, visuals, HotspotController).
+        // ApplyStageConfig después: StageManager tiene la última palabra sobre SetActive.
         OnStageChanged?.Invoke(previous, target);
+        ApplyStageConfig(target);
     }
 
     /// <summary>
@@ -146,24 +148,28 @@ public class StageManager : MonoBehaviour
     }
 
     // ── Privados ──────────────────────────────────────────────────────────────
+
+    // Aplica en orden TODOS los configs desde 0 hasta 'stage', no solo el actual.
+    // Esto garantiza que saltar directamente a cualquier etapa (startStage en debug,
+    // o GoToStage desde código) siempre deja los objetos en el estado correcto,
+    // porque reproduce la historia completa de activaciones/desactivaciones.
     private void ApplyStageConfig(Stage stage)
     {
-        int index = (int)stage;
-        if (stageConfigs == null || index >= stageConfigs.Length) return;
+        if (stageConfigs == null) return;
+        int targetIndex = (int)stage;
 
-        StageConfig config = stageConfigs[index];
-        if (config == null) return;
-
-        if (config.objectsToActivate != null)
+        for (int i = 0; i <= targetIndex && i < stageConfigs.Length; i++)
         {
-            foreach (var go in config.objectsToActivate)
-                if (go != null) go.SetActive(true);
-        }
+            StageConfig config = stageConfigs[i];
+            if (config == null) continue;
 
-        if (config.objectsToDeactivate != null)
-        {
-            foreach (var go in config.objectsToDeactivate)
-                if (go != null) go.SetActive(false);
+            if (config.objectsToActivate != null)
+                foreach (var go in config.objectsToActivate)
+                    if (go != null) go.SetActive(true);
+
+            if (config.objectsToDeactivate != null)
+                foreach (var go in config.objectsToDeactivate)
+                    if (go != null) go.SetActive(false);
         }
     }
 }

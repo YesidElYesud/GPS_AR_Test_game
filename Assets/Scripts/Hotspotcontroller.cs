@@ -112,18 +112,19 @@ public class HotspotController : MonoBehaviour
 
     /// <summary>
     /// Activa o desactiva el hotspot según la etapa actual.
-    /// requiredStage = -1 → siempre visible (retrocompatible con hotspots existentes).
+    /// requiredStage = -1 → sin restricción propia: el HotspotController NO toca
+    /// SetActive y deja que el StageManager tenga autoridad total.
+    /// requiredStage >= 0 → el HotspotController gestiona su propia visibilidad,
+    /// pero el StageManager conserva la última palabra (ver GoToStage).
     /// </summary>
     private void RefreshStageVisibility()
     {
         if (data == null) return;
 
-        // -1 significa sin restricción de etapa
+        // Sin restricción de etapa: no tocamos SetActive.
+        // Si el StageManager desactivó este objeto, se queda así.
         if (data.requiredStage < 0)
-        {
-            gameObject.SetActive(true);
             return;
-        }
 
         bool stageMatch = StageManager.Instance != null &&
                           (int)StageManager.Instance.CurrentStage == data.requiredStage;
