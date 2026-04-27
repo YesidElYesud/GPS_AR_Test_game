@@ -6,19 +6,24 @@ using TMPro;
 /// <summary>
 /// SiataCallPanel — Simula una llamada telefónica al SIATA (Sistema de Alerta Temprana).
 ///
-/// Diferencia visual respecto a NpcDialoguePanel:
-///   - Encabezado de llamada con estado ("Llamando…" → "Conectado").
-///   - Botón de colgar (HangUpButton) para cerrar el panel.
-///   - Usa la misma estructura NpcDialogueData y MultipleChoicePanel.
+/// Soporta dos modos:
+///   A) Legado: Show(NpcDialogueData) — texto único + pregunta (comportamiento original).
+///   B) Secuencia: Show(SiataDialogueSequence) — pasos mixtos Info/Question.
+///      - Paso Info:     texto + botón "Continuar" (un solo botón generado internamente,
+///                       sin opciones incorrectas, avanza al instante).
+///      - Paso Question: texto + opciones A/B/C; el jugador debe responder correctamente
+///                       antes de avanzar (MultipleChoicePanel maneja el retry).
+///
+/// Ambos tipos de paso reutilizan el mismo MultipleChoicePanel — no se necesita UI extra.
 ///
 /// Singleton. Llamado desde HotspotController cuando actionType = SiataCall.
 ///
-/// Jerarquía sugerida en Canvas (hijo de AR_Canvas, inactivo por defecto):
+/// Jerarquía sugerida en Canvas (hijo de AR_Canvas, activo en jerarquía, inactivo por defecto):
 ///   SiataCallPanel
 ///   ├── CallHeader
 ///   │   ├── CallerPhoto       (Image)
 ///   │   ├── CallerName        (TextMeshProUGUI)
-///   │   └── CallStatus        (TextMeshProUGUI)  ← "Llamando…" / "Conectado"
+///   │   └── CallStatus        (TextMeshProUGUI)   ← "Llamando…" / "Conectado"
 ///   ├── DialogueText          (TextMeshProUGUI)
 ///   ├── MultipleChoicePanelGO ← MultipleChoicePanel.cs
 ///   │   ├── OptionsContainer  (con Vertical Layout Group)
@@ -35,35 +40,38 @@ public class SiataCallPanel : MonoBehaviour
 
     // ── Inspector: Encabezado de llamada ──────────────────────────────────────
     [Header("Encabezado de llamada")]
-    [Tooltip("Foto/avatar del operador SIATA. Se oculta si NpcDialogueData no tiene foto.")]
+    [Tooltip("Foto/avatar del operador SIATA. Se oculta si no hay foto asignada.")]
     public Image callerPhoto;
 
-    [Tooltip("Nombre del operador o número de línea (ej: 'SIATA - Línea de Alerta').")]
+    [Tooltip("Nombre del operador o número de línea.")]
     public TextMeshProUGUI callerNameText;
 
     [Tooltip("Estado de la llamada. Muestra 'Llamando…' al abrir y 'Conectado' tras el delay.")]
     public TextMeshProUGUI callStatusText;
 
-    // ── Inspector: Cuerpo de la llamada ───────────────────────────────────────
+    // ── Inspector: Cuerpo ─────────────────────────────────────────────────────
     [Header("Cuerpo")]
-    [Tooltip("Texto con el mensaje/pregunta del operador SIATA.")]
+    [Tooltip("Texto con el mensaje del operador SIATA.")]
     public TextMeshProUGUI dialogueText;
 
-    // ── Inspector: Opciones múltiples ─────────────────────────────────────────
+    // ── Inspector: Panel de opciones ─────────────────────────────────────────
     [Header("Panel de opciones múltiples")]
-    [Tooltip("Componente hijo MultipleChoicePanel que gestiona botones A/B/C y feedback.")]
+    [Tooltip("Componente hijo MultipleChoicePanel. Usado tanto para pasos Info (1 botón) como Question (A/B/C).")]
     public MultipleChoicePanel choicePanel;
 
     // ── Inspector: Controles ──────────────────────────────────────────────────
     [Header("Controles")]
-    [Tooltip("Botón 'Colgar'. Cierra el panel sin avanzar la etapa.")]
+    [Tooltip("Botón 'Colgar'. Cierra el panel sin avanzar etapa.")]
     public Button hangUpButton;
 
     // ── Inspector: Comportamiento ─────────────────────────────────────────────
     [Header("Comportamiento")]
-    [Tooltip("Segundos de animación 'Llamando…' antes de mostrar el diálogo y las opciones.")]
+    [Tooltip("Segundos de animación 'Llamando…' antes de mostrar el contenido.")]
     [Range(0f, 3f)]
     public float connectingDelay = 1.5f;
+
+    [Tooltip("Texto del botón de pasos informativos.")]
+    public string continueButtonLabel = "Continuar";
 
     [Tooltip("Texto mostrado mientras se establece la llamada.")]
     public string connectingText = "Llamando…";
@@ -71,11 +79,19 @@ public class SiataCallPanel : MonoBehaviour
     [Tooltip("Texto mostrado cuando la llamada está activa.")]
     public string connectedText  = "Conectado";
 
+    // ── Opción interna para pasos Info (un único botón, siempre correcto) ─────
+    // Se recrea en cada paso Info para respetar el label configurable.
+    private DialogueOption[] _continueOption;
+
     // ── Internos ──────────────────────────────────────────────────────────────
-    private NpcDialogueData   _currentData;
-    private HotspotController _sourceHotspot;
-    private Coroutine         _connectRoutine;
-    private Coroutine         _correctRoutine;
+    private NpcDialogueData       _legacyData;
+    private SiataDialogueSequence _sequence;
+    private int                   _currentStepIndex;
+    private bool                  _isSequenceMode;
+    private HotspotController     _sourceHotspot;
+    private Coroutine             _connectRoutine;
+    private Coroutine             _correctRoutine;
+    private Coroutine             _wrongRoutine;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
@@ -94,8 +110,8 @@ public class SiataCallPanel : MonoBehaviour
     // ── API pública ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Muestra el panel de llamada con los datos indicados.
-    /// Llamado desde HotspotController (SiataCall).
+    /// Modo legado: texto único + pregunta de selección múltiple.
+    /// Mantiene compatibilidad con hotspots que usan NpcDialogueData.
     /// </summary>
     public void Show(NpcDialogueData data, HotspotController source)
     {
@@ -104,20 +120,31 @@ public class SiataCallPanel : MonoBehaviour
             Debug.LogWarning("[SiataCallPanel] NpcDialogueData es null.");
             return;
         }
+        _legacyData      = data;
+        _sequence        = null;
+        _isSequenceMode  = false;
+        _sourceHotspot   = source;
+        OpenPanel();
+    }
 
-        _currentData   = data;
-        _sourceHotspot = source;
-
-        PopulateCallerInfo();
-
-        // Ocultar diálogo y opciones hasta que la llamada "conecte"
-        if (dialogueText != null) dialogueText.gameObject.SetActive(false);
-        if (choicePanel  != null) choicePanel.gameObject.SetActive(false);
-
-        gameObject.SetActive(true);
-        BlockInput(true);
-
-        _connectRoutine = StartCoroutine(ConnectingRoutine());
+    /// <summary>
+    /// Modo secuencia: pasos mixtos Info / Question.
+    /// Pasos Info muestran un único botón "Continuar" generado internamente.
+    /// Pasos Question muestran las opciones A/B/C y retienen al jugador hasta respuesta correcta.
+    /// </summary>
+    public void Show(SiataDialogueSequence sequence, HotspotController source)
+    {
+        if (sequence == null || sequence.steps == null || sequence.steps.Length == 0)
+        {
+            Debug.LogWarning("[SiataCallPanel] SiataDialogueSequence es null o no tiene pasos.");
+            return;
+        }
+        _sequence         = sequence;
+        _legacyData       = null;
+        _isSequenceMode   = true;
+        _currentStepIndex = 0;
+        _sourceHotspot    = source;
+        OpenPanel();
     }
 
     /// <summary>Cierra el panel, limpia estado y desbloquea input.</summary>
@@ -136,59 +163,135 @@ public class SiataCallPanel : MonoBehaviour
             _sourceHotspot = null;
         }
 
-        _currentData = null;
+        _legacyData     = null;
+        _sequence       = null;
+        _isSequenceMode = false;
         gameObject.SetActive(false);
     }
 
-    // ── Población de UI ───────────────────────────────────────────────────────
+    // ── Apertura del panel ────────────────────────────────────────────────────
+    private void OpenPanel()
+    {
+        PopulateCallerInfo();
+
+        if (dialogueText != null) dialogueText.gameObject.SetActive(false);
+        if (choicePanel  != null) choicePanel.gameObject.SetActive(false);
+
+        gameObject.SetActive(true);
+        BlockInput(true);
+        _connectRoutine = StartCoroutine(ConnectingRoutine());
+    }
+
     private void PopulateCallerInfo()
     {
-        if (_currentData == null) return;
+        string name  = _isSequenceMode ? _sequence.npcName  : _legacyData.npcName;
+        Sprite photo = _isSequenceMode ? _sequence.npcPhoto : _legacyData.npcPhoto;
 
-        bool hasPhoto = _currentData.npcPhoto != null;
+        bool hasPhoto = photo != null;
         if (callerPhoto != null)
         {
             callerPhoto.gameObject.SetActive(hasPhoto);
-            if (hasPhoto) callerPhoto.sprite = _currentData.npcPhoto;
+            if (hasPhoto) callerPhoto.sprite = photo;
         }
-
-        if (callerNameText  != null) callerNameText.text  = _currentData.npcName;
-        if (callStatusText  != null) callStatusText.text  = connectingText;
-        if (dialogueText    != null) dialogueText.text    = _currentData.npcText;
+        if (callerNameText != null) callerNameText.text = name;
+        if (callStatusText != null) callStatusText.text = connectingText;
     }
 
-    // ── Secuencia de conexión ─────────────────────────────────────────────────
+    // ── Delay de conexión ─────────────────────────────────────────────────────
     private IEnumerator ConnectingRoutine()
     {
         yield return new WaitForSeconds(connectingDelay);
 
         if (callStatusText != null) callStatusText.text = connectedText;
+        if (dialogueText   != null) dialogueText.gameObject.SetActive(true);
 
-        // Mostrar diálogo y opciones al conectar
-        if (dialogueText != null) dialogueText.gameObject.SetActive(true);
-        if (choicePanel  != null)
-        {
-            choicePanel.gameObject.SetActive(true);
-            SetupChoicePanel();
-        }
+        if (_isSequenceMode)
+            ShowStep(0);
+        else
+            ShowLegacyContent();
 
         _connectRoutine = null;
     }
 
-    // ── Configuración de opciones ─────────────────────────────────────────────
-    private void SetupChoicePanel()
+    // ── Modo legado ───────────────────────────────────────────────────────────
+    private void ShowLegacyContent()
+    {
+        if (dialogueText != null) dialogueText.text = _legacyData.npcText;
+        if (choicePanel  != null)
+        {
+            choicePanel.gameObject.SetActive(true);
+            SetupChoicePanel(_legacyData.options);
+        }
+    }
+
+    // ── Modo secuencia ────────────────────────────────────────────────────────
+
+    private void ShowStep(int index)
+    {
+        if (_sequence == null || index < 0 || index >= _sequence.steps.Length) return;
+
+        // Cancelar auto-reintento pendiente al cambiar de paso
+        if (_wrongRoutine != null) { StopCoroutine(_wrongRoutine); _wrongRoutine = null; }
+
+        _currentStepIndex = index;
+        SiataDialogueStep step = _sequence.steps[index];
+
+        if (dialogueText != null) dialogueText.text = step.npcText;
+
+        // Limpiar estado previo del choice panel antes del nuevo paso
+        UnsubscribeChoiceEvents();
+        if (choicePanel != null) choicePanel.Clear();
+
+        if (step.stepType == SiataStepType.Info)
+        {
+            // Generar un único botón "Continuar" sin feedback (feedbackText vacío
+            // hace que MultipleChoicePanel oculte la sección de feedback automáticamente)
+            _continueOption = new[] { new DialogueOption { optionText = continueButtonLabel, isCorrect = true, feedbackText = "" } };
+            if (choicePanel != null)
+            {
+                choicePanel.gameObject.SetActive(true);
+                SetupChoicePanel(_continueOption);
+            }
+        }
+        else // Question
+        {
+            if (choicePanel != null)
+            {
+                choicePanel.gameObject.SetActive(true);
+                SetupChoicePanel(step.options);
+            }
+        }
+    }
+
+    private void AdvanceSequence()
+    {
+        int next = _currentStepIndex + 1;
+        if (next < _sequence.steps.Length)
+            ShowStep(next);
+        else
+            FinishSequence();
+    }
+
+    private void FinishSequence()
+    {
+        if (_sequence != null && _sequence.advancesStageOnComplete)
+            StageManager.Instance?.NextStage();
+        Hide();
+    }
+
+    // ── Panel de opciones ─────────────────────────────────────────────────────
+    private void SetupChoicePanel(DialogueOption[] options)
     {
         if (choicePanel == null)
         {
             Debug.LogWarning("[SiataCallPanel] choicePanel no asignado en el Inspector.");
             return;
         }
-
         UnsubscribeChoiceEvents();
         choicePanel.OnCorrect += HandleCorrectAnswer;
         choicePanel.OnWrong   += HandleWrongAnswer;
-
-        choicePanel.SetOptions(_currentData.options);
+        choicePanel.OnRetry   += HandleRetry;
+        choicePanel.SetOptions(options);
     }
 
     private void UnsubscribeChoiceEvents()
@@ -196,44 +299,91 @@ public class SiataCallPanel : MonoBehaviour
         if (choicePanel == null) return;
         choicePanel.OnCorrect -= HandleCorrectAnswer;
         choicePanel.OnWrong   -= HandleWrongAnswer;
+        choicePanel.OnRetry   -= HandleRetry;
     }
 
     // ── Respuestas ────────────────────────────────────────────────────────────
     private void HandleCorrectAnswer()
     {
-        _correctRoutine = StartCoroutine(CorrectAnswerRoutine());
+        if (_isSequenceMode && _sequence.steps[_currentStepIndex].stepType == SiataStepType.Info)
+        {
+            // Paso informativo: avanzar al instante, sin delay ni feedback
+            AdvanceSequence();
+        }
+        else
+        {
+            // Paso de pregunta: esperar el delay antes de avanzar
+            _correctRoutine = StartCoroutine(CorrectAnswerRoutine());
+        }
+    }
+
+    private void HandleRetry()
+    {
+        // El jugador pulsó "Intentar de nuevo" — cancelar el auto-reintento por timer.
+        if (_wrongRoutine != null) { StopCoroutine(_wrongRoutine); _wrongRoutine = null; }
     }
 
     private void HandleWrongAnswer()
     {
-        Debug.Log("[SiataCallPanel] Respuesta incorrecta.");
+        // MultipleChoicePanel muestra el feedback rojo y el botón de reintento (si está asignado).
+        // Como fallback, relanzamos las opciones automáticamente tras un delay, por si el
+        // retryButton no estuviera configurado en el Inspector.
+        if (_wrongRoutine != null) StopCoroutine(_wrongRoutine);
+        _wrongRoutine = StartCoroutine(WrongAnswerRoutine());
+    }
+
+    private IEnumerator WrongAnswerRoutine()
+    {
+        // Esperar el mismo delay que para la respuesta correcta para que el jugador
+        // pueda leer el feedback antes de que las opciones vuelvan a aparecer.
+        float delay = _isSequenceMode
+            ? (_sequence != null ? _sequence.correctAnswerDelay : 1.5f)
+            : (_legacyData != null ? _legacyData.correctAnswerDelay : 1.5f);
+
+        yield return new WaitForSeconds(delay);
+        _wrongRoutine = null;
+
+        // Regenerar las opciones del paso actual (sin cerrar el panel)
+        if (_isSequenceMode && _sequence != null)
+        {
+            SiataDialogueStep step = _sequence.steps[_currentStepIndex];
+            if (step.stepType == SiataStepType.Question)
+                SetupChoicePanel(step.options);
+        }
+        else if (_legacyData != null)
+        {
+            SetupChoicePanel(_legacyData.options);
+        }
     }
 
     private IEnumerator CorrectAnswerRoutine()
     {
-        float delay = _currentData != null ? _currentData.correctAnswerDelay : 1.5f;
+        float delay = _isSequenceMode
+            ? _sequence.correctAnswerDelay
+            : (_legacyData != null ? _legacyData.correctAnswerDelay : 1.5f);
+
         yield return new WaitForSeconds(delay);
 
-        if (_currentData != null && _currentData.advancesStageOnCorrect)
+        if (_isSequenceMode)
+            AdvanceSequence();
+        else
         {
-            if (StageManager.Instance != null)
-                StageManager.Instance.NextStage();
+            if (_legacyData != null && _legacyData.advancesStageOnCorrect)
+                StageManager.Instance?.NextStage();
+            Hide();
         }
-
-        Hide();
     }
 
-    // ── Input ─────────────────────────────────────────────────────────────────
+    // ── Input / utilidades ────────────────────────────────────────────────────
     private void BlockInput(bool block)
     {
-        if (StageManager.Instance != null)
-            StageManager.Instance.SetPlayerInputBlocked(block);
+        StageManager.Instance?.SetPlayerInputBlocked(block);
     }
 
-    // ── Utilidades ────────────────────────────────────────────────────────────
     private void StopAllCoroutinesInternal()
     {
         if (_connectRoutine != null) { StopCoroutine(_connectRoutine); _connectRoutine = null; }
         if (_correctRoutine != null) { StopCoroutine(_correctRoutine); _correctRoutine = null; }
+        if (_wrongRoutine   != null) { StopCoroutine(_wrongRoutine);   _wrongRoutine   = null; }
     }
 }

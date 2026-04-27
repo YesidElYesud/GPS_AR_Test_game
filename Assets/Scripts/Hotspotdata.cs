@@ -90,8 +90,13 @@ public class HotspotData : ScriptableObject
     [Tooltip("Si es true, al terminar (o saltar) la cinemática se avanza a la siguiente etapa.")]
     public bool cinematicAdvancesStage = true;
 
-    [Tooltip("Datos del diálogo. Solo se usa cuando actionType = NpcConversation o SiataCall.")]
+    [Tooltip("Datos del diálogo. Solo se usa cuando actionType = NpcConversation o SiataCall (sin secuencia).")]
     public NpcDialogueData dialogueData;
+
+    [Tooltip("Secuencia SIATA con pasos mixtos Info/Question.\n" +
+             "Si está asignada, tiene prioridad sobre dialogueData cuando actionType = SiataCall.\n" +
+             "Crear via: Assets > Create > AR > SIATA Dialogue Sequence.")]
+    public SiataDialogueSequence siataSequence;
 
     [Tooltip("Slides a mostrar cuando actionType = InfoSlidePanel.\n" +
              "Ejemplo Botón 1:\n" +

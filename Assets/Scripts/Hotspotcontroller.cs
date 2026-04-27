@@ -276,7 +276,11 @@ public class HotspotController : MonoBehaviour
                 if (SiataCallPanel.Instance != null)
                 {
                     _isPanelOpen = true;
-                    SiataCallPanel.Instance.Show(data.dialogueData, this);
+                    // siataSequence tiene prioridad sobre dialogueData
+                    if (data.siataSequence != null)
+                        SiataCallPanel.Instance.Show(data.siataSequence, this);
+                    else
+                        SiataCallPanel.Instance.Show(data.dialogueData, this);
                 }
                 else if (NpcDialoguePanel.Instance != null)
                 {

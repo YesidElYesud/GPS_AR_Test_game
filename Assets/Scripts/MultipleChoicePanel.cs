@@ -35,6 +35,12 @@ public class MultipleChoicePanel : MonoBehaviour
     /// <summary>Disparado cuando el jugador selecciona una opción incorrecta.</summary>
     public event Action OnWrong;
 
+    /// <summary>
+    /// Disparado cuando el jugador pulsa "Intentar de nuevo".
+    /// El panel padre puede suscribirse para cancelar su propia lógica de auto-reintento.
+    /// </summary>
+    public event Action OnRetry;
+
     // ── Inspector: Opciones ───────────────────────────────────────────────────
     [Header("Generación de opciones")]
     [Tooltip("Transform con Layout Group donde se instancian los botones.")]
@@ -87,6 +93,11 @@ public class MultipleChoicePanel : MonoBehaviour
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
     {
+        // Si retryButton no fue asignado en Inspector, intentar encontrarlo
+        // automáticamente como hijo del feedbackSection.
+        if (retryButton == null && feedbackSection != null)
+            retryButton = feedbackSection.GetComponentInChildren<Button>(true);
+
         if (retryButton != null)
             retryButton.onClick.AddListener(OnRetryClicked);
     }
@@ -197,7 +208,10 @@ public class MultipleChoicePanel : MonoBehaviour
 
     private void ShowFeedback(DialogueOption option)
     {
-        if (feedbackSection != null) feedbackSection.SetActive(true);
+        // Ocultar la sección de feedback si no hay texto (ej: botón "Continuar" de pasos Info)
+        bool hasFeedback = !string.IsNullOrEmpty(option.feedbackText);
+        if (feedbackSection != null) feedbackSection.SetActive(hasFeedback);
+        if (!hasFeedback) return;
 
         if (feedbackText != null)
             feedbackText.text = option.feedbackText;
@@ -213,7 +227,8 @@ public class MultipleChoicePanel : MonoBehaviour
     // ── Reintento ─────────────────────────────────────────────────────────────
     private void OnRetryClicked()
     {
-        // Regenerar exactamente las mismas opciones
+        OnRetry?.Invoke();
+        // Regenerar las mismas opciones en el mismo panel (sin cerrarlo)
         if (_currentOptions != null)
             SetOptions(_currentOptions);
     }

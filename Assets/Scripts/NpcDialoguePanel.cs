@@ -53,6 +53,7 @@ public class NpcDialoguePanel : MonoBehaviour
     private NpcDialogueData   _currentData;
     private HotspotController _sourceHotspot;
     private Coroutine         _correctRoutine;
+    private Coroutine         _wrongRoutine;
     private System.Action     _onCorrectCallback;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -91,11 +92,8 @@ public class NpcDialoguePanel : MonoBehaviour
     /// <summary>Cierra el panel, limpia el estado y desbloquea el input.</summary>
     public void Hide()
     {
-        if (_correctRoutine != null)
-        {
-            StopCoroutine(_correctRoutine);
-            _correctRoutine = null;
-        }
+        if (_correctRoutine != null) { StopCoroutine(_correctRoutine); _correctRoutine = null; }
+        if (_wrongRoutine   != null) { StopCoroutine(_wrongRoutine);   _wrongRoutine   = null; }
 
         // Desconectar eventos para evitar dobles disparos
         UnsubscribeChoiceEvents();
@@ -144,6 +142,7 @@ public class NpcDialoguePanel : MonoBehaviour
         UnsubscribeChoiceEvents();
         choicePanel.OnCorrect += HandleCorrectAnswer;
         choicePanel.OnWrong   += HandleWrongAnswer;
+        choicePanel.OnRetry   += HandleRetry;
 
         choicePanel.SetOptions(_currentData.options);
     }
@@ -153,6 +152,7 @@ public class NpcDialoguePanel : MonoBehaviour
         if (choicePanel == null) return;
         choicePanel.OnCorrect -= HandleCorrectAnswer;
         choicePanel.OnWrong   -= HandleWrongAnswer;
+        choicePanel.OnRetry   -= HandleRetry;
     }
 
     // ── Respuestas ────────────────────────────────────────────────────────────
@@ -161,11 +161,26 @@ public class NpcDialoguePanel : MonoBehaviour
         _correctRoutine = StartCoroutine(CorrectAnswerRoutine());
     }
 
+    private void HandleRetry()
+    {
+        // El jugador pulsó "Intentar de nuevo" — cancelar el auto-reintento por timer.
+        if (_wrongRoutine != null) { StopCoroutine(_wrongRoutine); _wrongRoutine = null; }
+    }
+
     private void HandleWrongAnswer()
     {
-        // MultipleChoicePanel ya muestra el feedback rojo y el botón de reintento.
-        // Aquí se pueden agregar efectos adicionales si son necesarios (audio, vibración, etc.)
-        Debug.Log("[NpcDialoguePanel] Respuesta incorrecta.");
+        // MultipleChoicePanel muestra el feedback rojo y el botón de reintento (si está asignado).
+        // Como fallback, relanzamos las opciones automáticamente tras un delay.
+        if (_wrongRoutine != null) StopCoroutine(_wrongRoutine);
+        _wrongRoutine = StartCoroutine(WrongAnswerRoutine());
+    }
+
+    private IEnumerator WrongAnswerRoutine()
+    {
+        float delay = _currentData != null ? _currentData.correctAnswerDelay : 1.5f;
+        yield return new WaitForSeconds(delay);
+        _wrongRoutine = null;
+        if (_currentData != null) SetupChoicePanel();
     }
 
     private IEnumerator CorrectAnswerRoutine()
