@@ -2,11 +2,6 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// Toma de cámara individual dentro de una secuencia.
-/// Define a dónde va la cámara (anchor), cuánto tarda en llegar (moveDuration)
-/// y cuánto tiempo se queda quieta antes de pasar a la siguiente toma (holdDuration).
-/// </summary>
 [System.Serializable]
 public class CameraShot
 {
@@ -18,34 +13,13 @@ public class CameraShot
     [Range(0.2f, 12f)] public float moveDuration = 2f;
 
     [Tooltip("Segundos que la cámara permanece quieta en este punto antes de pasar a la siguiente toma.")]
-    [Range(0f,  10f)]  public float holdDuration = 1.5f;
+    [Range(0f, 10f)] public float holdDuration = 1.5f;
 
     [Tooltip("Curva de animación del movimiento. EaseInOut (S-curve) por defecto.\n" +
              "Puedes personalizar cada toma: arranque lento, parada brusca, etc.")]
     public AnimationCurve ease = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 }
 
-/// <summary>
-/// CinematicSequencer — secuencia de tomas en tiempo real usando la escena del juego.
-///
-/// A diferencia de CinematicManager (que reproduce video), este sistema mueve Camera.main
-/// a través de una lista de Transforms hijos, mostrando el estado actual de la escena.
-///
-/// Uso típico: Programación 2 "Conocer clima" — recorre el escenario mostrando
-/// la lluvia, la quebrada y el nivel de riesgo N2 en la Etapa2.
-///
-/// Integración:
-///   1. Añadir este componente a un GameObject en la escena.
-///   2. Crear GameObjects hijos y posicionarlos donde quieres cada toma de cámara.
-///   3. Asignar esos hijos a shots[].anchor en el Inspector.
-///   4. Asignar este componente al campo cameraSequencer del HotspotController del Botón2.
-///   5. En HotspotData del Botón2: actionType = CameraSequence, sequenceAdvancesStage = true.
-///
-/// UI requerida en AR_Canvas:
-///   - SequenceSkipButton: Button inicialmente inactivo → asignar a skipButton.
-///   - SequenceFadeOverlay: Image negra full-screen, alpha=0, inicialmente activa → asignar a fadeOverlay.
-///     (RectTransform stretch 0,0,0,0; color negro; alpha=0; z-order: encima de todo excepto HUD)
-/// </summary>
 public class CinematicSequencer : MonoBehaviour
 {
     [Header("Tomas de Cámara")]
@@ -56,6 +30,23 @@ public class CinematicSequencer : MonoBehaviour
     [Header("Transición")]
     [Tooltip("Duración del fade negro al inicio y al final de la secuencia.")]
     [Range(0f, 1f)] public float fadeDuration = 0.35f;
+
+    [Header("Movimiento de Dron")]
+    [Tooltip("Activa deriva orgánica procedural sobre posición y rotación (ruido Perlin).")]
+    public bool droneMode = true;
+
+    [Tooltip("Amplitud máxima de la deriva de posición en metros. 0.08 = sutil, 0.20 = pronunciado.")]
+    [Range(0f, 0.4f)] public float driftAmplitude = 0.08f;
+
+    [Tooltip("Velocidad del ruido Perlin. Más bajo = movimiento más lento y orgánico.")]
+    [Range(0.05f, 1.5f)] public float driftSpeed = 0.35f;
+
+    [Tooltip("Amplitud máxima de la deriva de rotación en grados. Pitch + roll suave.")]
+    [Range(0f, 3f)] public float rotationDrift = 0.6f;
+
+    [Tooltip("Fracción del movimiento de dron que se aplica durante el viaje entre tomas.\n" +
+             "0 = solo en pausa (cámara quieta entre shots), 1 = igual que en pausa.")]
+    [Range(0f, 1f)] public float movementTurbulence = 0.4f;
 
     [Header("UI (opcional)")]
     [Tooltip("Botón 'Saltar' que aparece sobre la pantalla durante la secuencia.\n" +
@@ -83,10 +74,14 @@ public class CinematicSequencer : MonoBehaviour
     private bool _advancesStage;
     private Transform _cam;
 
+    // Ruido procedural (dron) — acumulan durante toda la secuencia
+    private float _noiseTime;
+    private float _noiseSeedX;
+    private float _noiseSeedZ;
+
     // ── Arranque ──────────────────────────────────────────────────────────────
     private void Awake()
     {
-        // Garantizar fade invisible al inicio
         if (fadeOverlay != null)
             SetFadeAlpha(0f);
     }
@@ -96,8 +91,6 @@ public class CinematicSequencer : MonoBehaviour
     /// <summary>
     /// Inicia la secuencia. Llamado desde HotspotController.
     /// </summary>
-    /// <param name="caller">Hotspot que activó la secuencia (para cerrar al terminar).</param>
-    /// <param name="advancesStage">Si true, llama a StageManager.NextStage() al finalizar.</param>
     public void Play(HotspotController caller, bool advancesStage)
     {
         if (IsPlaying)
@@ -119,7 +112,7 @@ public class CinematicSequencer : MonoBehaviour
     }
 
     /// <summary>
-    /// Llamado por el botón "Saltar" (asignar en Inspector del botón → OnClick).
+    /// Llamado por el botón "Saltar" (OnClick en Inspector).
     /// </summary>
     public void RequestSkip() => _skipRequested = true;
 
@@ -130,11 +123,16 @@ public class CinematicSequencer : MonoBehaviour
         _skipRequested = false;
         _cam           = Camera.main.transform;
 
+        // Semillas aleatorias: cada reproducción tiene una deriva única
+        _noiseTime  = Random.Range(0f, 100f);
+        _noiseSeedX = Random.Range(0f, 100f);
+        _noiseSeedZ = Random.Range(0f, 100f);
+
         // Guardar posición y rotación del jugador antes de cualquier movimiento
         Vector3    savedPos = _cam.position;
         Quaternion savedRot = _cam.rotation;
 
-        // Ocultar joystick (guardamos si estaba activo para restaurarlo igual)
+        // Ocultar joystick
         bool joystickWasActive = joystickPanel != null && joystickPanel.activeSelf;
         if (joystickPanel != null) joystickPanel.SetActive(false);
 
@@ -149,29 +147,27 @@ public class CinematicSequencer : MonoBehaviour
             ringRoutine = StartCoroutine(UpdateProgressRing(totalDuration));
         }
 
-        // 1. Bloquear input del jugador y ceder control de la cámara
+        // Bloquear input del jugador y ceder control de la cámara
         var arCtrl = Camera.main.GetComponent<ARCameraController>();
         arCtrl?.SetAerialMode(true);
         StageManager.Instance?.SetPlayerInputBlocked(true);
 
-        // 2. Fade a negro (ocultar el corte brusco al primer anchor)
+        // Fade a negro (cubre el salto al primer anchor)
         yield return StartCoroutine(DoFade(0f, 1f, fadeDuration));
 
-        // 3. Mostrar skip button
         if (skipButton != null) skipButton.SetActive(true);
 
-        // 4. Saltar inmediatamente al anchor de la primera toma (sin lerp)
-        //    El fade negro ya cubre el salto, así que no se ve el corte.
+        // Saltar inmediatamente al anchor de la primera toma bajo el fade
         if (shots.Length > 0 && shots[0].anchor != null)
         {
             _cam.position = shots[0].anchor.position;
             _cam.rotation = shots[0].anchor.rotation;
         }
 
-        // 5. Fade desde negro al mundo (revelar primera toma)
+        // Revelar primera toma
         yield return StartCoroutine(DoFade(1f, 0f, fadeDuration));
 
-        // 6. Ejecutar cada toma
+        // Ejecutar cada toma
         for (int i = 0; i < shots.Length; i++)
         {
             CameraShot shot = shots[i];
@@ -183,31 +179,39 @@ public class CinematicSequencer : MonoBehaviour
 
             if (_skipRequested) break;
 
-            // La primera toma ya se posicionó arriba — empezamos a lerp desde la 2ª
+            // La primera toma ya se posicionó arriba — lerp solo desde la 2ª en adelante
             if (i > 0)
                 yield return StartCoroutine(MoveToAnchor(shot));
 
             if (_skipRequested) break;
 
-            // Mantener en este punto
+            // Hold — deriva de dron completa mientras la cámara "flota" en el anchor
             float held = 0f;
             while (held < shot.holdDuration && !_skipRequested)
             {
-                held += Time.deltaTime;
+                held       += Time.deltaTime;
+                _noiseTime += Time.deltaTime;
+
+                if (droneMode)
+                {
+                    GetDroneNoise(driftAmplitude, rotationDrift, out Vector3 dp, out Quaternion dr);
+                    _cam.position = shot.anchor.position + dp;
+                    _cam.rotation = shot.anchor.rotation * dr;
+                }
+
                 yield return null;
             }
         }
 
-        // 7. Ocultar skip button y detener/ocultar anillo de progreso
+        // Ocultar botón y anillo
         if (skipButton != null) skipButton.SetActive(false);
         if (ringRoutine != null) StopCoroutine(ringRoutine);
         if (progressRing != null) progressRing.gameObject.SetActive(false);
 
-        // 8. Fade a negro (cubrir el retorno a la cámara del jugador)
+        // Fade a negro (cubre el retorno a la cámara del jugador)
         yield return StartCoroutine(DoFade(0f, 1f, fadeDuration));
 
-        // 9. Restaurar posición del jugador (bajo el fade negro — el corte no se ve)
-        //    CharacterController resiste el teletransporte: hay que desactivarlo un frame.
+        // Restaurar posición del jugador bajo el fade
         var cc = Camera.main.GetComponent<CharacterController>();
         if (cc != null) cc.enabled = false;
         _cam.position = savedPos;
@@ -217,26 +221,25 @@ public class CinematicSequencer : MonoBehaviour
         arCtrl?.SetAerialMode(false);
         StageManager.Instance?.SetPlayerInputBlocked(false);
 
-        // Restaurar joystick bajo el fade negro (ya visible cuando el mundo aparezca)
         if (joystickWasActive && joystickPanel != null) joystickPanel.SetActive(true);
 
-        // 10. Notificar al hotspot que puede cerrar su estado
         _caller?.ClosePanel();
 
-        // 11. Avanzar etapa si corresponde (DESPUÉS de restaurar input)
         if (_advancesStage && StageManager.Instance != null)
             StageManager.Instance.NextStage();
 
-        // 12. Fade de vuelta al mundo (revelar la vista del jugador)
+        // Revelar vista del jugador
         yield return StartCoroutine(DoFade(1f, 0f, fadeDuration));
 
         IsPlaying = false;
         _caller   = null;
     }
 
-    // ── Movimiento suave hacia un anchor ─────────────────────────────────────
+    // ── Movimiento suave hacia un anchor (con turbulencia opcional) ───────────
     private IEnumerator MoveToAnchor(CameraShot shot)
     {
+        // Si droneMode, la posición de inicio incluye el offset de dron del frame anterior;
+        // usar el anchor limpio evitaría el "salto" al rearrancar — tomamos la pos actual.
         Vector3    startPos = _cam.position;
         Quaternion startRot = _cam.rotation;
         Vector3    endPos   = shot.anchor.position;
@@ -246,21 +249,61 @@ public class CinematicSequencer : MonoBehaviour
 
         while (elapsed < shot.moveDuration && !_skipRequested)
         {
-            elapsed += Time.deltaTime;
+            elapsed    += Time.deltaTime;
+            _noiseTime += Time.deltaTime;
             float t = shot.ease.Evaluate(Mathf.Clamp01(elapsed / shot.moveDuration));
 
-            _cam.position = Vector3.Lerp(startPos, endPos, t);
-            _cam.rotation = Quaternion.Slerp(startRot, endRot, t);
+            Vector3    lerpPos = Vector3.Lerp(startPos, endPos, t);
+            Quaternion lerpRot = Quaternion.Slerp(startRot, endRot, t);
+
+            if (droneMode && movementTurbulence > 0f)
+            {
+                GetDroneNoise(
+                    driftAmplitude  * movementTurbulence,
+                    rotationDrift   * movementTurbulence,
+                    out Vector3 dp, out Quaternion dr);
+                _cam.position = lerpPos + dp;
+                _cam.rotation = lerpRot * dr;
+            }
+            else
+            {
+                _cam.position = lerpPos;
+                _cam.rotation = lerpRot;
+            }
 
             yield return null;
         }
 
-        // Garantizar posición exacta al terminar
+        // Asentar en el anchor exacto al terminar el viaje
+        // (el hold loop retomará la deriva en el primer frame siguiente)
         if (!_skipRequested)
         {
             _cam.position = endPos;
             _cam.rotation = endRot;
         }
+    }
+
+    // ── Ruido Perlin tipo gimbal de dron ──────────────────────────────────────
+    // Genera un offset de posición y rotación con movimiento continuo y orgánico.
+    // El eje Y tiene menos amplitud (los drones son más estables en altitud).
+    // El yaw tiene poca influencia para no desorientar el encuadre.
+    private void GetDroneNoise(float posAmp, float rotAmpDeg,
+                               out Vector3 posOffset, out Quaternion rotOffset)
+    {
+        float t = _noiseTime * driftSpeed;
+
+        // Posición: deriva lateral y profundidad; vertical más contenida
+        float px = (Mathf.PerlinNoise(t              + _noiseSeedX, 0.00f) * 2f - 1f) * posAmp;
+        float py = (Mathf.PerlinNoise(t + 2.1f       + _noiseSeedX, 0.50f) * 2f - 1f) * posAmp * 0.35f;
+        float pz = (Mathf.PerlinNoise(t              + _noiseSeedZ, 1.00f) * 2f - 1f) * posAmp;
+
+        // Rotación: pitch y roll dominan; yaw muy sutil para no girar el plano
+        float pitch = (Mathf.PerlinNoise(t * 0.70f + _noiseSeedX, 3.0f) * 2f - 1f) * rotAmpDeg;
+        float yaw   = (Mathf.PerlinNoise(t * 0.50f + _noiseSeedZ, 4.0f) * 2f - 1f) * rotAmpDeg * 0.20f;
+        float roll  = (Mathf.PerlinNoise(t * 0.60f + _noiseSeedX, 5.0f) * 2f - 1f) * rotAmpDeg * 0.40f;
+
+        posOffset = new Vector3(px, py, pz);
+        rotOffset = Quaternion.Euler(pitch, yaw, roll);
     }
 
     // ── Fade ──────────────────────────────────────────────────────────────────
@@ -315,12 +358,10 @@ public class CinematicSequencer : MonoBehaviour
             Vector3 pos = shots[i].anchor.position;
             Vector3 fwd = shots[i].anchor.forward;
 
-            // Ícono de cámara (esfera pequeña + línea de dirección)
             Gizmos.color = new Color(0.2f, 0.8f, 1f, 0.9f);
             Gizmos.DrawWireSphere(pos, 0.25f);
             Gizmos.DrawRay(pos, fwd * 1.2f);
 
-            // Línea de conexión entre tomas consecutivas
             if (i < shots.Length - 1 && shots[i + 1].anchor != null)
             {
                 Gizmos.color = new Color(0.2f, 0.8f, 1f, 0.35f);
@@ -328,7 +369,6 @@ public class CinematicSequencer : MonoBehaviour
             }
 
 #if UNITY_EDITOR
-            // Etiqueta con el número de la toma
             UnityEditor.Handles.Label(pos + Vector3.up * 0.4f,
                 $"Shot {i + 1}\n{shots[i].moveDuration}s mov / {shots[i].holdDuration}s hold",
                 new GUIStyle { fontSize = 9, normal = { textColor = new Color(0.2f, 0.9f, 1f) } });

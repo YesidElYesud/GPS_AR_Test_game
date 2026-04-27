@@ -28454,6 +28454,11 @@ MonoBehaviour:
       m_PostInfinity: 0
       m_RotationOrder: 0
   fadeDuration: 0.35
+  droneMode: 1
+  driftAmplitude: 0.08
+  driftSpeed: 0.35
+  rotationDrift: 0.6
+  movementTurbulence: 0.4
   skipButton: {fileID: 1896039222}
   fadeOverlay: {fileID: 1896039221}
   joystickPanel: {fileID: 882556788}
@@ -33998,6 +34003,51 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 939438732}
   m_Mesh: {fileID: -3571139487699080308, guid: 0e1fcd1b677c541d29d2a1e7d8b0dd20, type: 3}
+--- !u!1 &941266956 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8364147683669397960, guid: 1e78ba5b3d738f84e9cb702ab1e522f1, type: 3}
+  m_PrefabInstance: {fileID: 1210175375}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &941266958
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 941266956}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b629b60d178c8fc9a9595f9d30ebd71, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  terrainRoot: {fileID: 1538635189}
+  grassNamePrefix: trasparent grass4
+  transitionDuration: 1.5
+  windPresets:
+  - maxAngleDeg: 1.2
+    swaySpeed: 0.6
+    gustFrequency: 0.1
+    gustAmplitudeMult: 1.2
+  - maxAngleDeg: 1.2
+    swaySpeed: 0.7
+    gustFrequency: 0.12
+    gustAmplitudeMult: 1.3
+  - maxAngleDeg: 3
+    swaySpeed: 1
+    gustFrequency: 0.25
+    gustAmplitudeMult: 1.6
+  - maxAngleDeg: 6
+    swaySpeed: 1.5
+    gustFrequency: 0.4
+    gustAmplitudeMult: 2
+  - maxAngleDeg: 11
+    swaySpeed: 2
+    gustFrequency: 0.55
+    gustAmplitudeMult: 2.5
+  - maxAngleDeg: 4
+    swaySpeed: 1.1
+    gustFrequency: 0.2
+    gustAmplitudeMult: 1.4
 --- !u!1001 &942485609
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -45114,6 +45164,9 @@ PrefabInstance:
       insertIndex: 28
       addedObject: {fileID: 22913384}
     m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 8364147683669397960, guid: 1e78ba5b3d738f84e9cb702ab1e522f1, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 941266958}
     - targetCorrespondingSourceObject: {fileID: 4079271448307866212, guid: 1e78ba5b3d738f84e9cb702ab1e522f1, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1522021344}
@@ -53320,6 +53373,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 495ed261149c246ebbfa2376eb50f3ee, type: 3}
+--- !u!4 &1538635189 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 2407950834190488332, guid: 1e78ba5b3d738f84e9cb702ab1e522f1, type: 3}
+  m_PrefabInstance: {fileID: 1210175375}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1547177389
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -64057,6 +64115,10 @@ PrefabInstance:
       propertyPath: m_Materials.Array.data[0]
       value: 
       objectReference: {fileID: 2100000, guid: ba1750444bdfb9bc783771c71a820e71, type: 2}
+    - target: {fileID: 3125995042610548346, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
+      propertyPath: m_Materials.Array.data[1]
+      value: 
+      objectReference: {fileID: 2100000, guid: 71ecf88cf596dc708a850b7655aba554, type: 2}
     - target: {fileID: 3434394184870601275, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
       propertyPath: m_IsActive
       value: 0
@@ -70180,6 +70242,10 @@ PrefabInstance:
       propertyPath: m_Materials.Array.data[0]
       value: 
       objectReference: {fileID: 2100000, guid: ba1750444bdfb9bc783771c71a820e71, type: 2}
+    - target: {fileID: 3125995042610548346, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
+      propertyPath: m_Materials.Array.data[1]
+      value: 
+      objectReference: {fileID: 2100000, guid: 0ccffa4ac51dc4d098645c823905b9d2, type: 2}
     - target: {fileID: 3434394184870601275, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
       propertyPath: m_IsActive
       value: 0
