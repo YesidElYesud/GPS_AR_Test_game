@@ -17,10 +17,19 @@ MonoBehaviour:
   icon: {fileID: 21300000, guid: b712112d4983abbad86df5109c08ec1a, type: 3}
   actionType: 3
   cinematicClip: {fileID: 0}
-  dialogueData: {fileID: 11400000, guid: e5c297f4c973d5afcbd9921604b7082e, type: 2}
+  cinematicUrl: 
+  cinematicAdvancesStage: 0
+  dialogueData: {fileID: 0}
+  siataSequence: {fileID: 11400000, guid: cadf8d2eab1c25a80845887fc55ec6ef, type: 2}
+  infoSlides: []
+  infoSlideAdvancesStage: 1
+  sequenceAdvancesStage: 1
   triggerRadius: 3
   allowClick: 1
   requiredStage: -1
+  headerImage: {fileID: 0}
+  riskLevel: 0
   markerColor: {r: 0.2, g: 0.8, b: 1, a: 0.9}
+  hotspotMaterial: {fileID: 0}
   isBlinking: 1
   blinkSpeed: 1.5

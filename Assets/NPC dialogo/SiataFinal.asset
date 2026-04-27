@@ -14,6 +14,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   npcName: "SIATA \u2014 Sistema de Alerta Temprana"
   npcPhoto: {fileID: 0}
-  steps: []
+  steps:
+  - stepType: 0
+    npcText: "Todo esta en calma, la lluvia es poca todav\xEDa."
+    options:
+    - optionText: Esta bien
+      isCorrect: 1
+      feedbackText: 
+  - stepType: 1
+    npcText: "Se reporta incremento s\xFAbito en niveles de la quebrada La Iguan\xE1
+      \u2013\nNivel de riesgo 2"
+    options:
+    - optionText: Ire a un sitio seguro
+      isCorrect: 1
+      feedbackText: "As\xED es"
+    - optionText: Me quedo quieto
+      isCorrect: 0
+      feedbackText: Grave error
   advancesStageOnComplete: 1
   correctAnswerDelay: 1.5

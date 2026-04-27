@@ -6681,7 +6681,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 1125166457356388788, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
       propertyPath: m_IsTrigger
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 1180370116151986891, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
       propertyPath: m_Materials.Array.data[0]
@@ -27936,6 +27936,7 @@ MonoBehaviour:
     objectsToActivate:
     - {fileID: 1376273466}
     - {fileID: 375682860}
+    - {fileID: 1273665663}
     objectsToDeactivate:
     - {fileID: 924105185}
     - {fileID: 1275488531}
