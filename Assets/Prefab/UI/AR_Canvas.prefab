@@ -8888,9 +8888,9 @@ MonoBehaviour:
   callStatusText: {fileID: 9168454579037525090}
   dialogueText: {fileID: 5877824831989095199}
   choicePanel: {fileID: 3017956040845862844}
-  continueButton: {fileID: 0}
   hangUpButton: {fileID: 4288558339595860982}
   connectingDelay: 1.5
+  continueButtonLabel: Continuar
   connectingText: "Llamando\u2026"
   connectedText: Conectado
 --- !u!1 &5976693523779584763
@@ -9062,7 +9062,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &4127635332563799549
 RectTransform:
   m_ObjectHideFlags: 0
@@ -9078,9 +9078,9 @@ RectTransform:
   - {fileID: 3163128390197973608}
   m_Father: {fileID: 4980437609253627200}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 66.65, y: -109.350006}
   m_SizeDelta: {x: 133.3, y: 36.1}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7041675205754007430
@@ -14818,27 +14818,27 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8822765204612816749, guid: 6d5eb1566662bf36c979f9860638742b, type: 3}
       propertyPath: m_AnchorMax.y
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8822765204612816749, guid: 6d5eb1566662bf36c979f9860638742b, type: 3}
       propertyPath: m_AnchorMin.y
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8822765204612816749, guid: 6d5eb1566662bf36c979f9860638742b, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 0
+      value: 288
       objectReference: {fileID: 0}
     - target: {fileID: 8822765204612816749, guid: 6d5eb1566662bf36c979f9860638742b, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 0
+      value: 165.01
       objectReference: {fileID: 0}
     - target: {fileID: 8822765204612816749, guid: 6d5eb1566662bf36c979f9860638742b, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 0
+      value: 154
       objectReference: {fileID: 0}
     - target: {fileID: 8822765204612816749, guid: 6d5eb1566662bf36c979f9860638742b, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 0
+      value: -90.505
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
