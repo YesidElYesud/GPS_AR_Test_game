@@ -3,54 +3,50 @@ using UnityEngine;
 /// <summary>
 /// RainGroundSplash — Impactos de lluvia sobre el suelo.
 ///
-/// Se crea como objeto RAÍZ de la escena (no hijo de Rain) para que su
-/// posición en suelo sea totalmente independiente del movimiento de Rain.
-/// RainParticleController lo instancia vía EnsureSplashSystem().
-///
-/// Contiene dos sistemas de partículas hijos propios:
+/// Tres capas de efecto:
 ///   · Ripple  — anillo expansivo plano (HorizontalBillboard).
-///   · Spray   — microgotas que salen hacia arriba y caen de vuelta.
+///   · Spray   — gotas medianas que salen hacia arriba y caen.
+///   · Sparks  — microchispas rápidas y brillantes (efecto de impacto).
 ///
-/// Optimizaciones WebGL:
-///   · Heavy: ~30 ripples + ~35 sprays activas simultáneamente.
-///   · Sin texturas externas — todo procedural.
-///   · Raycast al terreno cada 0.3s (no cada frame).
-///   · Shadows OFF en ambos renderers.
+/// Creado automáticamente por RainParticleController como objeto raíz.
+/// Radio de splash (splashRadius = 5m) independiente del área de lluvia:
+/// concentra los impactos cerca del jugador para máxima visibilidad.
 /// </summary>
 public class RainGroundSplash : MonoBehaviour
 {
     // ── Inspector ─────────────────────────────────────────────────────────────
     [Header("Posición en suelo")]
-    [Tooltip("Offset Y desde la cámara al suelo. Con CharacterController height=1.7 → usar -1.65.")]
+    [Tooltip("Offset Y desde la cámara al suelo (CharacterController height=1.7 → -1.65).")]
     [Range(-4f, 0f)]
     public float groundOffset = -1.65f;
 
-    [Tooltip("Radio del área de emisión. Debe coincidir con areaSize/2 del sistema de lluvia.")]
-    [Range(5f, 40f)]
-    public float areaRadius = 14f;
+    [Tooltip("Radio del área de impactos centrada en el jugador. Más pequeño = más denso y visible.")]
+    [Range(2f, 20f)]
+    public float splashRadius = 5f;
 
     [Header("Física de suelo")]
-    [Tooltip("Raycast para snappear al terreno real (1 cast cada 0.3s). Desactivar si hay lag.")]
     public bool useRaycast = true;
     public LayerMask groundLayerMask = ~0;
 
-    [Header("Calibración visual")]
-    [Tooltip("Tamaño máximo del anillo de ripple (metros) en intensidad Heavy.")]
+    [Header("Visual")]
+    [Tooltip("Textura de gota (B&W con alpha) para las partículas de spray. Null = punto procedural.")]
+    public Texture2D dropTexture;
+
+    [Tooltip("Tamaño máximo del anillo ripple (m) en Heavy.")]
     [Range(0.3f, 2.0f)]
     public float rippleMaxSizeHeavy = 0.80f;
 
-    [Tooltip("Fuerza de subida del spray (m/s). Mayor = salpique más alto.")]
-    [Range(0.5f, 6.0f)]
-    public float sprayUpForce = 2.5f;
+    [Tooltip("Velocidad de subida del spray (m/s).")]
+    [Range(1f, 8f)]
+    public float sprayUpForce = 4.0f;
 
-    // ── Presets ───────────────────────────────────────────────────────────────
-    // (rippleRate, rippleSizeMax, sprayRate)
-    private static readonly (float rRate, float rMax, float sRate)[] k_Presets =
+    // ── Presets: (rippleRate, rippleSizeMax, sprayRate, sparksRate) ───────────
+    private static readonly (float rRate, float rMax, float sRate, float spkRate)[] k_Presets =
     {
-        (  0f, 0.00f,   0f),   // None
-        ( 18f, 0.40f,  30f),   // Light
-        ( 50f, 0.60f,  80f),   // Medium
-        (100f, 1.00f, 160f),   // Heavy
+        (  0f, 0.00f,   0f,   0f),   // None
+        ( 40f, 0.40f,  80f, 120f),   // Light
+        ( 80f, 0.60f, 200f, 300f),   // Medium
+        (150f, 1.00f, 400f, 600f),   // Heavy
     };
 
     // ── Internos ──────────────────────────────────────────────────────────────
@@ -58,6 +54,8 @@ public class RainGroundSplash : MonoBehaviour
     private ParticleSystemRenderer _rippleRenderer;
     private ParticleSystem         _sprayPs;
     private ParticleSystemRenderer _sprayRenderer;
+    private ParticleSystem         _sparksPs;
+    private ParticleSystemRenderer _sparksRenderer;
 
     private Transform _cam;
     private float     _groundY;
@@ -69,6 +67,7 @@ public class RainGroundSplash : MonoBehaviour
     {
         BuildRippleSystem();
         BuildSpraySystem();
+        BuildSparksSystem();
     }
 
     private void Start()
@@ -95,24 +94,32 @@ public class RainGroundSplash : MonoBehaviour
     // ── API pública ────────────────────────────────────────────────────────────
     public void SetIntensity(RainParticleController.RainIntensity preset)
     {
-        var (rRate, rMax, sRate) = k_Presets[(int)preset];
+        var (rRate, rMax, sRate, spkRate) = k_Presets[(int)preset];
 
         if (preset == RainParticleController.RainIntensity.None)
         {
             _ripplePs.Stop(true, ParticleSystemStopBehavior.StopEmitting);
             _sprayPs.Stop(true,  ParticleSystemStopBehavior.StopEmitting);
+            _sparksPs.Stop(true, ParticleSystemStopBehavior.StopEmitting);
             return;
         }
 
-        // Ripple
         float scaledRMax = rMax * (rippleMaxSizeHeavy / k_Presets[(int)RainParticleController.RainIntensity.Heavy].rMax);
         SetRipplePreset(rRate, scaledRMax);
-
-        // Spray
         SetSprayPreset(sRate);
+        SetSparksPreset(spkRate);
 
         if (!_ripplePs.isPlaying) _ripplePs.Play();
         if (!_sprayPs.isPlaying)  _sprayPs.Play();
+        if (!_sparksPs.isPlaying) _sparksPs.Play();
+    }
+
+    /// <summary>Llamado por RainParticleController si el usuario asigna una textura de gota.</summary>
+    public void ApplyDropTexture(Texture2D tex)
+    {
+        dropTexture = tex;
+        if (_sprayRenderer != null)
+            _sprayRenderer.material = BuildSprayMaterial();
     }
 
     // ── Construcción: Ripple ──────────────────────────────────────────────────
@@ -126,70 +133,61 @@ public class RainGroundSplash : MonoBehaviour
         _ripplePs       = go.AddComponent<ParticleSystem>();
         _rippleRenderer = go.GetComponent<ParticleSystemRenderer>();
 
-        // ── Main ──────────────────────────────────────────────────────────────
         var main = _ripplePs.main;
         main.loop            = true;
         main.playOnAwake     = false;
         main.startSpeed      = 0f;
-        main.startLifetime   = new ParticleSystem.MinMaxCurve(0.35f, 0.50f);
-        main.startSize       = new ParticleSystem.MinMaxCurve(0.04f, 0.12f);  // tamaño inicial pequeño
+        main.startLifetime   = new ParticleSystem.MinMaxCurve(0.35f, 0.55f);
+        main.startSize       = new ParticleSystem.MinMaxCurve(0.04f, 0.12f);
         main.startColor      = new ParticleSystem.MinMaxGradient(
-                                   new Color(0.82f, 0.92f, 1.00f, 0.75f),
-                                   new Color(1.00f, 1.00f, 1.00f, 0.95f));
-        main.startRotation3D = false;
-        main.maxParticles    = 80;
+                                   new Color(0.82f, 0.92f, 1.00f, 0.80f),
+                                   new Color(1.00f, 1.00f, 1.00f, 1.00f));
+        main.maxParticles    = 120;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.gravityModifier = 0f;
         main.stopAction      = ParticleSystemStopAction.Disable;
 
-        // ── Shape: disco horizontal en el suelo ────────────────────────────────
         var shape = _ripplePs.shape;
-        shape.enabled          = true;
-        shape.shapeType        = ParticleSystemShapeType.Circle;
-        shape.radius           = areaRadius;
-        shape.radiusThickness  = 1f;    // emitir en toda el área, no solo en el borde
+        shape.enabled         = true;
+        shape.shapeType       = ParticleSystemShapeType.Circle;
+        shape.radius          = splashRadius;
+        shape.radiusThickness = 1f;
 
-        // ── SizeOverLifetime: crece rápido (onda expansiva) ───────────────────
         var sol  = _ripplePs.sizeOverLifetime;
         sol.enabled = true;
         var sizeCurve = new AnimationCurve(
-            new Keyframe(0.00f, 0.06f, 0f, 4f),    // empieza muy pequeño
-            new Keyframe(0.30f, 0.60f, 2f, 1f),    // crece rápido
-            new Keyframe(1.00f, 1.00f, 0.5f, 0f)   // se asienta en max
+            new Keyframe(0.00f, 0.06f, 0f, 4f),
+            new Keyframe(0.30f, 0.60f, 2f, 1f),
+            new Keyframe(1.00f, 1.00f, 0.5f, 0f)
         );
         sol.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
 
-        // ── ColorOverLifetime: alpha 0.9 → 0 ────────────────────────────────
         var col = _ripplePs.colorOverLifetime;
         col.enabled = true;
         var grad = new Gradient();
         grad.SetKeys(
-            new GradientColorKey[]
-            {
+            new GradientColorKey[] {
                 new GradientColorKey(new Color(0.85f, 0.94f, 1f), 0.00f),
                 new GradientColorKey(new Color(0.93f, 0.97f, 1f), 0.40f),
                 new GradientColorKey(Color.white,                  1.00f),
             },
-            new GradientAlphaKey[]
-            {
-                new GradientAlphaKey(0.90f, 0.00f),
+            new GradientAlphaKey[] {
+                new GradientAlphaKey(0.95f, 0.00f),
                 new GradientAlphaKey(0.55f, 0.50f),
                 new GradientAlphaKey(0.00f, 1.00f),
             }
         );
         col.color = new ParticleSystem.MinMaxGradient(grad);
 
-        // ── Emission ──────────────────────────────────────────────────────────
         var emission = _ripplePs.emission;
         emission.enabled      = true;
         emission.rateOverTime = 0f;
 
-        // ── Renderer: HorizontalBillboard = siempre plano mirando hacia arriba ─
         _rippleRenderer.renderMode        = ParticleSystemRenderMode.HorizontalBillboard;
         _rippleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         _rippleRenderer.receiveShadows    = false;
         _rippleRenderer.sortingFudge      = 0f;
-        _rippleRenderer.material          = BuildMaterial(isRipple: true);
+        _rippleRenderer.material          = BuildRippleMaterial();
     }
 
     // ── Construcción: Spray ───────────────────────────────────────────────────
@@ -198,70 +196,125 @@ public class RainGroundSplash : MonoBehaviour
         var go = new GameObject("Spray");
         go.transform.SetParent(transform);
         go.transform.localPosition = Vector3.zero;
-        // Rotamos -90° en X: la normal del Circle ahora apunta hacia arriba (world Y).
-        // Esto hace que las partículas salgan hacia arriba al nacer.
         go.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
 
         _sprayPs       = go.AddComponent<ParticleSystem>();
         _sprayRenderer = go.GetComponent<ParticleSystemRenderer>();
 
-        // ── Main ──────────────────────────────────────────────────────────────
         var main = _sprayPs.main;
         main.loop            = true;
         main.playOnAwake     = false;
-        main.startSpeed      = new ParticleSystem.MinMaxCurve(
-                                   sprayUpForce * 0.3f,
-                                   sprayUpForce * 1.0f);
-        main.startLifetime   = new ParticleSystem.MinMaxCurve(0.15f, 0.30f);
-        main.startSize       = new ParticleSystem.MinMaxCurve(0.040f, 0.080f);  // 4-8cm: visible desde primera persona
+        main.startSpeed      = new ParticleSystem.MinMaxCurve(sprayUpForce * 0.3f, sprayUpForce * 1.0f);
+        main.startLifetime   = new ParticleSystem.MinMaxCurve(0.18f, 0.35f);
+        main.startSize       = new ParticleSystem.MinMaxCurve(0.035f, 0.075f);
         main.startColor      = new ParticleSystem.MinMaxGradient(
-                                   new Color(0.80f, 0.91f, 1.00f, 0.65f),
-                                   new Color(0.95f, 0.98f, 1.00f, 0.90f));
-        main.maxParticles    = 150;
+                                   new Color(0.80f, 0.91f, 1.00f, 0.70f),
+                                   new Color(0.95f, 0.98f, 1.00f, 0.95f));
+        main.maxParticles    = 200;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.gravityModifier = 2.8f;    // caída rápida para mantener realismo
+        main.gravityModifier = 2.8f;
         main.stopAction      = ParticleSystemStopAction.Disable;
 
-        // ── Shape: círculo emite hacia arriba (por la rotación del GameObject) ─
         var shape = _sprayPs.shape;
-        shape.enabled              = true;
-        shape.shapeType            = ParticleSystemShapeType.Circle;
-        shape.radius               = areaRadius;
-        shape.radiusThickness      = 1f;
-        shape.randomDirectionAmount = 0.35f;   // spread natural, no todas verticales
+        shape.enabled               = true;
+        shape.shapeType             = ParticleSystemShapeType.Circle;
+        shape.radius                = splashRadius;
+        shape.radiusThickness       = 1f;
+        shape.randomDirectionAmount = 0.45f;
 
-        // ── ColorOverLifetime: fade rápido ────────────────────────────────────
         var col = _sprayPs.colorOverLifetime;
         col.enabled = true;
         var grad = new Gradient();
         grad.SetKeys(
             new GradientColorKey[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
-            new GradientAlphaKey[] { new GradientAlphaKey(0.85f, 0f), new GradientAlphaKey(0.00f, 1f) }
+            new GradientAlphaKey[] { new GradientAlphaKey(0.90f, 0f), new GradientAlphaKey(0.00f, 1f) }
         );
         col.color = new ParticleSystem.MinMaxGradient(grad);
 
-        // ── Emission ──────────────────────────────────────────────────────────
         var emission = _sprayPs.emission;
         emission.enabled      = true;
         emission.rateOverTime = 0f;
 
-        // ── Renderer ─────────────────────────────────────────────────────────
         _sprayRenderer.renderMode        = ParticleSystemRenderMode.Billboard;
         _sprayRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         _sprayRenderer.receiveShadows    = false;
         _sprayRenderer.sortingFudge      = 1f;
-        _sprayRenderer.material          = BuildMaterial(isRipple: false);
+        _sprayRenderer.material          = BuildSprayMaterial();
+    }
+
+    // ── Construcción: Sparks (microchispas de impacto) ────────────────────────
+    private void BuildSparksSystem()
+    {
+        var go = new GameObject("Sparks");
+        go.transform.SetParent(transform);
+        go.transform.localPosition = Vector3.zero;
+        // -90° en X: el Circle emite partículas hacia arriba (world Y)
+        go.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+
+        _sparksPs       = go.AddComponent<ParticleSystem>();
+        _sparksRenderer = go.GetComponent<ParticleSystemRenderer>();
+
+        var main = _sparksPs.main;
+        main.loop            = true;
+        main.playOnAwake     = false;
+        main.startSpeed      = new ParticleSystem.MinMaxCurve(4f, 11f);
+        main.startLifetime   = new ParticleSystem.MinMaxCurve(0.06f, 0.18f);
+        main.startSize       = new ParticleSystem.MinMaxCurve(0.006f, 0.020f);
+        main.startColor      = new ParticleSystem.MinMaxGradient(
+                                   new Color(0.85f, 0.95f, 1.00f, 0.90f),
+                                   new Color(1.00f, 1.00f, 1.00f, 1.00f));
+        main.maxParticles    = 250;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.gravityModifier = 4.5f;
+        main.stopAction      = ParticleSystemStopAction.Disable;
+
+        // Radio ligeramente menor que spray para concentrar las chispas
+        float sparksRadius = Mathf.Min(splashRadius * 0.7f, 4f);
+        var shape = _sparksPs.shape;
+        shape.enabled               = true;
+        shape.shapeType             = ParticleSystemShapeType.Circle;
+        shape.radius                = sparksRadius;
+        shape.radiusThickness       = 1f;
+        // Alta aleatoriedad: las chispas salen en todas direcciones, no solo arriba
+        shape.randomDirectionAmount = 0.75f;
+
+        var col = _sparksPs.colorOverLifetime;
+        col.enabled = true;
+        var grad = new Gradient();
+        grad.SetKeys(
+            new GradientColorKey[] {
+                new GradientColorKey(Color.white,                    0.00f),
+                new GradientColorKey(new Color(0.78f, 0.92f, 1.00f), 1.00f),
+            },
+            new GradientAlphaKey[] {
+                new GradientAlphaKey(1.00f, 0.00f),
+                new GradientAlphaKey(0.60f, 0.35f),
+                new GradientAlphaKey(0.00f, 1.00f),
+            }
+        );
+        col.color = new ParticleSystem.MinMaxGradient(grad);
+
+        var emission = _sparksPs.emission;
+        emission.enabled      = true;
+        emission.rateOverTime = 0f;
+
+        // Stretch: las chispas son pequeños trazos luminosos, no puntos
+        _sparksRenderer.renderMode        = ParticleSystemRenderMode.Stretch;
+        _sparksRenderer.velocityScale     = 0.004f;
+        _sparksRenderer.lengthScale       = 1.0f;
+        _sparksRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        _sparksRenderer.receiveShadows    = false;
+        _sparksRenderer.sortingFudge      = 2f;
+        _sparksRenderer.material          = BuildDotMaterial();
     }
 
     // ── Ajustar presets ───────────────────────────────────────────────────────
     private void SetRipplePreset(float rate, float sizeMax)
     {
-        // Actualizar emission
         var emission = _ripplePs.emission;
         emission.rateOverTime = rate;
 
-        // Actualizar tamaño máximo de la onda
-        var sol = _ripplePs.sizeOverLifetime;
+        var sol   = _ripplePs.sizeOverLifetime;
         var curve = new AnimationCurve(
             new Keyframe(0.00f, 0.06f,  0f, 4f),
             new Keyframe(0.30f, 0.55f,  2f, 1f),
@@ -269,9 +322,8 @@ public class RainGroundSplash : MonoBehaviour
         );
         sol.size = new ParticleSystem.MinMaxCurve(1f, curve);
 
-        // maxParticles dinámico
         var main = _ripplePs.main;
-        main.maxParticles = Mathf.Max(10, Mathf.CeilToInt(rate * 0.50f * 1.3f));
+        main.maxParticles = Mathf.Max(10, Mathf.CeilToInt(rate * 0.55f * 1.3f));
     }
 
     private void SetSprayPreset(float rate)
@@ -280,32 +332,46 @@ public class RainGroundSplash : MonoBehaviour
         emission.rateOverTime = rate;
 
         var main = _sprayPs.main;
-        main.maxParticles = Mathf.Max(10, Mathf.CeilToInt(rate * 0.20f * 1.3f));
-        main.startSpeed   = new ParticleSystem.MinMaxCurve(
-                                sprayUpForce * 0.3f,
-                                sprayUpForce * 1.0f);
+        main.maxParticles = Mathf.Max(10, Mathf.CeilToInt(rate * 0.28f * 1.3f));
+        main.startSpeed   = new ParticleSystem.MinMaxCurve(sprayUpForce * 0.3f, sprayUpForce * 1.0f);
     }
 
-    // ── Materiales procedurales ───────────────────────────────────────────────
-    private Material BuildMaterial(bool isRipple)
+    private void SetSparksPreset(float rate)
+    {
+        var emission = _sparksPs.emission;
+        emission.rateOverTime = rate;
+
+        var main = _sparksPs.main;
+        main.maxParticles = Mathf.Max(10, Mathf.CeilToInt(rate * 0.18f * 1.3f));
+    }
+
+    // ── Materiales ────────────────────────────────────────────────────────────
+    private Material BuildRippleMaterial()
     {
         var shader = Shader.Find("Legacy Shaders/Particles/Alpha Blended");
         if (shader == null || !shader.isSupported) shader = Shader.Find("Particles/Alpha Blended");
         if (shader == null || !shader.isSupported) shader = Shader.Find("Sprites/Default");
-
-        var mat = new Material(shader)
-        {
-            name        = isRipple ? "RainRipple_Procedural" : "RainSpray_Procedural",
-            mainTexture = isRipple ? BuildRippleTexture() : BuildDotTexture(),
-            color       = Color.white,
-        };
-        return mat;
+        return new Material(shader) { name = "RainRipple_Proc", mainTexture = BuildRippleTexture(), color = Color.white };
     }
 
-    /// <summary>
-    /// Textura de anillo (ring) 64×64 px para el ripple.
-    /// El anillo tiene bordes suaves para un aspecto más orgánico.
-    /// </summary>
+    private Material BuildSprayMaterial()
+    {
+        var shader = Shader.Find("Legacy Shaders/Particles/Alpha Blended");
+        if (shader == null || !shader.isSupported) shader = Shader.Find("Particles/Alpha Blended");
+        if (shader == null || !shader.isSupported) shader = Shader.Find("Sprites/Default");
+        // Usa la textura de gota del usuario si está disponible
+        Texture2D tex = (dropTexture != null) ? dropTexture : BuildDotTexture();
+        return new Material(shader) { name = "RainSpray_Proc", mainTexture = tex, color = Color.white };
+    }
+
+    private Material BuildDotMaterial()
+    {
+        var shader = Shader.Find("Legacy Shaders/Particles/Alpha Blended");
+        if (shader == null || !shader.isSupported) shader = Shader.Find("Particles/Alpha Blended");
+        if (shader == null || !shader.isSupported) shader = Shader.Find("Sprites/Default");
+        return new Material(shader) { name = "RainSparks_Proc", mainTexture = BuildDotTexture(), color = Color.white };
+    }
+
     private Texture2D BuildRippleTexture()
     {
         const int Res = 64;
@@ -328,17 +394,14 @@ public class RainGroundSplash : MonoBehaviour
             float dx   = x - half;
             float dy   = y - half;
             float dist = Mathf.Sqrt(dx * dx + dy * dy);
-
             float ring = 1f - Mathf.Clamp01(Mathf.Abs(dist - ringCenter) / ringWidth);
-            ring = Mathf.SmoothStep(0f, 1f, ring);
-
-            tex.SetPixel(x, y, new Color(0.88f, 0.95f, 1.00f, ring * 0.92f));
+            ring       = Mathf.SmoothStep(0f, 1f, ring);
+            tex.SetPixel(x, y, new Color(0.88f, 0.95f, 1.00f, ring * 0.95f));
         }
         tex.Apply();
         return tex;
     }
 
-    /// <summary>Textura de punto suave 16×16 px para el spray.</summary>
     private Texture2D BuildDotTexture()
     {
         const int Res = 16;
@@ -373,20 +436,15 @@ public class RainGroundSplash : MonoBehaviour
         _nextRaycastTime = Time.time + k_RaycastInterval;
 
         if (useRaycast && Physics.Raycast(_cam.position, Vector3.down, out var hit, 20f, groundLayerMask))
-        {
-            _groundY = hit.point.y + 0.03f;   // 3cm sobre el terreno para evitar z-fighting
-        }
+            _groundY = hit.point.y + 0.03f;
         else
-        {
             _groundY = _cam.position.y + groundOffset;
-        }
     }
 
     private void SnapToGround()
     {
         if (_cam == null) return;
-        Vector3 cam = _cam.position;
+        Vector3 cam        = _cam.position;
         transform.position = new Vector3(cam.x, _groundY, cam.z);
-        // El spray hijo tiene rotación local -90° (fija) — no se toca aquí
     }
 }

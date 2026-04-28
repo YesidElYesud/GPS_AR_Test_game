@@ -1,22 +1,6 @@
 using System.Collections;
 using UnityEngine;
 
-/// <summary>
-/// RainParticleController — Sistema de lluvia para WebGL.
-///
-/// Correcciones respecto a versiones anteriores:
-///   · velocityScale reducido drásticamente (antes 0.05 → ahora 0.007):
-///     las gotas eran de ~85cm de largo; ahora son ~15cm (realistas).
-///   · RainGroundSplash se crea como objeto RAÍZ (no hijo):
-///     evita que el movimiento de Rain arrastre la posición del splash.
-///   · Start() propaga la intensidad inicial al splash system.
-///
-/// Setup:
-///   1. Crear GameObject "Rain" en escena.
-///   2. Adjuntar este script.
-///   3. Presionar Play → RainGroundSplash se crea automáticamente como
-///      objeto raíz en la escena.
-/// </summary>
 [RequireComponent(typeof(ParticleSystem))]
 public class RainParticleController : MonoBehaviour
 {
@@ -26,38 +10,33 @@ public class RainParticleController : MonoBehaviour
     [Header("Intensidad")]
     public RainIntensity intensity = RainIntensity.Light;
 
-    [Tooltip("Duración del fundido al cambiar intensidad (seg).")]
     [Range(0f, 3f)]
     public float transitionDuration = 0.8f;
 
     [Header("Área")]
-    [Range(10f, 60f)] public float areaSize   = 30f;
-    [Range(8f,  40f)] public float height     = 22f;
-    [Range(5f,  35f)] public float fallSpeed  = 16f;
+    [Range(10f, 60f)] public float areaSize  = 22f;
+    [Range(8f,  40f)] public float height    = 22f;
+    [Range(5f,  35f)] public float fallSpeed = 16f;
 
     [Header("Viento")]
-    [Tooltip("Dirección del viento en grados (0=Norte, 90=Este).")]
     [Range(0f, 360f)] public float windAngle = 215f;
-    [Tooltip("Velocidad lateral. 0=vertical pura. 1.5=inclinación sutil.")]
     [Range(0f, 5f)]   public float windSpeed = 1.5f;
 
     [Header("Visual")]
-    [Tooltip("Null = material generado proceduralmente.")]
+    [Tooltip("Textura de gota (B&W con alpha). Null = streak procedural.")]
+    public Texture2D dropTexture;
+    [Tooltip("Material completo. Asignar solo si quieres control total; si null, se genera automáticamente.")]
     public Material rainMaterial;
 
     public bool followCamera = true;
 
-    // ── Presets: (rate, dropWidth, lengthScale, velocityScale) ───────────────
-    // Longitud resultante = dropWidth × lengthScale + fallSpeed × velocityScale
-    //   Light : 0.020 × 1.3 + 16 × 0.006 = 0.026 + 0.096 = ~12cm  ✓
-    //   Medium: 0.030 × 1.4 + 16 × 0.007 = 0.042 + 0.112 = ~15cm  ✓
-    //   Heavy : 0.040 × 1.5 + 16 × 0.008 = 0.060 + 0.128 = ~19cm  ✓
+    // ── Presets: (rate, dropWidth, lengthScale, velocityScale) ──────────────
     private static readonly (float rate, float width, float len, float vel)[] k_Presets =
     {
-        (  0f, 0.000f, 0.0f, 0.000f),   // None
-        ( 90f, 0.020f, 1.3f, 0.006f),   // Light
-        (240f, 0.030f, 1.4f, 0.007f),   // Medium
-        (480f, 0.040f, 1.5f, 0.008f),   // Heavy
+        (   0f, 0.000f, 0.0f, 0.000f),   // None
+        ( 180f, 0.020f, 1.3f, 0.006f),   // Light   (era 90)
+        ( 450f, 0.030f, 1.4f, 0.007f),   // Medium  (era 240)
+        ( 900f, 0.040f, 1.5f, 0.008f),   // Heavy   (era 480)
     };
 
     // ── Internos ──────────────────────────────────────────────────────────────
@@ -86,8 +65,6 @@ public class RainParticleController : MonoBehaviour
         if (cam != null) _cam = cam.transform;
 
         SnapToCamera();
-
-        // Aplicar intensidad inicial + sincronizar splash
         ApplyIntensityImmediate(intensity);
         _splash?.SetIntensity(intensity);
     }
@@ -120,9 +97,8 @@ public class RainParticleController : MonoBehaviour
     private void BuildParticleSystem()
     {
         _cachedLifetime = (height / fallSpeed) + 0.4f;
-        int maxP = Mathf.CeilToInt(k_Presets[(int)RainIntensity.Heavy].rate * _cachedLifetime * 1.15f);
+        int maxP = Mathf.CeilToInt(k_Presets[(int)RainIntensity.Heavy].rate * _cachedLifetime * 1.2f);
 
-        // Main
         var main             = _ps.main;
         main.loop            = true;
         main.playOnAwake     = false;
@@ -130,20 +106,18 @@ public class RainParticleController : MonoBehaviour
         main.startLifetime   = new ParticleSystem.MinMaxCurve(_cachedLifetime * 0.82f, _cachedLifetime * 1.18f);
         main.startSize       = new ParticleSystem.MinMaxCurve(0.020f, 0.040f);
         main.startColor      = new ParticleSystem.MinMaxGradient(
-                                   new Color(0.72f, 0.86f, 1.00f, 0.30f),
-                                   new Color(0.90f, 0.96f, 1.00f, 0.65f));
+                                   new Color(0.72f, 0.86f, 1.00f, 0.60f),
+                                   new Color(0.90f, 0.96f, 1.00f, 0.95f));
         main.maxParticles    = maxP;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.gravityModifier = 0f;
         main.stopAction      = ParticleSystemStopAction.Disable;
 
-        // Shape: caja plana (emisor horizontal)
         var shape       = _ps.shape;
         shape.enabled   = true;
         shape.shapeType = ParticleSystemShapeType.Box;
         shape.scale     = new Vector3(areaSize, 0.2f, areaSize);
 
-        // VelocityOverLifetime: caída + viento
         float rad = windAngle * Mathf.Deg2Rad;
         float wx  = Mathf.Sin(rad) * windSpeed;
         float wz  = Mathf.Cos(rad) * windSpeed;
@@ -155,7 +129,6 @@ public class RainParticleController : MonoBehaviour
         vol.y       = new ParticleSystem.MinMaxCurve(-fallSpeed * 1.08f, -fallSpeed * 0.92f);
         vol.z       = new ParticleSystem.MinMaxCurve(wz * 0.88f, wz * 1.12f);
 
-        // ColorOverLifetime: fade suave en el último 20% del lifetime
         var colLife     = _ps.colorOverLifetime;
         colLife.enabled = true;
         var grad        = new Gradient();
@@ -173,12 +146,10 @@ public class RainParticleController : MonoBehaviour
         );
         colLife.color = new ParticleSystem.MinMaxGradient(grad);
 
-        // Emission
         var emission          = _ps.emission;
         emission.enabled      = true;
         emission.rateOverTime = 0f;
 
-        // Renderer: Stretch alineado con velocidad
         _renderer.renderMode        = ParticleSystemRenderMode.Stretch;
         _renderer.velocityScale     = k_Presets[(int)RainIntensity.Medium].vel;
         _renderer.lengthScale       = k_Presets[(int)RainIntensity.Medium].len;
@@ -189,25 +160,19 @@ public class RainParticleController : MonoBehaviour
         _renderer.material = (rainMaterial != null) ? rainMaterial : BuildRainMaterial();
     }
 
-    // ── Material procedural ────────────────────────────────────────────────────
+    // ── Material ──────────────────────────────────────────────────────────────
     private Material BuildRainMaterial()
     {
         var shader = Shader.Find("Legacy Shaders/Particles/Alpha Blended");
-        if (shader == null || !shader.isSupported)
-            shader = Shader.Find("Particles/Alpha Blended");
-        if (shader == null || !shader.isSupported)
-            shader = Shader.Find("Sprites/Default");
+        if (shader == null || !shader.isSupported) shader = Shader.Find("Particles/Alpha Blended");
+        if (shader == null || !shader.isSupported) shader = Shader.Find("Sprites/Default");
 
         var mat         = new Material(shader) { name = "RainDrop_Auto" };
-        mat.mainTexture = BuildStreakTexture();
+        mat.mainTexture = (dropTexture != null) ? dropTexture : BuildStreakTexture();
         mat.color       = Color.white;
         return mat;
     }
 
-    /// <summary>
-    /// Textura 4×32 px: gradiente que da forma de streak de lluvia.
-    /// El eje Y se alinea con la dirección de velocidad en Stretch mode.
-    /// </summary>
     private Texture2D BuildStreakTexture()
     {
         const int W = 4, H = 32;
@@ -221,7 +186,7 @@ public class RainParticleController : MonoBehaviour
         {
             float t      = y / (float)(H - 1);
             float alpha  = Mathf.SmoothStep(0f, 1f, t * 3.5f) * Mathf.SmoothStep(0f, 1f, 1f - t * 0.25f);
-            alpha        = Mathf.Clamp01(alpha) * 0.80f;
+            alpha        = Mathf.Clamp01(alpha) * 0.85f;
             float bright = 0.80f + 0.16f * Mathf.Sin(t * Mathf.PI);
             var   c      = new Color(bright * 0.82f, bright * 0.92f, bright * 1.00f, alpha);
             for (int x = 0; x < W; x++) tex.SetPixel(x, y, c);
@@ -230,20 +195,18 @@ public class RainParticleController : MonoBehaviour
         return tex;
     }
 
-    // ── Splash system (objeto RAÍZ, no hijo) ──────────────────────────────────
-    /// <summary>
-    /// Crea RainGroundSplash como objeto raíz de la escena para que su
-    /// posicionamiento en suelo sea independiente del movimiento de Rain.
-    /// </summary>
+    // ── Splash system ─────────────────────────────────────────────────────────
     private void EnsureSplashSystem()
     {
         _splash = FindObjectOfType<RainGroundSplash>();
         if (_splash != null) return;
 
         var go  = new GameObject("RainGroundSplash");
-        // Sin padre: objeto raíz independiente
         _splash = go.AddComponent<RainGroundSplash>();
-        _splash.areaRadius = areaSize * 0.5f;   // sincronizar radio con el emisor de lluvia
+        // El splash tiene su propio splashRadius (5m por defecto).
+        // Si el usuario asignó una textura de gota, se pasa al splash para el spray.
+        if (dropTexture != null)
+            _splash.ApplyDropTexture(dropTexture);
     }
 
     // ── Intensidad ────────────────────────────────────────────────────────────
@@ -262,7 +225,7 @@ public class RainParticleController : MonoBehaviour
 
         var main          = _ps.main;
         main.startSize    = new ParticleSystem.MinMaxCurve(width * 0.65f, width * 1.35f);
-        main.maxParticles = Mathf.CeilToInt(rate * _cachedLifetime * 1.15f);
+        main.maxParticles = Mathf.CeilToInt(rate * _cachedLifetime * 1.2f);
 
         _renderer.lengthScale   = len;
         _renderer.velocityScale = vel;
@@ -282,7 +245,7 @@ public class RainParticleController : MonoBehaviour
         {
             var main          = _ps.main;
             main.startSize    = new ParticleSystem.MinMaxCurve(width * 0.65f, width * 1.35f);
-            main.maxParticles = Mathf.CeilToInt(targetRate * _cachedLifetime * 1.15f);
+            main.maxParticles = Mathf.CeilToInt(targetRate * _cachedLifetime * 1.2f);
             _renderer.lengthScale   = len;
             _renderer.velocityScale = vel;
             if (!_ps.isPlaying) _ps.Play();
@@ -309,7 +272,7 @@ public class RainParticleController : MonoBehaviour
 
     private void SnapToCamera()
     {
-        Vector3 p      = _cam.position;
+        Vector3 p          = _cam.position;
         transform.position = new Vector3(p.x, p.y + height, p.z);
     }
 
