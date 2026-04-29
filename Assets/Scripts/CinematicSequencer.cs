@@ -346,6 +346,93 @@ public class CinematicSequencer : MonoBehaviour
         progressRing.fillAmount = 1f;
     }
 
+    // ── Loop mode — usado por SceneOverviewController ─────────────────────────
+
+    /// <summary>
+    /// Inicia la secuencia en bucle indefinido.
+    /// No guarda/restaura posición del jugador, no muestra skip/progress/fade,
+    /// no avanza etapa. El caller (SceneOverviewController) gestiona todo eso.
+    /// Llama a StopLoop() para detenerlo.
+    /// </summary>
+    public void PlayLoop()
+    {
+        if (IsPlaying)
+        {
+            Debug.LogWarning("[CinematicSequencer] Ya hay una secuencia en curso. Ignorando PlayLoop.", this);
+            return;
+        }
+        if (shots == null || shots.Length == 0)
+        {
+            Debug.LogWarning("[CinematicSequencer] shots[] vacío. No se puede iniciar bucle.", this);
+            return;
+        }
+
+        _skipRequested = false;
+        _cam           = Camera.main.transform;
+
+        _noiseTime  = Random.Range(0f, 100f);
+        _noiseSeedX = Random.Range(0f, 100f);
+        _noiseSeedZ = Random.Range(0f, 100f);
+
+        // Snap inmediato al primer anchor (el caller habrá hecho fade-to-black antes)
+        if (shots[0].anchor != null)
+        {
+            _cam.position = shots[0].anchor.position;
+            _cam.rotation = shots[0].anchor.rotation;
+        }
+
+        StartCoroutine(RunLoop());
+    }
+
+    /// <summary>Detiene el bucle en la próxima oportunidad. El caller gestiona el fade de salida.</summary>
+    public void StopLoop() => _skipRequested = true;
+
+    private IEnumerator RunLoop()
+    {
+        IsPlaying = true;
+        int  shotIndex = 0;
+        bool firstShot = true;   // primer shot ya fue posicionado en PlayLoop()
+
+        while (!_skipRequested)
+        {
+            var shot = shots[shotIndex];
+
+            if (shot.anchor == null)
+            {
+                shotIndex = (shotIndex + 1) % shots.Length;
+                continue;
+            }
+
+            // Viajar al anchor — excepto el primero (ya posicionado)
+            if (!firstShot)
+                yield return StartCoroutine(MoveToAnchor(shot));
+            firstShot = false;
+
+            if (_skipRequested) break;
+
+            // Hold en el anchor con deriva de dron
+            float held = 0f;
+            while (held < shot.holdDuration && !_skipRequested)
+            {
+                held       += Time.deltaTime;
+                _noiseTime += Time.deltaTime;
+
+                if (droneMode)
+                {
+                    GetDroneNoise(driftAmplitude, rotationDrift, out Vector3 dp, out Quaternion dr);
+                    _cam.position = shot.anchor.position + dp;
+                    _cam.rotation = shot.anchor.rotation * dr;
+                }
+
+                yield return null;
+            }
+
+            shotIndex = (shotIndex + 1) % shots.Length;
+        }
+
+        IsPlaying = false;
+    }
+
     // ── Gizmos: visualizar los anchors en la escena ───────────────────────────
     private void OnDrawGizmos()
     {

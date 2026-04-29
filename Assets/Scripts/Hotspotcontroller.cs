@@ -104,6 +104,7 @@ public class HotspotController : MonoBehaviour
     private void Update()
     {
         if (data == null || _playerCamera == null) return;
+        if (SceneOverviewController.Instance != null && SceneOverviewController.Instance.IsActive) return;
 
         ApplyBlinkEffect();
         CheckProximity();
@@ -313,7 +314,16 @@ public class HotspotController : MonoBehaviour
                 if (cameraSequencer != null)
                 {
                     _isPanelOpen = true;
-                    cameraSequencer.Play(this, data.sequenceAdvancesStage);
+                    // Si el sequencer está registrado en el hub, delegar al hub (loop + botones de etapa)
+                    if (SceneOverviewController.Instance != null &&
+                        SceneOverviewController.Instance.overviewSequencer == cameraSequencer)
+                    {
+                        SceneOverviewController.Instance.Enter(data.sequenceAdvancesStage, this);
+                    }
+                    else
+                    {
+                        cameraSequencer.Play(this, data.sequenceAdvancesStage);
+                    }
                     ActivateReplayButton();
                 }
                 else
@@ -360,7 +370,16 @@ public class HotspotController : MonoBehaviour
     /// </summary>
     public void ReplaySequence()
     {
-        if (cameraSequencer == null || cameraSequencer.IsPlaying) return;
-        cameraSequencer.Play(null, false);
+        if (cameraSequencer == null) return;
+        // Si el sequencer está en el hub, re-entrar al hub sin avanzar etapa
+        if (SceneOverviewController.Instance != null &&
+            SceneOverviewController.Instance.overviewSequencer == cameraSequencer)
+        {
+            if (!SceneOverviewController.Instance.IsActive)
+                SceneOverviewController.Instance.Enter(false, null);
+            return;
+        }
+        if (!cameraSequencer.IsPlaying)
+            cameraSequencer.Play(null, false);
     }
 }

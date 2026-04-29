@@ -30,7 +30,7 @@ using UnityEngine;
 public class GrassWindController : MonoBehaviour
 {
     // ── Inspector ─────────────────────────────────────────────────────────────
-    [Tooltip("Raíz del terreno. Si es null se busca 'Terrain_V2' en la escena.")]
+    [Tooltip("Raíz del terreno. Si es null se busca 'Terrain_V2' o 'Terrain_V4' en la escena.")]
     public Transform terrainRoot;
 
     [Tooltip("Prefijo de nombre de los objetos de pasto.")]
@@ -138,13 +138,14 @@ public class GrassWindController : MonoBehaviour
     {
         if (terrainRoot == null)
         {
-            var terrainGo = GameObject.Find("Terrain_V2");
-            if (terrainGo != null) terrainRoot = terrainGo.transform;
+            var go = GameObject.Find("Terrain_V2");
+            if (go == null) go = GameObject.Find("Terrain_V4");
+            if (go != null) terrainRoot = go.transform;
         }
 
         if (terrainRoot == null)
         {
-            Debug.LogWarning("[GrassWindController] No se encontró Terrain_V2. Asigna terrainRoot en el Inspector.");
+            Debug.LogWarning("[GrassWindController] No se encontró terrainRoot. Asigna Terrain_V2 o Terrain_V4 en el Inspector.");
             return;
         }
 

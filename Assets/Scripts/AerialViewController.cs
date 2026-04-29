@@ -103,6 +103,11 @@ public class AerialViewController : MonoBehaviour
     [Range(0f, 20f)]
     public float scrollZoomSpeed = 8f;
 
+    [Header("Activación automática")]
+    [Tooltip("Si está desactivado, OnStageChanged no activa la cámara aérea automáticamente.\n" +
+             "Útil cuando otra ruta (UIManager, botón manual) maneja la activación.")]
+    public bool autoActivateOnStageChange = false;
+
     [Header("Debug")]
     public bool debugLogs = true;
 
@@ -155,6 +160,8 @@ public class AerialViewController : MonoBehaviour
     // ── Reacción al cambio de etapa ───────────────────────────────────────────
     private void OnStageChanged(StageManager.Stage previous, StageManager.Stage current)
     {
+        if (!autoActivateOnStageChange) return;
+
         AerialConfig config = FindConfig(current);
 
         if (config != null)

@@ -23,8 +23,25 @@ public class WaterLevelController : MonoBehaviour
 
     private void Start()
     {
+        if (waterMesh == null)
+        {
+            Debug.LogWarning("[WaterLevelController] waterMesh no asignado. Asigna la malla del río en el Inspector.", this);
+            return;
+        }
+
         if (StageManager.Instance != null)
+        {
             StageManager.Instance.OnStageChanged += OnStageChanged;
+            // Aplicar posición inmediata para la etapa inicial (sin transición)
+            foreach (var cfg in stageConfigs)
+            {
+                if (cfg.stage == StageManager.Instance.CurrentStage)
+                {
+                    waterMesh.localPosition = cfg.targetPosition;
+                    break;
+                }
+            }
+        }
     }
 
     private void OnDestroy()
