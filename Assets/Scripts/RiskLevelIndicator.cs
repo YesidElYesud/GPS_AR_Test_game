@@ -72,6 +72,13 @@ public class RiskLevelIndicator : MonoBehaviour
     [Tooltip("Texto descriptivo: 'Nivel Bajo', 'Nivel Moderado', etc.")]
     public TextMeshProUGUI levelName;
 
+    // ── Nombres de nivel (editables en Inspector) ─────────────────────────────
+    [Header("Nombres de nivel (LevelLabel 1)")]
+    public string levelNameN1 = "Normalidad";
+    public string levelNameN2 = "Prevención";
+    public string levelNameN3 = "Peligro cercano";
+    public string levelNameN4 = "Emergencia";
+
     // ── Colores ───────────────────────────────────────────────────────────────
     [Header("Colores por nivel")]
     public Color colorN1 = new Color(0.30f, 0.69f, 0.31f); // verde    #4CAF50
@@ -118,8 +125,7 @@ public class RiskLevelIndicator : MonoBehaviour
         if (StageManager.Instance != null)
             StageManager.Instance.OnStageChanged += OnStageChanged;
 
-        // Estado inicial: oculto
-        ApplyImmediate(RiskLevel.None);
+        if (indicatorRoot != null) indicatorRoot.SetActive(false);
     }
 
     private void OnDestroy()
@@ -137,7 +143,8 @@ public class RiskLevelIndicator : MonoBehaviour
 
     /// <summary>
     /// Establece el nivel de riesgo activo.
-    /// Llamado desde HotspotController al activar un hotspot con riskLevel asignado.
+    /// Estado (CurrentLevel, textos) se actualiza sincrónicamente siempre.
+    /// El color del fondo se anima solo si el GO está activo; si no, se aplica directo.
     /// None oculta el widget.
     /// </summary>
     public void SetLevel(RiskLevel level)
@@ -147,10 +154,21 @@ public class RiskLevelIndicator : MonoBehaviour
         if (_transitionRoutine != null)
             StopCoroutine(_transitionRoutine);
 
-        if (transitionDuration > 0f && CurrentLevel != RiskLevel.None && level != RiskLevel.None)
-            _transitionRoutine = StartCoroutine(TransitionRoutine(level));
-        else
-            ApplyImmediate(level);
+        RiskLevel oldLevel = CurrentLevel;
+        CurrentLevel = level;
+
+        bool visible = level != RiskLevel.None;
+        if (indicatorRoot != null) indicatorRoot.SetActive(visible);
+        if (!visible) return;
+
+        if (levelLabel != null) levelLabel.text = level.ToString();
+        if (levelName  != null) levelName.text  = GetLevelName(level);
+
+        Color targetColor = GetColor(level);
+        if (transitionDuration > 0f && oldLevel != RiskLevel.None && gameObject.activeInHierarchy)
+            _transitionRoutine = StartCoroutine(ColorTransitionRoutine(GetColor(oldLevel), targetColor));
+        else if (backgroundImage != null)
+            backgroundImage.color = targetColor;
     }
 
     /// <summary>Oculta el widget. Equivale a SetLevel(None).</summary>
@@ -164,57 +182,28 @@ public class RiskLevelIndicator : MonoBehaviour
             SetLevel(config.defaultRiskLevel);
     }
 
-    // ── Lógica de visualización ───────────────────────────────────────────────
-    private void ApplyImmediate(RiskLevel level)
+    // ── Garantizar color correcto al reactivarse ──────────────────────────────
+    // Si el hub (u otro sistema) desactivó el GO mientras la corrutina de color
+    // estaba en curso, OnEnable asegura que el color refleje CurrentLevel al volver.
+    private void OnEnable()
     {
-        CurrentLevel = level;
-
-        bool visible = level != RiskLevel.None;
-
-        if (indicatorRoot != null)
-            indicatorRoot.SetActive(visible);
-
-        if (!visible) return;
-
-        Color target = GetColor(level);
-
-        if (backgroundImage != null)
-            backgroundImage.color = target;
-
-        if (levelLabel != null)
-            levelLabel.text = level.ToString(); // "N1", "N2", …
-
-        if (levelName != null)
-            levelName.text = GetLevelName(level);
+        if (backgroundImage != null && CurrentLevel != RiskLevel.None)
+            backgroundImage.color = GetColor(CurrentLevel);
     }
 
-    private IEnumerator TransitionRoutine(RiskLevel newLevel)
+    // ── Animación de color (solo cosmética) ──────────────────────────────────
+    private IEnumerator ColorTransitionRoutine(Color from, Color to)
     {
-        // Activar el widget si estaba oculto
-        if (indicatorRoot != null) indicatorRoot.SetActive(true);
-
-        Color startColor = backgroundImage != null ? backgroundImage.color : GetColor(CurrentLevel);
-        Color endColor   = GetColor(newLevel);
-
         float elapsed = 0f;
         while (elapsed < transitionDuration)
         {
             elapsed += Time.deltaTime;
-            float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / transitionDuration));
-
             if (backgroundImage != null)
-                backgroundImage.color = Color.Lerp(startColor, endColor, t);
-
+                backgroundImage.color = Color.Lerp(from, to,
+                    Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / transitionDuration)));
             yield return null;
         }
-
-        // Aplicar valores finales exactos y actualizar textos
-        CurrentLevel = newLevel;
-
-        if (backgroundImage != null) backgroundImage.color = endColor;
-        if (levelLabel      != null) levelLabel.text       = newLevel.ToString();
-        if (levelName       != null) levelName.text        = GetLevelName(newLevel);
-
+        if (backgroundImage != null) backgroundImage.color = to;
         _transitionRoutine = null;
     }
 
@@ -238,12 +227,12 @@ public class RiskLevelIndicator : MonoBehaviour
         _            => Color.gray,
     };
 
-    private static string GetLevelName(RiskLevel level) => level switch
+    private string GetLevelName(RiskLevel level) => level switch
     {
-        RiskLevel.N1 => "Nivel Bajo",
-        RiskLevel.N2 => "Nivel Moderado",
-        RiskLevel.N3 => "Nivel Alto",
-        RiskLevel.N4 => "Nivel Crítico",
+        RiskLevel.N1 => levelNameN1,
+        RiskLevel.N2 => levelNameN2,
+        RiskLevel.N3 => levelNameN3,
+        RiskLevel.N4 => levelNameN4,
         _            => "",
     };
 

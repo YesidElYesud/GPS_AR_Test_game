@@ -318,7 +318,10 @@ public class HotspotController : MonoBehaviour
                     if (SceneOverviewController.Instance != null &&
                         SceneOverviewController.Instance.overviewSequencer == cameraSequencer)
                     {
-                        SceneOverviewController.Instance.Enter(data.sequenceAdvancesStage, this);
+                        // Avanzar etapa al contactar el hotspot, no al salir del hub
+                        if (data.sequenceAdvancesStage)
+                            StageManager.Instance?.NextStage();
+                        SceneOverviewController.Instance.Enter(false, this);
                     }
                     else
                     {
