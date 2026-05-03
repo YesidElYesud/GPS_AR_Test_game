@@ -2,15 +2,11 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 
 /// <summary>
-/// HotspotController v2 — Se adjunta a cada objeto hotspot en la escena.
+/// HotspotController v3 — Interacción mediada por HUD.
 ///
-/// Novedades respecto a v1:
-///   - Filtro de etapa: solo activo cuando la etapa actual coincide con data.requiredStage.
-///   - Efecto de pulso visual cuando data.isBlinking = true.
-///   - Dispatch por tipo de acción (InfoPanel / Cinematic / NpcConversation / SiataCall).
-///   - Fallback a InfoPanel mientras los sistemas externos no estén implementados.
-///
-/// Requiere un Collider en el GameObject para recibir raycasts de clic.
+/// Al entrar en el radio del jugador muestra el HotspotPromptButton en el HUD.
+/// El panel se abre SOLO cuando el jugador pulsa ese botón, no automáticamente.
+/// Al salir del radio el botón se oculta; si había un panel abierto se cierra.
 /// </summary>
 [RequireComponent(typeof(Collider))]
 public class HotspotController : MonoBehaviour
@@ -50,7 +46,6 @@ public class HotspotController : MonoBehaviour
     private bool      _isNearby    = false;
     private bool      _isPanelOpen = false;
     private bool      _replayButtonActivated = false;
-    private int       _proximityTriggerFrame = -1; // frame en que la proximidad disparó DispatchAction
 
     // ── Gizmos en editor ──────────────────────────────────────────────────────
     private void OnDrawGizmosSelected()
@@ -87,11 +82,9 @@ public class HotspotController : MonoBehaviour
             return;
         }
 
-        // Suscribirse al StageManager para filtrar visibilidad por etapa
         if (StageManager.Instance != null)
             StageManager.Instance.OnStageChanged += OnStageChanged;
 
-        // Aplicar visibilidad inicial
         RefreshStageVisibility();
     }
 
@@ -99,6 +92,15 @@ public class HotspotController : MonoBehaviour
     {
         if (StageManager.Instance != null)
             StageManager.Instance.OnStageChanged -= OnStageChanged;
+
+        HotspotPromptButton.Instance?.UnregisterHotspot(this);
+    }
+
+    private void OnDisable()
+    {
+        // Al desactivarse (p.ej. StageManager lo oculta) limpiar el botón de prompt
+        HotspotPromptButton.Instance?.UnregisterHotspot(this);
+        _isNearby = false;
     }
 
     private void Update()
@@ -106,9 +108,8 @@ public class HotspotController : MonoBehaviour
         if (data == null || _playerCamera == null) return;
         if (SceneOverviewController.Instance != null && SceneOverviewController.Instance.IsActive) return;
 
-        ApplyBlinkEffect();
+        ApplyRotationEffect();
         CheckProximity();
-        if (data.allowClick) CheckClick();
     }
 
     // ── Filtro de etapa ───────────────────────────────────────────────────────
@@ -118,25 +119,19 @@ public class HotspotController : MonoBehaviour
     }
 
     /// <summary>
-    /// Activa o desactiva el hotspot según la etapa actual.
-    /// requiredStage = -1 → sin restricción propia: el HotspotController NO toca
-    /// SetActive y deja que el StageManager tenga autoridad total.
-    /// requiredStage >= 0 → el HotspotController gestiona su propia visibilidad,
-    /// pero el StageManager conserva la última palabra (ver GoToStage).
+    /// requiredStage = -1 → sin restricción propia, StageManager tiene autoridad total.
+    /// requiredStage >= 0 → gestiona su propia visibilidad.
     /// </summary>
     private void RefreshStageVisibility()
     {
         if (data == null) return;
-
-        // Sin restricción de etapa: no tocamos SetActive.
-        // Si el StageManager desactivó este objeto, se queda así.
-        if (data.requiredStage < 0)
-            return;
+        if (data.requiredStage < 0) return;
 
         bool stageMatch = StageManager.Instance != null &&
                           (int)StageManager.Instance.CurrentStage == data.requiredStage;
 
         gameObject.SetActive(stageMatch);
+        // OnDisable se encarga de limpiar el prompt button si stageMatch es false
     }
 
     // ── Material ──────────────────────────────────────────────────────────────
@@ -159,11 +154,7 @@ public class HotspotController : MonoBehaviour
     }
 
     // ── Rotación de malla ─────────────────────────────────────────────────────
-    /// <summary>
-    /// Gira el hijo de malla sobre su eje Y a velocidad constante.
-    /// Se pausa cuando el jugador está cerca o el panel está abierto.
-    /// </summary>
-    private void ApplyBlinkEffect()
+    private void ApplyRotationEffect()
     {
         if (meshTransform == null) return;
         if (_isNearby || _isPanelOpen) return;
@@ -180,63 +171,31 @@ public class HotspotController : MonoBehaviour
         if (nowNearby && !_isNearby)
         {
             _isNearby = true;
-            _proximityTriggerFrame = Time.frameCount;
             Debug.Log($"[Hotspot] Entrando en rango de: {data.title}");
-            DispatchAction();
+            // Solo mostrar botón si no hay un panel abierto de este hotspot
+            if (!_isPanelOpen)
+                HotspotPromptButton.Instance?.RegisterHotspot(this);
         }
         else if (!nowNearby && _isNearby)
         {
             _isNearby = false;
             Debug.Log($"[Hotspot] Saliendo del rango de: {data.title}");
+            HotspotPromptButton.Instance?.UnregisterHotspot(this);
             if (_isPanelOpen) ClosePanel();
         }
-    }
-
-    // ── Clic / Tap ────────────────────────────────────────────────────────────
-    private void CheckClick()
-    {
-        // Ignorar clicks en el mismo frame que la proximidad disparó el panel,
-        // para evitar que el click de rotación de cámara cierre el panel recién abierto.
-        if (Time.frameCount == _proximityTriggerFrame) return;
-
-        if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
-
-        bool clicked = false;
-
-        if (Input.GetMouseButtonDown(0))
-            clicked = IsPointerOverThisObject(Input.mousePosition);
-
-        if (!clicked && Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
-            clicked = IsPointerOverThisObject(Input.GetTouch(0).position);
-
-        if (clicked)
-        {
-            if (_isPanelOpen) ClosePanel();
-            else              DispatchAction();
-        }
-    }
-
-    private bool IsPointerOverThisObject(Vector2 screenPos)
-    {
-        if (Camera.main == null) return false;
-        Ray ray = Camera.main.ScreenPointToRay(screenPos);
-        if (!Physics.Raycast(ray, out RaycastHit hit)) return false;
-        // Acepta impacto en este GO o en cualquier hijo (NPC prefabs con colisores en hijos)
-        return hit.collider.transform.IsChildOf(transform) || hit.collider.gameObject == gameObject;
     }
 
     // ── Dispatch por tipo de acción ───────────────────────────────────────────
     /// <summary>
-    /// Punto central de activación. Ramifica según data.actionType.
-    /// Los sistemas externos (CinematicManager, NpcDialoguePanel, SiataCallPanel)
-    /// se conectan aquí cuando sean implementados (Sistemas 6, 9, 10).
-    /// Hasta entonces hacen fallback a InfoPanel para no romper la escena.
+    /// Punto central de activación. Llamado por HotspotPromptButton al pulsar el botón HUD.
     /// </summary>
-    private void DispatchAction()
+    public void DispatchAction()
     {
         if (data == null) return;
 
-        // Actualizar el indicador de nivel de riesgo si el hotspot tiene nivel asignado
+        // Ocultar el botón de prompt mientras el panel está abierto
+        HotspotPromptButton.Instance?.UnregisterHotspot(this);
+
         if (data.riskLevel != RiskLevel.None && RiskLevelIndicator.Instance != null)
             RiskLevelIndicator.Instance.SetLevel(data.riskLevel);
 
@@ -254,7 +213,7 @@ public class HotspotController : MonoBehaviour
                 }
                 else
                 {
-                    Debug.LogWarning($"[Hotspot] '{data.title}' → CinematicManager no encontrado en escena. Usando InfoPanel.");
+                    Debug.LogWarning($"[Hotspot] '{data.title}' → CinematicManager no encontrado. Usando InfoPanel.");
                     OpenInfoPanel();
                 }
                 break;
@@ -268,7 +227,7 @@ public class HotspotController : MonoBehaviour
                 }
                 else
                 {
-                    Debug.LogWarning($"[Hotspot] '{data.title}' → NpcDialoguePanel no encontrado en escena. Usando InfoPanel.");
+                    Debug.LogWarning($"[Hotspot] '{data.title}' → NpcDialoguePanel no encontrado. Usando InfoPanel.");
                     OpenInfoPanel();
                 }
                 break;
@@ -277,7 +236,6 @@ public class HotspotController : MonoBehaviour
                 if (SiataCallPanel.Instance != null)
                 {
                     _isPanelOpen = true;
-                    // siataSequence tiene prioridad sobre dialogueData
                     if (data.siataSequence != null)
                         SiataCallPanel.Instance.Show(data.siataSequence, this);
                     else
@@ -285,7 +243,6 @@ public class HotspotController : MonoBehaviour
                 }
                 else if (NpcDialoguePanel.Instance != null)
                 {
-                    // Fallback: NpcDialoguePanel mientras SiataCallPanel no esté en escena
                     Debug.LogWarning($"[Hotspot] '{data.title}' → SiataCallPanel no encontrado. Usando NpcDialoguePanel.");
                     _isPanelOpen = true;
                     NpcDialoguePanel.Instance.Show(data.dialogueData, this);
@@ -305,7 +262,7 @@ public class HotspotController : MonoBehaviour
                 }
                 else
                 {
-                    Debug.LogWarning($"[Hotspot] '{data.title}' → InfoSlidePanel no encontrado en escena. Usando InfoPanel.");
+                    Debug.LogWarning($"[Hotspot] '{data.title}' → InfoSlidePanel no encontrado. Usando InfoPanel.");
                     OpenInfoPanel();
                 }
                 break;
@@ -314,11 +271,9 @@ public class HotspotController : MonoBehaviour
                 if (cameraSequencer != null)
                 {
                     _isPanelOpen = true;
-                    // Si el sequencer está registrado en el hub, delegar al hub (loop + botones de etapa)
                     if (SceneOverviewController.Instance != null &&
                         SceneOverviewController.Instance.overviewSequencer == cameraSequencer)
                     {
-                        // Avanzar etapa al contactar el hotspot, no al salir del hub
                         if (data.sequenceAdvancesStage)
                             StageManager.Instance?.NextStage();
                         SceneOverviewController.Instance.Enter(false, this);
@@ -331,15 +286,14 @@ public class HotspotController : MonoBehaviour
                 }
                 else
                 {
-                    Debug.LogWarning($"[Hotspot] '{data.title}' → cameraSequencer no asignado en el HotspotController. " +
-                                     "Arrastra el CinematicSequencer al campo 'Camera Sequencer' del Inspector.");
+                    Debug.LogWarning($"[Hotspot] '{data.title}' → cameraSequencer no asignado. Usando InfoPanel.");
                     OpenInfoPanel();
                 }
                 break;
         }
     }
 
-    // ── Panel informativo (InfoPanel) ─────────────────────────────────────────
+    // ── Panel informativo ─────────────────────────────────────────────────────
     private void OpenInfoPanel()
     {
         if (uiPanel == null) return;
@@ -351,14 +305,13 @@ public class HotspotController : MonoBehaviour
     {
         _isPanelOpen = false;
         if (uiPanel != null) uiPanel.Hide();
+
+        // Si el jugador sigue en rango, volver a mostrar el botón de prompt
+        if (_isNearby)
+            HotspotPromptButton.Instance?.RegisterHotspot(this);
     }
 
     // ── Repetición de secuencia ───────────────────────────────────────────────
-
-    /// <summary>
-    /// Activa el botón de repetición la primera vez que se juega la secuencia.
-    /// Solo ocurre una vez por sesión de juego.
-    /// </summary>
     private void ActivateReplayButton()
     {
         if (replayButton == null || _replayButtonActivated) return;
@@ -366,15 +319,9 @@ public class HotspotController : MonoBehaviour
         _replayButtonActivated = true;
     }
 
-    /// <summary>
-    /// Repite la secuencia de cámara SIN avanzar de etapa.
-    /// Conectar al OnClick del botón de repetición en el Inspector.
-    /// Si la secuencia ya está en curso, la llamada se ignora.
-    /// </summary>
     public void ReplaySequence()
     {
         if (cameraSequencer == null) return;
-        // Si el sequencer está en el hub, re-entrar al hub sin avanzar etapa
         if (SceneOverviewController.Instance != null &&
             SceneOverviewController.Instance.overviewSequencer == cameraSequencer)
         {
