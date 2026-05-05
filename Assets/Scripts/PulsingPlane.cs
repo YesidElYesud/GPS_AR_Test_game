@@ -10,6 +10,7 @@ using UnityEngine;
 ///      Ajustar el radio en el Inspector; el collider se fuerza a isTrigger en Awake.
 ///   3. Si el plano tiene MeshCollider, asegurarse de que no bloquee al jugador
 ///      (marcarlo isTrigger o eliminarlo según necesidad).
+///   4. requiredStage: -1 = visible siempre; >= 0 = solo en esa etapa en adelante.
 /// </summary>
 [RequireComponent(typeof(SphereCollider))]
 public class PulsingPlane : MonoBehaviour
@@ -29,6 +30,12 @@ public class PulsingPlane : MonoBehaviour
              "y para desvanecerse al salir.")]
     public float fadeTime = 0.8f;
 
+    [Header("Etapa")]
+    [Tooltip("Etapa a partir de la cual el halo es visible y activo.\n" +
+             "-1 = visible en todas las etapas.\n" +
+             " 0 = desde Intro,  1 = desde Etapa 1,  2 = desde Etapa 2, etc.")]
+    public int requiredStage = -1;
+
     // ── Estado interno ────────────────────────────────────────────────────────
     private Vector3 _originalScale;
     private bool    _playerInRange;
@@ -38,16 +45,32 @@ public class PulsingPlane : MonoBehaviour
     private void Awake()
     {
         _originalScale = transform.localScale;
-
-        // Garantiza que el SphereCollider sea siempre un trigger
         GetComponent<SphereCollider>().isTrigger = true;
+    }
+
+    private void Start()
+    {
+        if (StageManager.Instance != null)
+            StageManager.Instance.OnStageChanged += OnStageChanged;
+
+        RefreshStageVisibility();
+    }
+
+    private void OnDestroy()
+    {
+        if (StageManager.Instance != null)
+            StageManager.Instance.OnStageChanged -= OnStageChanged;
+    }
+
+    private void OnDisable()
+    {
+        _playerInRange = false;
     }
 
     private void Update()
     {
         bool active = _playerInRange && IsActivePulseLevel();
 
-        // Fade suave hacia el estado objetivo
         float target = active ? 1f : 0f;
         _pulseWeight = Mathf.MoveTowards(_pulseWeight, target, Time.deltaTime / fadeTime);
 
@@ -58,13 +81,11 @@ public class PulsingPlane : MonoBehaviour
         }
         else
         {
-            // Escala exacta al bajar a cero; evita deriva por punto flotante
             transform.localScale = _originalScale;
         }
     }
 
     // ── Detección de proximidad ───────────────────────────────────────────────
-    // CharacterController dispara OnTrigger* igual que un Rigidbody
     private void OnTriggerEnter(Collider other)
     {
         if (other.GetComponent<CharacterController>() != null)
@@ -75,6 +96,22 @@ public class PulsingPlane : MonoBehaviour
     {
         if (other.GetComponent<CharacterController>() != null)
             _playerInRange = false;
+    }
+
+    // ── Control de etapa ─────────────────────────────────────────────────────
+    private void OnStageChanged(StageManager.Stage previous, StageManager.Stage current)
+    {
+        RefreshStageVisibility();
+    }
+
+    private void RefreshStageVisibility()
+    {
+        if (requiredStage < 0) return;  // -1 = siempre visible, StageManager no tiene autoridad
+
+        bool visible = StageManager.Instance != null &&
+                       (int)StageManager.Instance.CurrentStage >= requiredStage;
+
+        gameObject.SetActive(visible);
     }
 
     // ── Condición de nivel ────────────────────────────────────────────────────
