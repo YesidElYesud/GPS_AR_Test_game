@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-  <meta name="theme-color" content="#F4F6F9"/>
+  <meta name="theme-color" content="#232B48"/>
   <title>SATCS — Olaya Herrera · SIRMED Medellín</title>
 
   <style>
@@ -35,17 +35,21 @@
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --bg:          #F4F6F9;
-      --bg-card:     #FFFFFF;
-      --border:      #D8DDE6;
-      --accent:      #D95F00;        /* naranja quemado — visible en sol directo */
-      --accent-lt:   #FFF0E5;
-      --accent-glow: rgba(217,95,0,0.18);
-      --blue:        #1A5FAD;        /* azul institucional, alto contraste */
-      --blue-lt:     #E8F0FB;
-      --text-hi:     #111827;        /* casi negro — máximo contraste */
-      --text-mid:    #374151;        /* gris oscuro */
-      --text-lo:     #6B7280;        /* gris medio */
+      /* Paleta institucional DAGRD / Pascual Bravo */
+      --navy:        #232B48;        /* PANTONE 2766C — azul noche */
+      --navy-mid:    #2C2C61;        /* PANTONE 2738C — azul profundo */
+      --yellow:      #FFCC00;        /* PANTONE 130C  — amarillo institucional */
+      --yellow-lt:   #FCEB20;        /* PANTONE 107C  — amarillo brillante */
+      --red:         #D52223;        /* PANTONE 185C  — rojo alerta */
+
+      --bg:          var(--navy);
+      --bg-card:     var(--navy-mid);
+      --border:      rgba(255,255,255,0.13);
+      --accent:      var(--yellow);
+      --accent-glow: rgba(255,204,0,0.28);
+      --text-hi:     #FFFFFF;
+      --text-mid:    rgba(255,255,255,0.82);
+      --text-lo:     rgba(255,255,255,0.50);
       --radius:      18px;
       --radius-sm:   11px;
       --ff:          'Metropolis', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -66,18 +70,18 @@
       z-index: 10;
     }
 
-    /* ── Fondo: gradiente suave + patrón de puntos ───────────────────────── */
+    /* ── Fondo: gradiente institucional + patrón de puntos ──────────────── */
     .page-bg {
       position: fixed; inset: 0; z-index: 0;
       background:
-        radial-gradient(ellipse 70% 55% at 15% 0%,   #FDE8D4 0%, transparent 55%),
-        radial-gradient(ellipse 55% 45% at 92% 100%,  #DAE9F8 0%, transparent 50%),
-        #F4F6F9;
+        radial-gradient(ellipse 70% 55% at 10% 0%,   #3A4580 0%, transparent 60%),
+        radial-gradient(ellipse 55% 45% at 95% 100%,  #1A1F38 0%, transparent 55%),
+        var(--navy);
     }
     .page-bg::before {
       content: '';
       position: absolute; inset: 0;
-      background-image: radial-gradient(circle, rgba(0,0,0,0.07) 1px, transparent 1px);
+      background-image: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
       background-size: 28px 28px;
     }
 
@@ -100,17 +104,17 @@
       display: flex; flex-direction: column;
       align-items: center;
       box-shadow:
-        0 1px 3px rgba(0,0,0,0.07),
-        0 12px 40px rgba(0,0,0,0.10),
-        0 32px 64px rgba(0,0,0,0.06);
+        0 2px 6px rgba(0,0,0,0.30),
+        0 14px 44px rgba(0,0,0,0.40),
+        0 36px 72px rgba(0,0,0,0.25);
     }
 
-    /* Barra de acento superior */
+    /* Barra de acento superior — amarillo → rojo institucional */
     .card::before {
       content: '';
       position: absolute; top: 0; left: 0; right: 0;
       height: 4px;
-      background: linear-gradient(90deg, var(--accent), #F59E0B, var(--blue));
+      background: linear-gradient(90deg, var(--yellow), var(--yellow-lt), var(--red));
       border-radius: var(--radius) var(--radius) 0 0;
     }
 
@@ -118,7 +122,7 @@
     .logo-wrap {
       margin-bottom: 24px;
       padding: 12px 18px;
-      background: var(--bg);
+      background: rgba(255,255,255,0.06);
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
     }
@@ -135,7 +139,7 @@
       font-weight: 600;
       letter-spacing: 0.15em;
       text-transform: uppercase;
-      color: var(--accent);
+      color: var(--yellow);
       margin-bottom: 10px;
     }
 
@@ -148,15 +152,16 @@
       text-align: center;
       margin-bottom: 6px;
     }
-    .title-main span { color: var(--accent); }
+    .title-main span { color: var(--yellow); }
 
     .title-sub {
       font-size: clamp(13px, 3.2vw, 15px);
       font-weight: 600;
-      color: var(--blue);
+      color: var(--yellow-lt);
       letter-spacing: 0.04em;
       text-align: center;
       margin-bottom: 24px;
+      opacity: 0.85;
     }
 
     /* ── Separador ───────────────────────────────────────────────────────── */
@@ -193,15 +198,15 @@
       border-radius: 999px;
       border: 1.5px solid;
     }
-    .badge-orange {
-      color: var(--accent);
-      border-color: var(--accent);
-      background: var(--accent-lt);
+    .badge-yellow {
+      color: var(--navy);
+      background: var(--yellow);
+      border-color: var(--yellow);
     }
-    .badge-blue {
-      color: var(--blue);
-      border-color: var(--blue);
-      background: var(--blue-lt);
+    .badge-outline {
+      color: var(--text-hi);
+      border-color: var(--border);
+      background: rgba(255,255,255,0.07);
     }
 
     /* ── Permisos requeridos ─────────────────────────────────────────────── */
@@ -219,17 +224,17 @@
       width: 30px; height: 30px;
       border-radius: 8px;
       border: 1.5px solid var(--border);
-      background: var(--bg);
+      background: rgba(255,255,255,0.06);
       display: flex; align-items: center; justify-content: center;
       font-size: 15px;
     }
 
-    /* ── Botón principal ─────────────────────────────────────────────────── */
+    /* ── Botón principal — amarillo con texto oscuro (máximo contraste) ───── */
     #start-btn {
       width: 100%;
       padding: clamp(15px, 4vw, 18px) 0;
-      background: var(--accent);
-      color: #FFFFFF;
+      background: var(--yellow);
+      color: var(--navy);
       border: none; border-radius: var(--radius-sm);
       font-family: var(--ff);
       font-size: clamp(14px, 3.6vw, 16px);
@@ -241,9 +246,9 @@
       box-shadow: 0 6px 20px var(--accent-glow);
       -webkit-tap-highlight-color: transparent;
     }
-    #start-btn:hover  { background: #BF5200; transform: translateY(-1px); box-shadow: 0 10px 28px var(--accent-glow); }
-    #start-btn:active { background: #A34600; transform: translateY(1px);  box-shadow: 0 3px 8px  var(--accent-glow); }
-    #start-btn:disabled { background: #CCC; box-shadow: none; cursor: not-allowed; transform: none; }
+    #start-btn:hover  { background: var(--yellow-lt); transform: translateY(-1px); box-shadow: 0 10px 28px var(--accent-glow); }
+    #start-btn:active { background: #E6B800;          transform: translateY(1px);  box-shadow: 0 3px 8px  var(--accent-glow); }
+    #start-btn:disabled { background: rgba(255,255,255,0.18); color: var(--text-lo); box-shadow: none; cursor: not-allowed; transform: none; }
 
     /* ── Estado ──────────────────────────────────────────────────────────── */
     #start-status {
@@ -270,9 +275,9 @@
       align-items: center; justify-content: center;
       transition: opacity 0.5s;
       background:
-        radial-gradient(ellipse 70% 55% at 15% 0%,   #FDE8D4 0%, transparent 55%),
-        radial-gradient(ellipse 55% 45% at 92% 100%,  #DAE9F8 0%, transparent 50%),
-        #F4F6F9;
+        radial-gradient(ellipse 70% 55% at 10% 0%,   #3A4580 0%, transparent 60%),
+        radial-gradient(ellipse 55% 45% at 95% 100%,  #1A1F38 0%, transparent 55%),
+        var(--navy);
     }
     #loading-overlay.hidden { opacity: 0; pointer-events: none; }
 
@@ -292,20 +297,20 @@
     .ld-bar-wrap {
       width: clamp(200px, 58vw, 270px);
       height: 4px;
-      background: var(--border);
+      background: rgba(255,255,255,0.12);
       border-radius: 999px;
       overflow: hidden;
       margin-bottom: 12px;
     }
     .ld-bar {
       height: 100%; width: 0;
-      background: linear-gradient(90deg, var(--accent), var(--blue));
+      background: linear-gradient(90deg, var(--yellow), var(--red));
       border-radius: 999px;
       transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .ld-pct {
       font-size: 13px; font-weight: 700;
-      color: var(--accent);
+      color: var(--yellow);
       letter-spacing: 0.06em;
     }
 
@@ -350,9 +355,9 @@
       </p>
 
       <div class="badges">
-        <span class="badge badge-orange">SIRMED Medellín</span>
-        <span class="badge badge-blue">DAGRD</span>
-        <span class="badge badge-blue">I.U. Pascual Bravo</span>
+        <span class="badge badge-yellow">SIRMED Medellín</span>
+        <span class="badge badge-outline">DAGRD</span>
+        <span class="badge badge-outline">I.U. Pascual Bravo</span>
       </div>
 
       <div class="permissions" aria-label="Permisos requeridos">

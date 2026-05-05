@@ -22,11 +22,13 @@ using TMPro;
 ///
 /// Jerarquía sugerida en HUD:
 ///   RiskLevelIndicator            [RiskLevelIndicator.cs] (este script)
+///   ├── FondoNotificacion         [Image]      ← fondoNotificacion (color nivel + alpha)
+///   │   └── TextNotificacion      [TMP]        ← textNotificacion (recomendación de comportamiento)
 ///   └── IndicatorRoot             [GameObject] ← indicatorRoot (se activa/desactiva)
 ///       ├── Background            [Image]      ← backgroundImage
 ///       └── TextColumn            [VLG]
 ///           ├── LevelLabel        [TMP]        ← levelLabel  ("N1" / "N2" …)
-///           └── LevelName         [TMP]        ← levelName   ("Nivel Bajo" …)
+///           └── LevelName         [TMP]        ← levelName   ("Normalidad" …)
 /// </summary>
 public class RiskLevelIndicator : MonoBehaviour
 {
@@ -72,8 +74,31 @@ public class RiskLevelIndicator : MonoBehaviour
     [Tooltip("Texto descriptivo: 'Nivel Bajo', 'Nivel Moderado', etc.")]
     public TextMeshProUGUI levelName;
 
+    // ── Notificación de recomendación ─────────────────────────────────────────
+    [Header("Notificación de recomendación")]
+    [Tooltip("Image de fondo de la notificación. Toma el color del nivel activo con transparencia.")]
+    public Image fondoNotificacion;
+
+    [Tooltip("Texto de recomendación de comportamiento según el nivel de riesgo.")]
+    public TextMeshProUGUI textNotificacion;
+
+    [Range(0f, 1f)]
+    [Tooltip("Alpha del fondo de notificación (0 = transparente, 1 = sólido).")]
+    public float notificacionAlpha = 0.80f;
+
+    // ── Textos de notificación por nivel ─────────────────────────────────────
+    [Header("Textos de notificación por nivel")]
+    [TextArea(2, 4)]
+    public string notifTextN1 = "Puedes salir libremente, recorrer, conocer el barrio y aprender sobre los elementos importantes de un SAT.";
+    [TextArea(2, 4)]
+    public string notifTextN2 = "Puedes salir con precaución.";
+    [TextArea(2, 4)]
+    public string notifTextN3 = "Evitar salidas no esenciales y prepárate para evacuar.";
+    [TextArea(2, 4)]
+    public string notifTextN4 = "Debes evacuar.";
+
     // ── Nombres de nivel (editables en Inspector) ─────────────────────────────
-    [Header("Nombres de nivel (LevelLabel 1)")]
+    [Header("Nombres de nivel")]
     public string levelNameN1 = "Normalidad";
     public string levelNameN2 = "Prevención";
     public string levelNameN3 = "Peligro cercano";
@@ -159,10 +184,15 @@ public class RiskLevelIndicator : MonoBehaviour
 
         bool visible = level != RiskLevel.None;
         if (indicatorRoot != null) indicatorRoot.SetActive(visible);
+        if (fondoNotificacion != null) fondoNotificacion.gameObject.SetActive(visible);
         if (!visible) return;
 
         if (levelLabel != null) levelLabel.text = level.ToString();
         if (levelName  != null) levelName.text  = GetLevelName(level);
+
+        // Notificación: color del nivel con alpha configurable, sin animación
+        if (textNotificacion != null) textNotificacion.text = GetNotifText(level);
+        ApplyNotificacionColor(GetColor(level));
 
         Color targetColor = GetColor(level);
         if (transitionDuration > 0f && oldLevel != RiskLevel.None && gameObject.activeInHierarchy)
@@ -187,8 +217,12 @@ public class RiskLevelIndicator : MonoBehaviour
     // estaba en curso, OnEnable asegura que el color refleje CurrentLevel al volver.
     private void OnEnable()
     {
-        if (backgroundImage != null && CurrentLevel != RiskLevel.None)
+        if (CurrentLevel == RiskLevel.None) return;
+
+        if (backgroundImage != null)
             backgroundImage.color = GetColor(CurrentLevel);
+
+        ApplyNotificacionColor(GetColor(CurrentLevel));
     }
 
     // ── Animación de color (solo cosmética) ──────────────────────────────────
@@ -235,6 +269,22 @@ public class RiskLevelIndicator : MonoBehaviour
         RiskLevel.N4 => levelNameN4,
         _            => "",
     };
+
+    private string GetNotifText(RiskLevel level) => level switch
+    {
+        RiskLevel.N1 => notifTextN1,
+        RiskLevel.N2 => notifTextN2,
+        RiskLevel.N3 => notifTextN3,
+        RiskLevel.N4 => notifTextN4,
+        _            => "",
+    };
+
+    private void ApplyNotificacionColor(Color baseColor)
+    {
+        if (fondoNotificacion == null) return;
+        baseColor.a = notificacionAlpha;
+        fondoNotificacion.color = baseColor;
+    }
 
     private StageRiskConfig FindStageConfig(StageManager.Stage stage)
     {

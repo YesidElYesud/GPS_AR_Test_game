@@ -66,12 +66,24 @@ public class RiverDebrisController : MonoBehaviour
     [Tooltip("Desviación máxima perpendicular a la dirección del tramo (metros).")]
     public float lateralMargin = 0.4f;
 
-    [Header("Rotación del objeto")]
-    [Tooltip("Si es true, el objeto rota para orientarse en la dirección del flujo.")]
+    [Header("Rotación y bamboleo")]
+    [Tooltip("Si es true, el objeto gira gradualmente para orientarse en la dirección del flujo.")]
     public bool alignToFlow = true;
 
-    [Tooltip("Velocidad de rotación para alinearse al flujo (°/s).")]
+    [Tooltip("Velocidad de rotación (yaw) para alinearse al flujo (°/s).")]
     public float rotationSpeed = 90f;
+
+    [Range(0f, 30f)]
+    [Tooltip("Inclinación máxima inicial al spawnear (°). 0 = perfectamente plano, 15 = ligeramente volcado.")]
+    public float initialTiltRange = 12f;
+
+    [Range(0f, 25f)]
+    [Tooltip("Amplitud máxima del bamboleo (°). Simula la turbulencia de la corriente.")]
+    public float wobbleAmplitude = 9f;
+
+    [Range(0.1f, 3f)]
+    [Tooltip("Velocidad del bamboleo (Perlin noise). Valores bajos = movimiento lento y orgánico.")]
+    public float wobbleSpeed = 0.7f;
 
     // ── Estado interno ────────────────────────────────────────────────────────
     private List<GameObject> _activeDebris = new List<GameObject>();
@@ -160,13 +172,19 @@ public class RiverDebrisController : MonoBehaviour
         if (prefab == null) return;
 
         Vector3 spawnPos = GetWaypointWithLateral(0, 1);
-        Quaternion spawnRot = Random.rotation;
+
+        // Yaw completamente aleatorio + pequeña inclinación inicial en XZ
+        Quaternion spawnRot = Quaternion.Euler(
+            Random.Range(-initialTiltRange, initialTiltRange),
+            Random.Range(0f, 360f),
+            Random.Range(-initialTiltRange, initialTiltRange));
 
         GameObject obj = Instantiate(prefab, spawnPos, spawnRot);
 
         float speed = Random.Range(minSpeed, maxSpeed);
         RiverDebrisObject debrisObj = obj.AddComponent<RiverDebrisObject>();
-        debrisObj.Initialize(waypoints, speed, lateralMargin, alignToFlow, rotationSpeed);
+        debrisObj.Initialize(waypoints, speed, lateralMargin, alignToFlow, rotationSpeed,
+                             wobbleAmplitude, wobbleSpeed);
 
         _activeDebris.Add(obj);
     }
@@ -233,37 +251,49 @@ public class RiverDebrisController : MonoBehaviour
 
 // ── RiverDebrisObject ─────────────────────────────────────────────────────────
 /// Componente añadido en runtime a cada objeto instanciado.
-/// Gestiona el movimiento a lo largo de los waypoints con offset lateral.
+/// Gestiona movimiento por waypoints + bamboleo orgánico con ruido Perlin.
 public class RiverDebrisObject : MonoBehaviour
 {
     private Transform[] _waypoints;
     private float _speed;
     private float _lateralMargin;
-    private bool _alignToFlow;
+    private bool  _alignToFlow;
     private float _rotationSpeed;
+    private float _wobbleAmplitude;
+    private float _wobbleSpeed;
 
-    private int _targetIndex;          // índice del waypoint destino actual
-    private Vector3 _targetPos;        // posición objetivo con offset lateral
+    // Semillas independientes para cada eje → movimiento no periódico ni sincronizado
+    private float _seedX;
+    private float _seedZ;
+
+    private int     _targetIndex;
+    private Vector3 _targetPos;
     private const float _waypointReachDist = 0.3f;
 
     public void Initialize(Transform[] waypoints, float speed, float lateralMargin,
-                           bool alignToFlow, float rotationSpeed)
+                           bool alignToFlow, float rotationSpeed,
+                           float wobbleAmplitude, float wobbleSpeed)
     {
-        _waypoints = waypoints;
-        _speed = speed;
-        _lateralMargin = lateralMargin;
-        _alignToFlow = alignToFlow;
-        _rotationSpeed = rotationSpeed;
+        _waypoints      = waypoints;
+        _speed          = speed;
+        _lateralMargin  = lateralMargin;
+        _alignToFlow    = alignToFlow;
+        _rotationSpeed  = rotationSpeed;
+        _wobbleAmplitude = wobbleAmplitude;
+        _wobbleSpeed    = wobbleSpeed;
+
+        // Semillas aleatorias: cada objeto bambolea diferente
+        _seedX = Random.Range(0f, 100f);
+        _seedZ = Random.Range(0f, 100f);
 
         _targetIndex = 1;
-        _targetPos = ComputeTarget(_targetIndex);
+        _targetPos   = ComputeTarget(_targetIndex);
     }
 
     void Update()
     {
         if (_waypoints == null || _targetIndex >= _waypoints.Length) return;
 
-        // Distancia horizontal al objetivo (ignorar Y para no encallarse en rampas)
         Vector3 toTarget = _targetPos - transform.position;
         toTarget.y = 0f;
 
@@ -276,25 +306,35 @@ public class RiverDebrisObject : MonoBehaviour
                 return;
             }
             _targetPos = ComputeTarget(_targetIndex);
-            toTarget = _targetPos - transform.position;
+            toTarget   = _targetPos - transform.position;
             toTarget.y = 0f;
         }
 
-        // Movimiento — mantener la Y del waypoint destino para seguir el terreno
-        Vector3 move = ((_targetPos - transform.position).normalized) * (_speed * Time.deltaTime);
-        transform.position += move;
+        // Movimiento a lo largo del cauce
+        transform.position += (_targetPos - transform.position).normalized * (_speed * Time.deltaTime);
 
-        // Alineación al flujo
-        if (_alignToFlow && toTarget.sqrMagnitude > 0.001f)
-        {
-            Quaternion desired = Quaternion.LookRotation(toTarget.normalized);
-            transform.rotation = Quaternion.RotateTowards(
-                transform.rotation, desired, _rotationSpeed * Time.deltaTime);
-        }
+        // ── Rotación: flujo + bamboleo ────────────────────────────────────────
+
+        // 1. Yaw base = dirección del flujo (si alignToFlow está activo)
+        Quaternion flowRot = _alignToFlow && toTarget.sqrMagnitude > 0.001f
+            ? Quaternion.LookRotation(toTarget.normalized)
+            : Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+
+        // 2. Bamboleo: ruido Perlin en pitch (X) y roll (Z) independientes
+        //    Perlin devuelve [0,1] → llevamos a [-1,1] con *2-1
+        float noiseX = Mathf.PerlinNoise(_seedX + Time.time * _wobbleSpeed, 0f) * 2f - 1f;
+        float noiseZ = Mathf.PerlinNoise(0f, _seedZ + Time.time * _wobbleSpeed) * 2f - 1f;
+        Quaternion wobble = Quaternion.Euler(
+            noiseX * _wobbleAmplitude,
+            0f,
+            noiseZ * _wobbleAmplitude);
+
+        // 3. Combinar: el bamboleo se aplica en el espacio local del flujo
+        Quaternion target = flowRot * wobble;
+        transform.rotation = Quaternion.RotateTowards(
+            transform.rotation, target, _rotationSpeed * Time.deltaTime);
     }
 
-    /// Devuelve la posición del waypoint[index] + offset lateral aleatorio
-    /// relativo a la dirección del tramo.
     Vector3 ComputeTarget(int index)
     {
         Vector3 pos = _waypoints[index].position;
