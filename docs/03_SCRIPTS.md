@@ -377,3 +377,391 @@ HUD principal con estado de sensores y controles.
 | `permissionGrantButton` | Button permiso iOS |
 | `calibrationPanelButton` | Button abrir calibración |
 | `cameraController` | Main Camera |
+
+---
+
+## RiskLevelIndicator
+
+**Archivo:** `Assets/Scripts/RiskLevelIndicator.cs`
+**Tipo:** Singleton UI · inicia inactivo
+
+HUD persistente que muestra el nivel de riesgo actual (N1–N4) con color, ícono pulsante y texto de recomendación. Se actualiza desde `StageManager.OnStageChanged` (nivel por defecto de cada etapa) o desde `HotspotController` (sobreescritura puntual). Se oculta automáticamente en nivel `None`.
+
+### Niveles (enum RiskLevel)
+
+```
+None=0  N1=1  N2=2  N3=3  N4=4
+```
+
+Colores: N1=amarillo, N2=naranja, N3=rojo, N4=rojo oscuro. N3/N4 activan pulso visual.
+
+### Inspector
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `indicatorRoot` | GameObject | Raíz del widget (se activa/desactiva según nivel) |
+| `iconImage` | Image | Ícono de alerta que pulsa en N3/N4 |
+| `levelText` | TextMeshProUGUI | Texto "N1", "N2", etc. |
+| `fondoNotificacion` | Image | Fondo del panel de recomendación (mismo color del nivel, semi-transparente) |
+| `textNotificacion` | TextMeshProUGUI | Texto de recomendación por nivel |
+| `notificacionAlpha` | float | Transparencia del fondo (0–1, default 0.80) |
+| `notifTextN1/N2/N3/N4` | string | Textos de recomendación para cada nivel |
+
+### API pública
+
+```csharp
+RiskLevelIndicator.Instance.SetLevel(RiskLevel level);
+RiskLevelIndicator.Instance.CurrentLevel; // propiedad de lectura
+```
+
+---
+
+## AerialViewController
+
+**Archivo:** `Assets/Scripts/AerialViewController.cs`
+**Tipo:** Singleton · DontDestroyOnLoad
+
+Activa la cámara dron (Etapa 5). Al entrar a la etapa configurada, eleva suavemente la cámara y la hace orbitar el centro de la escena. Al salir devuelve el control a `ARCameraController`. No modifica `StageManager`.
+
+### Inspector
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `stageConfigs[]` | AerialConfig[] | Una entrada por etapa que activa la vista aérea |
+| `cameraController` | ARCameraController | Se auto-detecta si queda vacío |
+| `pivotTarget` | Transform | Centro de órbita. Null = origen de escena |
+| `height` | float | Altura sobre el pivote (default 40u) |
+| `orbitRadius` | float | Radio horizontal de la órbita (default 25u) |
+| `orbitSpeed` | float | Velocidad de órbita (grados/seg). 0 = estática |
+| `ascendDuration` | float | Segundos para llegar a la posición aérea |
+| `descendDuration` | float | Segundos para volver al suelo |
+
+### Setup en escena
+
+1. Crear GO vacío `AerialViewController` en la raíz.
+2. Adjuntar este script.
+3. En `stageConfigs`, añadir entrada con `stage = Etapa5`.
+4. (Opcional) Crear un Transform vacío `SceneCenter` y asignarlo a `pivotTarget`.
+
+---
+
+## VisualEffectsStageController
+
+**Archivo:** `Assets/Scripts/VisualEffectsStageController.cs`
+**Tipo:** Singleton · DontDestroyOnLoad
+
+Controla skybox, iluminación ambiental, niebla, partículas y post-processing por etapa. Mismo patrón de Singleton + `OnStageChanged` que `AudioStageManager`.
+
+### Inspector — StageVisualConfig (por etapa)
+
+| Campo | Descripción |
+|---|---|
+| `skyboxMaterial` | Material de skybox. Null = mantener el anterior |
+| `ambientMode` | FlatColor / Skybox / Trilight |
+| `ambientColor` | Color ambiente (modo FlatColor) |
+| `ambientIntensity` | Intensidad de la luz ambiental |
+| `fogEnabled` | Activar niebla en esta etapa |
+| `fogColor` | Color de la niebla |
+| `fogDensity` | Densidad (modo exponencial) |
+| `rainSystem` | ParticleSystem de lluvia. Null = sin lluvia |
+| `postProcessVolume` | Volume de post-processing. Se pone weight=1, los demás weight=0 |
+| `transitionDuration` | Segundos de transición entre etapas |
+
+### Setup en escena
+
+1. GO vacío `VisualEffectsStageController` en la raíz.
+2. Adjuntar script + asignar `stageConfigs` con 6 entradas.
+3. (Opcional) Arrastrar `Directional Light` al campo `sunLight`.
+4. Crear volúmenes de post-processing globales y asignarlos por etapa.
+
+---
+
+## GrassWindController
+
+**Archivo:** `Assets/Scripts/GrassWindController.cs`
+**Tipo:** Componente único (GO `GrassWindController`)
+
+Anima el pasto buscando automáticamente todos los hijos de `terrainRoot` cuyo nombre comience con el prefijo configurado. No requiere referencias individuales; al cambiar de etapa interpola suavemente hacia el preset de viento correspondiente.
+
+### Inspector
+
+| Campo | Descripción |
+|---|---|
+| `terrainRoot` | Transform raíz del terreno (padre del pasto) |
+| `grassNamePrefix` | Prefijo de nombre para filtrar matas (default `"trasparent grass4"`) |
+| `transitionDuration` | Segundos de blend entre presets (default 1.5s) |
+
+### Presets por etapa (integrados en código)
+
+| Etapa | Ángulo máx. | Velocidad | Notas |
+|---|---|---|---|
+| Intro / Etapa1 | 2° | 0.4 Hz | Brisa suave |
+| Etapa2 | 6° | 0.6 Hz | Lluvia leve |
+| Etapa3 | 14° | 1.1 Hz | Viento fuerte |
+| Etapa4 | 22° | 1.6 Hz | Vendaval |
+| Etapa5 | 8° | 0.8 Hz | Calmando |
+
+> El pivote de cada mata debe estar en la **base del mesh** (Y=0 local).
+
+---
+
+## TreeWindController
+
+**Archivo:** `Assets/Scripts/TreeWindController.cs`
+**Tipo:** Componente único (GO `TreeWindManager`)
+
+Igual que `GrassWindController` pero para árboles individuales asignados a mano en el Inspector (los árboles no comparten prefijo de nombre). Usa desfases de fase por posición mundial para que cada árbol se mueva diferente.
+
+### Inspector
+
+| Campo | Descripción |
+|---|---|
+| `trees[]` | Array de Transforms de los árboles a animar |
+| `transitionDuration` | Segundos de blend entre presets (default 2.0s — árboles más inerciales) |
+
+> El pivote de cada árbol debe estar en la **base del tronco**.
+
+---
+
+## RiverDebrisController
+
+**Archivo:** `Assets/Scripts/RiverDebrisController.cs`
+**Tipo:** Componente único (GO `RiverDebrisController`)
+
+Spawna escombros y objetos flotantes que siguen una ruta de waypoints simulando la corriente. Activo solo en las etapas configuradas.
+
+### Inspector
+
+| Campo | Descripción |
+|---|---|
+| `waypoints[]` | Ruta del río (Transforms vacíos en orden) |
+| `debrisPrefabs[]` | Pool de prefabs a spawnear aleatoriamente |
+| `activateFromStage / activateUntilStage` | Rango de etapas activo |
+| `spawnInterval` | Segundos entre spawns (default 2s) |
+| `maxDebrisCount` | Máximo simultáneo (default 8) |
+| `minSpeed / maxSpeed` | Rango de velocidad de flujo (default 1.5–3.5 u/s) |
+| `lateralMargin` | Desviación lateral aleatoria por waypoint (default 0.4) |
+| `alignToFlow` | Rota los objetos en la dirección de la corriente |
+| `initialTiltRange` | Inclinación aleatoria al spawnear (±12° XZ, default 12) |
+| `wobbleAmplitude` | Amplitud del tambaleo Perlin (grados, default 9°) |
+| `wobbleSpeed` | Velocidad del tambaleo (default 0.7 Hz) |
+
+---
+
+## WaterFlowController
+
+**Archivo:** `Assets/Scripts/WaterFlowController.cs`
+**Tipo:** `RequireComponent(MeshRenderer)`
+
+Anima el desplazamiento de textura del río y cambia su color por etapa con transición suave. Compatible con el shader `Custom/WaterFlow` (modo completo) o con cualquier shader estándar (modo fallback: solo scrollea `_MainTex`).
+
+### Inspector
+
+| Campo | Descripción |
+|---|---|
+| `flowDirection` | Dirección del flujo (Vector2, se normaliza automáticamente) |
+| `flowSpeed` | Velocidad de scroll (0–1, default 0.08) |
+| `fallbackMode` | TRUE = scroll manual de `_MainTex`. FALSE = usa propiedades `Custom/WaterFlow` |
+| `stageColors[]` | Color del agua por etapa (Intro=azul claro → Etapa4=marrón oscuro) |
+| `colorTransitionDuration` | Segundos de transición de color (default 3s) |
+
+### Colores por defecto
+
+| Etapa | Color | Descripción |
+|---|---|---|
+| Intro / Etapa1 | `#2E7AB9` α=0.75 | Azul claro tranquilo |
+| Etapa2 | `#336699` α=0.80 | Azul más oscuro |
+| Etapa3 | `#6B4D1E` α=0.85 | Marrón intermedio |
+| Etapa4 | `#61380F` α=0.90 | Marrón oscuro — crecida |
+| Etapa5 | `#59421A` α=0.88 | Marrón residual |
+
+---
+
+## WaterLevelController
+
+**Archivo:** `Assets/Scripts/WaterLevelController.cs`
+**Tipo:** Componente (adjuntar al GO del agua o al río)
+
+Sube y baja la malla del agua animando su `localPosition.Y` al cambiar de etapa. Usa `SmoothStep` para una transición orgánica.
+
+### Inspector
+
+| Campo | Descripción |
+|---|---|
+| `waterMesh` | Transform de la malla de agua a desplazar |
+| `stageConfigs[]` | Posición Y objetivo y duración de transición por etapa |
+
+---
+
+## AlarmPoleController
+
+**Archivo:** `Assets/Scripts/AlarmPoleController.cs`
+**Tipo:** `RequireComponent(AudioSource)` · adjuntar a cada poste
+
+Reproduce la alarma de emergencia con audio 3D espacial desde el poste. El volumen se atenúa automáticamente con la distancia (el jugador "escucha" la alarma desde lejos). Incluye efecto de sirena que modula el pitch con onda seno.
+
+### Inspector
+
+| Campo | Descripción |
+|---|---|
+| `alarmClip` | Clip de alarma (`security-alarm.mp3`) |
+| `minDistance` | Distancia de volumen máximo (default 5m) |
+| `maxDistance` | Distancia de silencio total (default 40m) |
+| `activateFromStage` | Etapa desde la que suena (inclusive) |
+| `activateUntilStage` | Etapa hasta la que suena (inclusive) |
+| `fadeInDuration` | Segundos de fade-in (default 1.5s) |
+| `fadeOutDuration` | Segundos de fade-out (default 2.5s) |
+| `sirenEffect` | Activar modulación de pitch tipo sirena |
+| `sirenPitchMin/Max` | Rango del pitch (default 0.88–1.12) |
+| `sirenSpeed` | Velocidad del ulular (Hz, default 0.22) |
+
+> Setup: adjuntar a `Poste_low.001` y `Poste_low.002`. El `AudioSource` se configura automáticamente en `Awake` con `spatialBlend=1` y rolloff logarítmico.
+
+---
+
+## PulsingPlane
+
+**Archivo:** `Assets/Scripts/PulsingPlane.cs`
+**Tipo:** `RequireComponent(SphereCollider)`
+
+Anima suavemente la escala de un plano (charco, mancha de agua) cuando el jugador entra en su radio y el nivel de riesgo es N2, N3 o N4. Fuera de rango o en niveles bajos el plano permanece estático.
+
+### Inspector
+
+| Campo | Descripción |
+|---|---|
+| `pulseAmplitude` | Variación de escala en % (default 0.03 = ±3%) |
+| `pulseSpeed` | Frecuencia del pulso en Hz (default 0.7) |
+| `fadeTime` | Segundos para entrar/salir del pulso (default 0.8s) |
+
+> El radio del SphereCollider se ajusta manualmente en el Inspector. El collider se fuerza a `isTrigger` en `Awake`.
+
+---
+
+## RainParticleController
+
+**Archivo:** `Assets/Scripts/RainParticleController.cs`
+**Tipo:** `RequireComponent(ParticleSystem)`
+
+Controla la intensidad de la lluvia por etapa. Se suscribe a `StageManager.OnStageChanged` y ajusta la tasa de emisión del `ParticleSystem`. Crea automáticamente el sistema de impactos en el suelo (`RainGroundSplash`) como hijo.
+
+---
+
+## RainGroundSplash
+
+**Archivo:** `Assets/Scripts/RainGroundSplash.cs`
+**Tipo:** Componente de impacto · creado automáticamente por `RainParticleController`
+
+Tres capas de efecto de impacto de gota: Ripple (anillo plano), Spray (gotas rebotando) y Sparks (microchispas). Radio de splash independiente del área de lluvia, concentrado alrededor del jugador.
+
+---
+
+## WaterSplashManager
+
+**Archivo:** `Assets/Scripts/WaterSplashManager.cs`
+**Tipo:** Componente único en escena
+
+Gestiona todos los efectos de salpicadura del agua. Escala la intensidad con cada etapa vía `OnStageChanged`.
+
+### Inspector
+
+| Campo | Descripción |
+|---|---|
+| `stageIntensities[]` | Intensidad de salpicadura por etapa (Intro → Etapa5) |
+
+---
+
+## NPCWaypointWalker
+
+**Archivo:** `Assets/Scripts/NPCWaypointWalker.cs`
+**Tipo:** Componente en el GO del NPC · `RequireComponent(CharacterController, Animator)`
+
+Mueve al NPC por una ruta de waypoints tras recibir la respuesta correcta en el diálogo. Al llegar al último waypoint hace fade-out y se destruye. El Animator se configura automáticamente (se desactiva Root Motion para evitar conflicto con el CharacterController).
+
+### Inspector
+
+| Campo | Descripción |
+|---|---|
+| `waypoints[]` | Transforms de la ruta (en orden) |
+| `walkSpeed` | Velocidad de movimiento (u/s) |
+| `stoppingDistance` | Distancia para considerar waypoint alcanzado |
+| `fadeDuration` | Segundos del fade-out final |
+
+### API pública
+
+```csharp
+NPCWaypointWalker.StartWalking(); // Llamado por NpcDialoguePanel al obtener respuesta correcta
+```
+
+---
+
+## HotspotPromptButton
+
+**Archivo:** `Assets/Scripts/HotspotPromptButton.cs`
+**Tipo:** Componente en HUD · requiere `Button`
+
+Botón de acción que aparece en pantalla cuando el jugador entra en el radio de un hotspot. Pulsa con animación seno para llamar la atención. Al presionarlo llama `DispatchAction()` sobre el hotspot activo más cercano.
+
+### Inspector
+
+| Campo | Descripción |
+|---|---|
+| `buttonRoot` | GameObject raíz del botón (se activa/desactiva) |
+| `button` | Componente Button al que se añade el listener |
+| `pulseScale` | Escala máxima del pulso (default 1.08) |
+| `pulseSpeed` | Velocidad del pulso en Hz |
+
+---
+
+## InfoSlidePanel
+
+**Archivo:** `Assets/Scripts/InfoSlidePanel.cs`
+**Tipo:** Singleton UI · inicia inactivo
+
+Panel de slides secuenciales para contenido educativo. Muestra una serie de imágenes/textos con botones "Anterior" / "Siguiente" / "Cerrar". Usado por los hotspots de tipo `InfoPanel` con múltiples slides.
+
+### Inspector
+
+| Campo | Descripción |
+|---|---|
+| `titleText` | TextMeshProUGUI del título del slide |
+| `bodyText` | TextMeshProUGUI del texto informativo |
+| `slideImage` | Image del slide (opcional) |
+| `prevButton / nextButton` | Botones de navegación |
+| `slideCounter` | TextMeshProUGUI "1 / 4" |
+
+---
+
+## SceneOverviewController
+
+**Archivo:** `Assets/Scripts/SceneOverviewController.cs`
+**Tipo:** Singleton · reutiliza `CinematicSequencer`
+
+Hub de vista panorámica del barrio. Al activarse pausa al jugador, ejecuta un bucle de cámara via `CinematicSequencer` y muestra botones de etapa (permiten cambiar el skybox/luz/lluvia sin avanzar la narrativa). Integrado con el sistema de hotspots: `HotspotController.DispatchAction()` llama a `Enter()`.
+
+### Inspector
+
+| Campo | Descripción |
+|---|---|
+| `sequencer` | CinematicSequencer existente en escena |
+| `stageButtons[]` | OverviewStageConfig por etapa: botón, skybox, luz, lluvia |
+| `fadePanel` | Image negra para fundidos de entrada/salida |
+| `fadeDuration` | Segundos del fundido |
+
+---
+
+## CinematicSequencer
+
+**Archivo:** `Assets/Scripts/CinematicSequencer.cs`
+**Tipo:** Componente de cámara cinematográfica
+
+Ejecuta una secuencia de `CameraShot` (posición, rotación, duración, easing) animando la cámara suavemente entre planos. Usado por `SceneOverviewController` para el bucle panorámico y como utilidad general de cutscenes sin video.
+
+### CameraShot (datos por plano)
+
+| Campo | Descripción |
+|---|---|
+| `targetTransform` | Transform destino del plano. Null = usa position/rotation directos |
+| `duration` | Segundos en este plano |
+| `easing` | Tipo de interpolación (Linear, SmoothStep, EaseIn, EaseOut) |
+| `loop` | Al llegar al último plano, vuelve al primero |

@@ -21,14 +21,19 @@ flowchart TD
     CAM --> HC["HotspotController\ninteracción"]
 
     SM -->|OnStageChanged| HC
-    SM --> CMP["CriticalModePanel"]
-    SM --> ASM["AudioStageManager"]
+    SM -->|OnStageChanged| CMP["CriticalModePanel"]
+    SM -->|OnStageChanged| ASM["AudioStageManager"]
+    SM -->|OnStageChanged| VFX["VisualEffectsStageController"]
+    SM -->|OnStageChanged| RLI["RiskLevelIndicator"]
+    SM -->|OnStageChanged| AVC["AerialViewController"]
+    SM -->|OnStageChanged| ENV["GrassWindController\nTreeWindController\nWaterFlowController\nWaterLevelController\nRiverDebrisController\nAlarmPoleController"]
     SM --> UI["UIManager"]
 
-    HC -->|DispatchAction| IP["HotspotUIPanel\nInfoPanel"]
+    HC -->|DispatchAction| IP["HotspotUIPanel / InfoSlidePanel"]
     HC -->|DispatchAction| CM["CinematicManager"]
     HC -->|DispatchAction| NDP["NpcDialoguePanel"]
     HC -->|DispatchAction| SCP["SiataCallPanel"]
+    HC -->|DispatchAction| SOC["SceneOverviewController"]
 ```
 
 ---
@@ -45,9 +50,14 @@ StageManager.Instance
 CinematicManager.Instance
 CriticalModePanel.Instance
 AudioStageManager.Instance
+VisualEffectsStageController.Instance
+AerialViewController.Instance
+RiskLevelIndicator.Instance
 NpcDialoguePanel.Instance
 SiataCallPanel.Instance
 SensorCalibrationPanel.Instance
+SceneOverviewController.Instance
+InfoSlidePanel.Instance
 ```
 
 ### Eventos C# (Action<T>)
@@ -58,7 +68,7 @@ StageManager.Instance.OnStageChanged += MiMetodo;
 // Firma: (Stage anterior, Stage nueva)
 ```
 
-Suscriptores actuales: `HotspotController`, `UIManager`, `CriticalModePanel`, `AudioStageManager`.
+Suscriptores actuales: `HotspotController`, `UIManager`, `CriticalModePanel`, `AudioStageManager`, `VisualEffectsStageController`, `AerialViewController`, `RiskLevelIndicator`, `WaterFlowController`, `WaterLevelController`, `GrassWindController`, `TreeWindController`, `RiverDebrisController`, `AlarmPoleController`, `WaterSplashManager`.
 
 ### ScriptableObjects
 Los datos de contenido (hotspots, diálogos) se guardan como assets independientes. Esto permite cambiar el contenido sin tocar el código.
@@ -121,12 +131,31 @@ Los paneles que aparecen al activar un hotspot.
 | `CinematicManager` | Video fullscreen con botón Skip |
 
 ### Módulo de Retroalimentación Ambiental
-Reacciona automáticamente a los cambios de etapa.
+Reacciona automáticamente a los cambios de etapa via `OnStageChanged`.
 
 | Script | Función |
 |---|---|
 | `CriticalModePanel` | Modal de alerta en Etapa3/4 |
 | `AudioStageManager` | Música/ambiente con crossfade por etapa |
+| `VisualEffectsStageController` | Skybox, niebla, iluminación y partículas por etapa |
+| `AerialViewController` | Cámara dron en Etapa5 |
+| `RiskLevelIndicator` | HUD de nivel de riesgo N1–N4 con color y recomendación |
+
+### Módulo de Entorno (Mundo 3D)
+Efectos ambientales reactivos a la etapa.
+
+| Script | Función |
+|---|---|
+| `GrassWindController` | Animación del pasto por etapa |
+| `TreeWindController` | Animación de árboles por etapa |
+| `WaterFlowController` | Color y flujo del río por etapa |
+| `WaterLevelController` | Nivel (Y) del agua por etapa |
+| `RiverDebrisController` | Escombros flotando por el río |
+| `AlarmPoleController` | Alarma 3D espacial desde los postes en etapas críticas |
+| `PulsingPlane` | Pulso de escala en charcos cuando el jugador está cerca (N2–N4) |
+| `RainParticleController` | Partículas de lluvia con intensidad por etapa |
+| `RainGroundSplash` | Impactos de gotas en el suelo (Ripple + Spray + Sparks) |
+| `WaterSplashManager` | Coordinador global de salpicaduras de agua |
 
 ### Módulo de UI / Calibración
 Interfaz general del jugador.
@@ -135,6 +164,20 @@ Interfaz general del jugador.
 |---|---|
 | `UIManager` | HUD con estado GPS/giroscopio, toggle joystick |
 | `SensorCalibrationPanel` | Ajuste manual del giroscopio |
+| `HotspotPromptButton` | Botón HUD que aparece al acercarse a un hotspot |
+
+### Módulo de Interacción (ampliado)
+
+| Script | Función |
+|---|---|
+| `NpcDialoguePanel` | Conversación con NPC con opciones de respuesta |
+| `SiataCallPanel` | Simulación de llamada al SIATA |
+| `MultipleChoicePanel` | Botones A/B/C reutilizados por los paneles anteriores |
+| `CinematicManager` | Video fullscreen con botón Skip |
+| `InfoSlidePanel` | Slides secuenciales de contenido educativo |
+| `SceneOverviewController` | Vista panorámica del barrio con botones de etapa |
+| `CinematicSequencer` | Secuenciador de planos de cámara sin video |
+| `NPCWaypointWalker` | Movimiento del NPC por waypoints tras respuesta correcta |
 
 ---
 

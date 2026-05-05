@@ -82,16 +82,33 @@ Si un clip de audio dura menos que el `fadeTime`, el crossfade puede quedar inco
 
 ---
 
-## Sistemas pendientes del GDD
+## Sistemas implementados (antes pendientes del GDD)
 
-Los siguientes sistemas están en el GDD pero aún no han sido implementados:
+Los siguientes sistemas ya están disponibles y listos para configurar en el Inspector:
+
+| Sistema | Script | Estado |
+|---|---|---|
+| Vista dron Etapa5 | `AerialViewController` | ✅ Implementado — asignar `stageConfigs` y `pivotTarget` |
+| HUD nivel de riesgo | `RiskLevelIndicator` | ✅ Implementado — incluye texto de recomendación por nivel |
+| Efectos visuales por etapa | `VisualEffectsStageController` | ✅ Implementado — skybox, niebla, partículas, post-processing |
+| Viento en vegetación | `GrassWindController` + `TreeWindController` | ✅ Implementado — presets automáticos por etapa |
+| Río dinámico | `WaterFlowController` + `WaterLevelController` | ✅ Implementado — color y nivel de agua por etapa |
+| Escombros en el río | `RiverDebrisController` | ✅ Implementado — rotación y tambaleo Perlin |
+| Alarma en postes | `AlarmPoleController` | ✅ Implementado — audio 3D espacial con sirena |
+| Charcos pulsantes | `PulsingPlane` | ✅ Implementado — activo solo si el jugador está cerca y N2–N4 |
+| Lluvia con impactos | `RainParticleController` + `RainGroundSplash` | ✅ Implementado |
+| Vista panorámica | `SceneOverviewController` + `CinematicSequencer` | ✅ Implementado |
+| NPC caminante | `NPCWaypointWalker` | ✅ Implementado |
+| Botón de hotspot HUD | `HotspotPromptButton` | ✅ Implementado |
+| Slides educativos | `InfoSlidePanel` | ✅ Implementado |
+
+## Sistemas pendientes del GDD
 
 | Sistema | Descripción |
 |---|---|
-| **AerialViewController** | Vista de cámara tipo dron en Etapa5. Actualmente la etapa existe pero sin cambio de perspectiva |
-| **RiskLevelIndicator** | HUD con indicador N1-N4 de nivel de riesgo con colores. Actualmente no hay indicador visual de nivel |
-| **VisualEffectsStageController** | Partículas de lluvia, cambio de skybox, iluminación dinámica por etapa. Actualmente los cambios visuales deben hacerse manualmente con `objectsToActivate/Deactivate` en StageManager |
-| **HotspotUIPanel enriquecido** | El InfoPanel actual es básico (título + texto + ícono). El GDD define un panel con imagen de cabecera, scroll y nivel de riesgo |
+| **HotspotUIPanel enriquecido** | El InfoPanel actual es básico (título + texto + ícono). El GDD define un panel con imagen de cabecera, scroll y nivel de riesgo integrado |
+| **SIRMED Integration** | Autenticación vía JWT desde iframe, reporte de progreso a la API. Documentado en `08_SIRMED_INTEGRACION.md` pero el GameObject `SIRMEDIntegration` aún no existe |
+| **Múltiples barrios** | Solo `CASAS_OLAYA` está construido. `La Cantera Sur` y `San Antonio de Prado` están en el GDD pero sin escena |
 
 ---
 

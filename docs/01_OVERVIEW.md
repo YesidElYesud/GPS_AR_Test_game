@@ -30,6 +30,8 @@ El jugador camina virtualmente por un barrio (usando su teléfono o computador) 
 | Lenguaje | C# |
 | Renderizado | URP / modo skybox |
 | AR manual | GPS + giroscopio del dispositivo (sin ARFoundation) |
+| Scripts C# | 40 scripts de juego + 2 scripts de editor |
+| Escena activa | CASAS_OLAYA (Olaya Herrera, Quebrada La Iguaná) |
 
 **No usa ARFoundation.** La AR se construye manualmente:
 - El **GPS** del teléfono posiciona al jugador en el mundo 3D
