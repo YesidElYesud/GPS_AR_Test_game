@@ -14,9 +14,8 @@ public class RainParticleController : MonoBehaviour
     public float transitionDuration = 0.8f;
 
     [Header("Área")]
-    [Range(10f, 60f)] public float areaSize  = 22f;
-    [Range(8f,  40f)] public float height    = 22f;
-    [Range(5f,  35f)] public float fallSpeed = 16f;
+    [Range(10f, 60f)] public float areaSize = 22f;
+    [Range(8f,  40f)] public float height   = 22f;
 
     [Header("Viento")]
     [Range(0f, 360f)] public float windAngle = 215f;
@@ -30,21 +29,32 @@ public class RainParticleController : MonoBehaviour
 
     public bool followCamera = true;
 
-    // ── Presets: (rate, dropWidth, lengthScale, velocityScale) ──────────────
-    private static readonly (float rate, float width, float len, float vel)[] k_Presets =
+    // Presets: (rate, dropWidth, lengthScale, velocityScale, fallSpeed, windMultiplier, areaScale)
+    // areaScale: fracción de areaSize — Heavy usa área más pequeña para mayor densidad visual frente a cámara
+    private static readonly (float rate, float width, float len, float vel, float spd, float windMult, float areaMult)[] k_Presets =
     {
-        (   0f, 0.000f, 0.0f, 0.000f),   // None
-        ( 180f, 0.020f, 1.3f, 0.006f),   // Light   (era 90)
-        ( 450f, 0.030f, 1.4f, 0.007f),   // Medium  (era 240)
-        ( 900f, 0.040f, 1.5f, 0.008f),   // Heavy   (era 480)
+        (    0f, 0.000f, 0.0f, 0.000f,  0f, 0.0f, 1.00f),   // None
+        (  200f, 0.018f, 1.6f, 0.008f, 18f, 1.0f, 1.00f),   // Light
+        (  550f, 0.030f, 2.2f, 0.013f, 26f, 1.6f, 0.85f),   // Medium
+        ( 1600f, 0.062f, 3.8f, 0.024f, 36f, 2.5f, 0.60f),   // Heavy — torrencial
+    };
+
+    // Color de gota por intensidad (más oscuro/opaco cuanto más fuerte)
+    private static readonly (Color min, Color max)[] k_Colors =
+    {
+        (Color.clear,                                    Color.clear),
+        (new Color(0.72f, 0.86f, 1.00f, 0.50f),  new Color(0.90f, 0.96f, 1.00f, 0.85f)),  // Light
+        (new Color(0.65f, 0.78f, 0.95f, 0.65f),  new Color(0.85f, 0.92f, 1.00f, 0.95f)),  // Medium
+        (new Color(0.50f, 0.65f, 0.82f, 0.78f),  new Color(0.70f, 0.82f, 0.95f, 1.00f)),  // Heavy
     };
 
     // ── Internos ──────────────────────────────────────────────────────────────
     private ParticleSystem         _ps;
     private ParticleSystemRenderer _renderer;
     private Transform              _cam;
-    private float                  _cachedLifetime;
     private float                  _currentRate;
+    private float                  _currentSpeed;
+    private float                  _currentArea;
     private Coroutine              _transitionRoutine;
     private RainGroundSplash       _splash;
 
@@ -96,18 +106,24 @@ public class RainParticleController : MonoBehaviour
     // ── Construir PS ──────────────────────────────────────────────────────────
     private void BuildParticleSystem()
     {
-        _cachedLifetime = (height / fallSpeed) + 0.4f;
-        int maxP = Mathf.CeilToInt(k_Presets[(int)RainIntensity.Heavy].rate * _cachedLifetime * 1.2f);
+        // maxParticles calculado desde Heavy (peor caso)
+        var (heavyRate, _, _, _, heavySpd, _, _) = k_Presets[(int)RainIntensity.Heavy];
+        float heavyLifetime = (height / heavySpd) + 0.4f;
+        int maxP = Mathf.CeilToInt(heavyRate * heavyLifetime * 1.2f);
+
+        // Baseline desde Light
+        var (_, _, lightLen, lightVel, lightSpd, _, lightAreaMult) = k_Presets[(int)RainIntensity.Light];
+        float baseLifetime = (height / lightSpd) + 0.4f;
+        float lightArea    = lightAreaMult * areaSize;
 
         var main             = _ps.main;
         main.loop            = true;
         main.playOnAwake     = false;
         main.startSpeed      = 0f;
-        main.startLifetime   = new ParticleSystem.MinMaxCurve(_cachedLifetime * 0.82f, _cachedLifetime * 1.18f);
-        main.startSize       = new ParticleSystem.MinMaxCurve(0.020f, 0.040f);
-        main.startColor      = new ParticleSystem.MinMaxGradient(
-                                   new Color(0.72f, 0.86f, 1.00f, 0.60f),
-                                   new Color(0.90f, 0.96f, 1.00f, 0.95f));
+        main.startLifetime   = new ParticleSystem.MinMaxCurve(baseLifetime * 0.82f, baseLifetime * 1.18f);
+        main.startSize       = new ParticleSystem.MinMaxCurve(0.018f, 0.030f);
+        main.startColor      = new ParticleSystem.MinMaxGradient(k_Colors[(int)RainIntensity.Light].min,
+                                                                   k_Colors[(int)RainIntensity.Light].max);
         main.maxParticles    = maxP;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.gravityModifier = 0f;
@@ -116,18 +132,10 @@ public class RainParticleController : MonoBehaviour
         var shape       = _ps.shape;
         shape.enabled   = true;
         shape.shapeType = ParticleSystemShapeType.Box;
-        shape.scale     = new Vector3(areaSize, 0.2f, areaSize);
+        shape.scale     = new Vector3(lightArea, 0.2f, lightArea);
+        _currentArea    = lightArea;
 
-        float rad = windAngle * Mathf.Deg2Rad;
-        float wx  = Mathf.Sin(rad) * windSpeed;
-        float wz  = Mathf.Cos(rad) * windSpeed;
-
-        var vol     = _ps.velocityOverLifetime;
-        vol.enabled = true;
-        vol.space   = ParticleSystemSimulationSpace.World;
-        vol.x       = new ParticleSystem.MinMaxCurve(wx * 0.88f, wx * 1.12f);
-        vol.y       = new ParticleSystem.MinMaxCurve(-fallSpeed * 1.08f, -fallSpeed * 0.92f);
-        vol.z       = new ParticleSystem.MinMaxCurve(wz * 0.88f, wz * 1.12f);
+        ApplyVelocityOverLifetime(lightSpd, 1.0f);
 
         var colLife     = _ps.colorOverLifetime;
         colLife.enabled = true;
@@ -151,13 +159,27 @@ public class RainParticleController : MonoBehaviour
         emission.rateOverTime = 0f;
 
         _renderer.renderMode        = ParticleSystemRenderMode.Stretch;
-        _renderer.velocityScale     = k_Presets[(int)RainIntensity.Medium].vel;
-        _renderer.lengthScale       = k_Presets[(int)RainIntensity.Medium].len;
+        _renderer.velocityScale     = lightVel;
+        _renderer.lengthScale       = lightLen;
         _renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         _renderer.receiveShadows    = false;
         _renderer.sortingFudge      = -1f;
 
         _renderer.material = (rainMaterial != null) ? rainMaterial : BuildRainMaterial();
+    }
+
+    private void ApplyVelocityOverLifetime(float spd, float windMult)
+    {
+        float rad = windAngle * Mathf.Deg2Rad;
+        float wx  = Mathf.Sin(rad) * windSpeed * windMult;
+        float wz  = Mathf.Cos(rad) * windSpeed * windMult;
+
+        var vol     = _ps.velocityOverLifetime;
+        vol.enabled = true;
+        vol.space   = ParticleSystemSimulationSpace.World;
+        vol.x       = new ParticleSystem.MinMaxCurve(wx * 0.88f, wx * 1.12f);
+        vol.y       = new ParticleSystem.MinMaxCurve(-spd * 1.08f, -spd * 0.92f);
+        vol.z       = new ParticleSystem.MinMaxCurve(wz * 0.88f, wz * 1.12f);
     }
 
     // ── Material ──────────────────────────────────────────────────────────────
@@ -212,42 +234,72 @@ public class RainParticleController : MonoBehaviour
     // ── Intensidad ────────────────────────────────────────────────────────────
     private void ApplyIntensityImmediate(RainIntensity preset)
     {
-        var (rate, width, len, vel) = k_Presets[(int)preset];
+        var (rate, width, len, vel, spd, windMult, areaMult) = k_Presets[(int)preset];
         var emission = _ps.emission;
 
         if (preset == RainIntensity.None)
         {
             emission.rateOverTime = 0f;
             _ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
-            _currentRate = 0f;
+            _currentRate  = 0f;
+            _currentSpeed = 0f;
+            _currentArea  = 0f;
             return;
         }
 
-        var main          = _ps.main;
-        main.startSize    = new ParticleSystem.MinMaxCurve(width * 0.65f, width * 1.35f);
-        main.maxParticles = Mathf.CeilToInt(rate * _cachedLifetime * 1.2f);
+        float lifetime = (height / spd) + 0.4f;
+        float area     = areaMult * areaSize;
+
+        var main           = _ps.main;
+        main.startSize     = new ParticleSystem.MinMaxCurve(width * 0.65f, width * 1.35f);
+        main.startLifetime = new ParticleSystem.MinMaxCurve(lifetime * 0.82f, lifetime * 1.18f);
+        main.startColor    = new ParticleSystem.MinMaxGradient(k_Colors[(int)preset].min, k_Colors[(int)preset].max);
+        main.maxParticles  = Mathf.CeilToInt(rate * lifetime * 1.2f);
 
         _renderer.lengthScale   = len;
         _renderer.velocityScale = vel;
-        emission.rateOverTime   = rate;
-        _currentRate            = rate;
+
+        ApplyVelocityOverLifetime(spd, windMult);
+
+        var sh    = _ps.shape;
+        sh.scale  = new Vector3(area, 0.2f, area);
+
+        emission.rateOverTime = rate;
+        _currentRate          = rate;
+        _currentSpeed         = spd;
+        _currentArea          = area;
 
         if (!_ps.isPlaying) _ps.Play();
     }
 
     private IEnumerator IntensityTransition(RainIntensity target)
     {
-        var (targetRate, width, len, vel) = k_Presets[(int)target];
-        float startRate = _currentRate;
-        float elapsed   = 0f;
+        var (targetRate, width, len, vel, targetSpd, windMult, areaMult) = k_Presets[(int)target];
+        float startRate  = _currentRate;
+        float startSpeed = _currentSpeed;
+        bool  lerpSpeed  = startSpeed > 0f && targetSpd > 0f;
+        float elapsed    = 0f;
 
         if (target != RainIntensity.None)
         {
-            var main          = _ps.main;
-            main.startSize    = new ParticleSystem.MinMaxCurve(width * 0.65f, width * 1.35f);
-            main.maxParticles = Mathf.CeilToInt(targetRate * _cachedLifetime * 1.2f);
+            float lifetime   = (height / targetSpd) + 0.4f;
+            float targetArea = areaMult * areaSize;
+
+            var main           = _ps.main;
+            main.startSize     = new ParticleSystem.MinMaxCurve(width * 0.65f, width * 1.35f);
+            main.startLifetime = new ParticleSystem.MinMaxCurve(lifetime * 0.82f, lifetime * 1.18f);
+            main.startColor    = new ParticleSystem.MinMaxGradient(k_Colors[(int)target].min, k_Colors[(int)target].max);
+            main.maxParticles  = Mathf.CeilToInt(targetRate * lifetime * 1.2f);
             _renderer.lengthScale   = len;
             _renderer.velocityScale = vel;
+
+            // El área nueva se aplica desde el primer frame: las gotas viejas (área anterior)
+            // mueren solas en su lifetime; las nuevas ya nacen en el área concentrada.
+            var sh   = _ps.shape;
+            sh.scale = new Vector3(targetArea, 0.2f, targetArea);
+            _currentArea = targetArea;
+
+            if (!lerpSpeed) ApplyVelocityOverLifetime(targetSpd, windMult);
             if (!_ps.isPlaying) _ps.Play();
         }
 
@@ -255,17 +307,25 @@ public class RainParticleController : MonoBehaviour
         while (elapsed < transitionDuration)
         {
             elapsed += Time.deltaTime;
-            float t  = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / transitionDuration));
+            float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / transitionDuration));
+
             emission.rateOverTime = Mathf.Lerp(startRate, targetRate, t);
             _currentRate          = emission.rateOverTime.constant;
+
+            if (lerpSpeed)
+                ApplyVelocityOverLifetime(Mathf.Lerp(startSpeed, targetSpd, t), windMult);
+
             yield return null;
         }
 
         emission.rateOverTime = targetRate;
         _currentRate          = targetRate;
+        _currentSpeed         = targetSpd;
 
         if (target == RainIntensity.None)
             _ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+        else if (lerpSpeed)
+            ApplyVelocityOverLifetime(targetSpd, windMult);
 
         _transitionRoutine = null;
     }
