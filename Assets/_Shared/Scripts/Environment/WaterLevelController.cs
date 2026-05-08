@@ -44,6 +44,24 @@ public class WaterLevelController : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Mueve el río al nivel configurado para una etapa concreta.
+    /// Útil para previsualización en el hub sin modificar StageManager.
+    /// </summary>
+    public void ForceStage(StageManager.Stage stage, float overrideDuration = -1f)
+    {
+        if (waterMesh == null) return;
+        foreach (var cfg in stageConfigs)
+        {
+            if (cfg.stage == stage)
+            {
+                float dur = overrideDuration >= 0f ? overrideDuration : cfg.transitionDuration;
+                MoveToLevel(cfg.targetPosition, dur);
+                return;
+            }
+        }
+    }
+
     private void OnDestroy()
     {
         if (StageManager.Instance != null)

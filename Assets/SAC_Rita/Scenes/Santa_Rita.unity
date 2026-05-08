@@ -230196,6 +230196,9 @@ MonoBehaviour:
     rainIntensity: 3
   - stage: 4
     rainIntensity: 3
+  normalButtonScale: 0.82
+  activeButtonScale: 1
+  buttonScaleSpeed: 10
   rainController: {fileID: 1871539953}
 --- !u!4 &2044612113
 Transform:

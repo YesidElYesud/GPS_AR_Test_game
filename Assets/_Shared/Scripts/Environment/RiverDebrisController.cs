@@ -117,6 +117,8 @@ public class RiverDebrisController : MonoBehaviour
     }
 
     // ── API pública ───────────────────────────────────────────────────────────
+    public bool IsActive => _isActive;
+
     public void Activate()
     {
         if (_isActive) return;

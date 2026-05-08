@@ -2,83 +2,135 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// Controla la animación de flujo de agua sobre una malla con el shader Custom/WaterFlow.
-/// También funciona en modo fallback con cualquier shader estándar (scroll de _MainTex).
-///
-/// El color del agua cambia automáticamente al cambiar de etapa, interpolando
-/// suavemente entre el color configurado para cada stage.
-///
-/// Uso:
-///   1. Asignar el script al GameObject "agua" (o "rio") del Terrain_V2.
-///   2. Si el material usa Custom/WaterFlow → dejar fallbackMode = false.
-///   3. Si el material usa otro shader → activar fallbackMode = true (solo scrollea _MainTex).
-///   4. Ajustar flowDirection y los colores por etapa en el Inspector.
-///
-/// API pública:
-///   SetFlowDirection(Vector2)  — cambia dirección en tiempo de ejecución
-///   SetSpeed(float)            — cambia velocidad
-///   SetColor(Color)            — aplica un color directamente
-///   LerpColor(Color, Color, t) — interpola color entre dos valores
+/// Controla animación de flujo y apariencia del agua sobre una malla con shader Custom/WaterFlow.
+/// Al cambiar de etapa interpola suavemente: color del agua, color de espuma,
+/// intensidad de espuma, brillo y fuerza de ondas — consiguiendo el efecto
+/// de agua turbia/lodosa a medida que sube el nivel de riesgo.
 /// </summary>
 [RequireComponent(typeof(MeshRenderer))]
 public class WaterFlowController : MonoBehaviour
 {
-    // ─── Parámetros de flujo ───────────────────────────────────────────────
-    [Header("Dirección de corriente")]
-    [Tooltip("Vector 2D que indica hacia dónde fluye el agua. Se normaliza automáticamente.")]
+    // ── Corriente ─────────────────────────────────────────────────────────────
+    [Header("Corriente")]
     [SerializeField] private Vector2 flowDirection = new Vector2(1f, 0f);
-
-    [Tooltip("Velocidad de desplazamiento de la textura.")]
     [SerializeField] [Range(0f, 1f)] private float flowSpeed = 0.08f;
 
-    // ─── Color base ───────────────────────────────────────────────────────
-    [Header("Color base")]
-    [Tooltip("Color inicial del agua (se usa si 'stageColors' está vacío o para Intro).")]
-    [SerializeField] private Color waterColor = new Color(0.18f, 0.48f, 0.75f, 0.75f);
-
-    // ─── Color por etapa ──────────────────────────────────────────────────
+    // ── Config visual por etapa ───────────────────────────────────────────────
     [System.Serializable]
-    public class StageColorConfig
+    public class StageWaterConfig
     {
         public StageManager.Stage stage;
-        [Tooltip("Color del agua al entrar a esta etapa.")]
-        public Color color;
+
+        [Tooltip("Color base del agua (RGB = tinte, A = opacidad).")]
+        public Color waterColor = new Color(0.18f, 0.48f, 0.75f, 0.75f);
+
+        [Tooltip("Color de la espuma superficial. En crecidas usar tonos arena/barro.")]
+        public Color foamColor  = new Color(0.85f, 0.92f, 1.00f, 0.50f);
+
+        [Tooltip("Intensidad de la espuma (0 = sin espuma, 1 = espuma total).")]
+        [Range(0f, 1f)] public float foamBlend    = 0.28f;
+
+        [Tooltip("Brillo especular. Agua lodosa = valores bajos (≈0.2).")]
+        [Range(0f, 1f)] public float glossiness   = 0.85f;
+
+        [Tooltip("Intensidad de las ondas del normal map. Crecida = valores altos.")]
+        [Range(0f, 3f)] public float bumpStrength = 0.65f;
     }
 
-    [Header("Color por etapa")]
-    [Tooltip("Color del agua para cada etapa. Si una etapa no está en la lista, mantiene el color anterior.")]
-    public StageColorConfig[] stageColors = new StageColorConfig[]
+    [Header("Apariencia por etapa")]
+    public StageWaterConfig[] stageConfigs = new StageWaterConfig[]
     {
-        new StageColorConfig { stage = StageManager.Stage.Intro,  color = new Color(0.18f, 0.48f, 0.75f, 0.75f) }, // azul claro
-        new StageColorConfig { stage = StageManager.Stage.Etapa1, color = new Color(0.18f, 0.48f, 0.75f, 0.75f) }, // azul claro
-        new StageColorConfig { stage = StageManager.Stage.Etapa2, color = new Color(0.20f, 0.44f, 0.60f, 0.80f) }, // azul más oscuro
-        new StageColorConfig { stage = StageManager.Stage.Etapa3, color = new Color(0.42f, 0.30f, 0.12f, 0.85f) }, // marrón intermedio
-        new StageColorConfig { stage = StageManager.Stage.Etapa4, color = new Color(0.38f, 0.22f, 0.06f, 0.90f) }, // marrón oscuro crecida
-        new StageColorConfig { stage = StageManager.Stage.Etapa5, color = new Color(0.35f, 0.26f, 0.10f, 0.88f) }, // marrón residual
+        // ── Intro / Etapa 1 — quebrada normal, agua clara ─────────────────────
+        new StageWaterConfig
+        {
+            stage        = StageManager.Stage.Intro,
+            waterColor   = new Color(0.15f, 0.40f, 0.65f, 0.75f),
+            foamColor    = new Color(0.85f, 0.92f, 1.00f, 0.50f),
+            foamBlend    = 0.22f, glossiness = 0.88f, bumpStrength = 0.55f
+        },
+        new StageWaterConfig
+        {
+            stage        = StageManager.Stage.Etapa1,
+            waterColor   = new Color(0.15f, 0.40f, 0.65f, 0.75f),
+            foamColor    = new Color(0.85f, 0.92f, 1.00f, 0.50f),
+            foamBlend    = 0.22f, glossiness = 0.88f, bumpStrength = 0.55f
+        },
+        // ── Etapa 2 — primeras lluvias, turbiedad leve ────────────────────────
+        new StageWaterConfig
+        {
+            stage        = StageManager.Stage.Etapa2,
+            waterColor   = new Color(0.20f, 0.38f, 0.54f, 0.82f),
+            foamColor    = new Color(0.80f, 0.84f, 0.88f, 0.55f),
+            foamBlend    = 0.28f, glossiness = 0.68f, bumpStrength = 0.90f
+        },
+        // ── Etapa 3 — crecida activa, agua marrón lodosa ─────────────────────
+        new StageWaterConfig
+        {
+            stage        = StageManager.Stage.Etapa3,
+            waterColor   = new Color(0.50f, 0.30f, 0.07f, 0.90f),
+            foamColor    = new Color(0.80f, 0.68f, 0.38f, 0.68f),
+            foamBlend    = 0.44f, glossiness = 0.38f, bumpStrength = 1.60f
+        },
+        // ── Etapa 4 — crecida máxima, barro oscuro ───────────────────────────
+        new StageWaterConfig
+        {
+            stage        = StageManager.Stage.Etapa4,
+            waterColor   = new Color(0.36f, 0.18f, 0.03f, 0.96f),
+            foamColor    = new Color(0.64f, 0.48f, 0.20f, 0.78f),
+            foamBlend    = 0.55f, glossiness = 0.20f, bumpStrength = 2.10f
+        },
+        // ── Etapa 5 — post-evento, barro residual ────────────────────────────
+        new StageWaterConfig
+        {
+            stage        = StageManager.Stage.Etapa5,
+            waterColor   = new Color(0.40f, 0.26f, 0.08f, 0.88f),
+            foamColor    = new Color(0.72f, 0.60f, 0.32f, 0.60f),
+            foamBlend    = 0.32f, glossiness = 0.34f, bumpStrength = 1.20f
+        },
     };
 
-    [Tooltip("Duración de la transición de color al cambiar de etapa (segundos).")]
-    [Range(0f, 8f)]
-    public float colorTransitionDuration = 3.0f;
+    [Tooltip("Segundos de transición de apariencia al cambiar de etapa.")]
+    [Range(0f, 8f)] public float transitionDuration = 3.0f;
 
-    // ─── Modo de compatibilidad ────────────────────────────────────────────
+    // ── Compatibilidad ────────────────────────────────────────────────────────
     [Header("Compatibilidad")]
-    [Tooltip("TRUE: scroll manual de _MainTex (cualquier shader). " +
-             "FALSE: usa propiedades de Custom/WaterFlow (mejor calidad).")]
+    [Tooltip("TRUE: solo hace scroll de _MainTex (cualquier shader).\n" +
+             "FALSE: usa todas las propiedades de Custom/WaterFlow.")]
     [SerializeField] private bool fallbackMode = false;
 
-    // ─── Interno ──────────────────────────────────────────────────────────
+    // ── Estado interno ────────────────────────────────────────────────────────
     private Material  _mat;
-    private Coroutine _colorRoutine;
+    private Coroutine _transitionRoutine;
 
-    private static readonly int PropFlowDir   = Shader.PropertyToID("_FlowDirection");
-    private static readonly int PropFlowSpeed = Shader.PropertyToID("_FlowSpeed");
-    private static readonly int PropColor     = Shader.PropertyToID("_Color");
+    // Apariencia actual (usada como "from" en las transiciones)
+    private Color _curWater;
+    private Color _curFoam;
+    private float _curFoamBlend;
+    private float _curGlossiness;
+    private float _curBumpStrength;
 
-    // ──────────────────────────────────────────────────────────────────────
+    // IDs de propiedades del shader
+    private static readonly int PropFlowDir      = Shader.PropertyToID("_FlowDirection");
+    private static readonly int PropFlowSpeed    = Shader.PropertyToID("_FlowSpeed");
+    private static readonly int PropColor        = Shader.PropertyToID("_Color");
+    private static readonly int PropFoamColor    = Shader.PropertyToID("_FoamColor");
+    private static readonly int PropFoamBlend    = Shader.PropertyToID("_FoamBlend");
+    private static readonly int PropGlossiness   = Shader.PropertyToID("_Glossiness");
+    private static readonly int PropBumpStrength = Shader.PropertyToID("_BumpStrength");
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
     void Awake()
     {
         _mat = GetComponent<MeshRenderer>().material;
+
+        // Inicializar estado con la primera config disponible
+        var init = FindConfig(StageManager.Stage.Etapa1);
+        _curWater       = init.waterColor;
+        _curFoam        = init.foamColor;
+        _curFoamBlend   = init.foamBlend;
+        _curGlossiness  = init.glossiness;
+        _curBumpStrength = init.bumpStrength;
+
         PushToMaterial();
     }
 
@@ -87,8 +139,7 @@ public class WaterFlowController : MonoBehaviour
         if (StageManager.Instance != null)
         {
             StageManager.Instance.OnStageChanged += OnStageChanged;
-            // Aplicar color de la etapa inicial sin transición
-            ApplyStageColor(StageManager.Instance.CurrentStage, instant: true);
+            ApplyStageConfig(StageManager.Instance.CurrentStage, instant: true);
         }
     }
 
@@ -101,112 +152,131 @@ public class WaterFlowController : MonoBehaviour
     void Update()
     {
         if (!fallbackMode) return;
-
-        Vector2 dir    = NormalizedDir();
-        Vector2 offset = dir * (flowSpeed * Time.time);
-        _mat.SetTextureOffset("_MainTex", offset);
+        _mat.SetTextureOffset("_MainTex", NormalizedDir() * (flowSpeed * Time.time));
     }
 
-    // ─── Reacción a cambio de etapa ───────────────────────────────────────
+    // ── Reacción a etapas ─────────────────────────────────────────────────────
     private void OnStageChanged(StageManager.Stage prev, StageManager.Stage next)
+        => ApplyStageConfig(next, instant: false);
+
+    private void ApplyStageConfig(StageManager.Stage stage, bool instant)
     {
-        ApplyStageColor(next, instant: false);
-    }
+        var cfg = FindConfig(stage);
 
-    private void ApplyStageColor(StageManager.Stage stage, bool instant)
-    {
-        Color target = FindStageColor(stage);
+        if (_transitionRoutine != null)
+            StopCoroutine(_transitionRoutine);
 
-        if (_colorRoutine != null)
-            StopCoroutine(_colorRoutine);
-
-        if (instant || colorTransitionDuration <= 0f)
-        {
-            SetColor(target);
-        }
+        if (instant || transitionDuration <= 0f)
+            SnapToConfig(cfg);
         else
-        {
-            _colorRoutine = StartCoroutine(ColorTransitionRoutine(waterColor, target));
-        }
+            _transitionRoutine = StartCoroutine(TransitionRoutine(cfg));
     }
 
-    private Color FindStageColor(StageManager.Stage stage)
+    private StageWaterConfig FindConfig(StageManager.Stage stage)
     {
-        if (stageColors == null) return waterColor;
-        foreach (var entry in stageColors)
-            if (entry.stage == stage) return entry.color;
-        return waterColor;
+        if (stageConfigs != null)
+            foreach (var c in stageConfigs)
+                if (c.stage == stage) return c;
+
+        return new StageWaterConfig { stage = stage };
     }
 
-    private IEnumerator ColorTransitionRoutine(Color from, Color to)
+    // ── Aplicación de apariencia ──────────────────────────────────────────────
+    private void SnapToConfig(StageWaterConfig cfg)
     {
+        _curWater        = cfg.waterColor;
+        _curFoam         = cfg.foamColor;
+        _curFoamBlend    = cfg.foamBlend;
+        _curGlossiness   = cfg.glossiness;
+        _curBumpStrength = cfg.bumpStrength;
+        PushToMaterial();
+    }
+
+    private IEnumerator TransitionRoutine(StageWaterConfig to)
+    {
+        Color fromWater  = _curWater;
+        Color fromFoam   = _curFoam;
+        float fromFoamB  = _curFoamBlend;
+        float fromGloss  = _curGlossiness;
+        float fromBump   = _curBumpStrength;
+
         float elapsed = 0f;
-        while (elapsed < colorTransitionDuration)
+        while (elapsed < transitionDuration)
         {
             elapsed += Time.deltaTime;
-            SetColor(Color.Lerp(from, to,
-                Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / colorTransitionDuration))));
+            float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / transitionDuration));
+
+            _curWater        = Color.Lerp(fromWater, to.waterColor,   t);
+            _curFoam         = Color.Lerp(fromFoam,  to.foamColor,    t);
+            _curFoamBlend    = Mathf.Lerp(fromFoamB, to.foamBlend,    t);
+            _curGlossiness   = Mathf.Lerp(fromGloss, to.glossiness,   t);
+            _curBumpStrength = Mathf.Lerp(fromBump,  to.bumpStrength, t);
+            PushToMaterial();
             yield return null;
         }
-        SetColor(to);
-        _colorRoutine = null;
+        SnapToConfig(to);
+        _transitionRoutine = null;
     }
 
-    // ─── API pública ──────────────────────────────────────────────────────
-
-    /// <summary>Cambia la dirección del flujo en tiempo de ejecución.</summary>
-    public void SetFlowDirection(Vector2 dir)
-    {
-        flowDirection = dir;
-        PushToMaterial();
-    }
-
-    /// <summary>Cambia la velocidad del flujo.</summary>
-    public void SetSpeed(float speed)
-    {
-        flowSpeed = Mathf.Max(0f, speed);
-        PushToMaterial();
-    }
-
-    /// <summary>Aplica un color directamente (cancela cualquier transición en curso).</summary>
-    public void SetColor(Color color)
-    {
-        waterColor = color;
-        if (!fallbackMode && _mat != null)
-            _mat.SetColor(PropColor, color);
-    }
-
-    /// <summary>Interpola el color entre <paramref name="from"/> y <paramref name="to"/>.</summary>
-    public void LerpColor(Color from, Color to, float t)
-        => SetColor(Color.Lerp(from, to, Mathf.Clamp01(t)));
-
-    // ─── Interno ──────────────────────────────────────────────────────────
     private void PushToMaterial()
     {
         if (_mat == null || fallbackMode) return;
 
         Vector2 dir = NormalizedDir();
-        _mat.SetVector(PropFlowDir,   new Vector4(dir.x, dir.y, 0f, 0f));
-        _mat.SetFloat (PropFlowSpeed, flowSpeed);
-        _mat.SetColor (PropColor,     waterColor);
+        _mat.SetVector(PropFlowDir,      new Vector4(dir.x, dir.y, 0f, 0f));
+        _mat.SetFloat (PropFlowSpeed,    flowSpeed);
+        _mat.SetColor (PropColor,        _curWater);
+        _mat.SetColor (PropFoamColor,    _curFoam);
+        _mat.SetFloat (PropFoamBlend,    _curFoamBlend);
+        _mat.SetFloat (PropGlossiness,   _curGlossiness);
+        _mat.SetFloat (PropBumpStrength, _curBumpStrength);
     }
 
-    private Vector2 NormalizedDir()
+    // ── API pública ───────────────────────────────────────────────────────────
+    public void SetFlowDirection(Vector2 dir) { flowDirection = dir; PushToMaterial(); }
+    public void SetSpeed(float speed)         { flowSpeed = Mathf.Max(0f, speed); PushToMaterial(); }
+
+    /// <summary>
+    /// Fuerza la apariencia de una etapa concreta sin necesitar OnStageChanged.
+    /// Útil para previsualización en el hub panorámico.
+    /// </summary>
+    public void ForceStage(StageManager.Stage stage, float overrideDuration = -1f)
     {
-        return flowDirection.sqrMagnitude > 0.0001f
-            ? flowDirection.normalized
-            : Vector2.right;
+        var cfg = FindConfig(stage);
+
+        if (_transitionRoutine != null)
+            StopCoroutine(_transitionRoutine);
+
+        float dur = overrideDuration >= 0f ? overrideDuration : transitionDuration;
+        if (dur <= 0f)
+            SnapToConfig(cfg);
+        else
+            _transitionRoutine = StartCoroutine(TransitionRoutine(cfg));
     }
+
+    public void SetColor(Color color)
+    {
+        _curWater = color;
+        if (!fallbackMode && _mat != null) _mat.SetColor(PropColor, color);
+    }
+
+    public void LerpColor(Color from, Color to, float t)
+        => SetColor(Color.Lerp(from, to, Mathf.Clamp01(t)));
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    private Vector2 NormalizedDir()
+        => flowDirection.sqrMagnitude > 0.0001f ? flowDirection.normalized : Vector2.right;
 
 #if UNITY_EDITOR
     void OnValidate()
     {
-        if (_mat == null)
-        {
-            var r = GetComponent<MeshRenderer>();
-            if (r != null) _mat = r.sharedMaterial;
-        }
-        PushToMaterial();
+        var r = GetComponent<MeshRenderer>();
+        if (r == null) return;
+        var mat = Application.isPlaying ? _mat : r.sharedMaterial;
+        if (mat == null) return;
+        Vector2 dir = NormalizedDir();
+        mat.SetVector(PropFlowDir,   new Vector4(dir.x, dir.y, 0f, 0f));
+        mat.SetFloat (PropFlowSpeed, flowSpeed);
     }
 #endif
 }

@@ -73,6 +73,24 @@ public class SceneOverviewController : MonoBehaviour
     [Tooltip("Una entrada por botón de etapa. El índice debe coincidir con stageButtons[].")]
     public OverviewStageConfig[] previewConfigs;
 
+    [Header("Sistemas de río (preview)")]
+    [Tooltip("WaterLevelController del río. Se busca automáticamente si queda vacío.")]
+    public WaterLevelController waterLevelController;
+    [Tooltip("WaterFlowController del río. Se busca automáticamente si queda vacío.")]
+    public WaterFlowController waterFlowController;
+    [Tooltip("Duración de transición del río al cambiar preview (segundos).")]
+    [Range(0.2f, 4f)] public float previewWaterTransition = 1.2f;
+    [Tooltip("RiverDebrisControllers de la escena. Se buscan automáticamente si queda vacío.")]
+    public RiverDebrisController[] debrisControllers;
+
+    [Header("Escala de botones")]
+    [Tooltip("Escala de los botones inactivos (más pequeños).")]
+    [Range(0.5f, 1f)]  public float normalButtonScale = 0.82f;
+    [Tooltip("Escala del botón de la etapa seleccionada actualmente.")]
+    [Range(0.8f, 1.2f)] public float activeButtonScale = 1.0f;
+    [Tooltip("Velocidad de la transición suave entre escalas.")]
+    [Range(1f, 20f)]   public float buttonScaleSpeed   = 10f;
+
     [Header("Referencias")]
     [Tooltip("Se busca automáticamente en la escena si queda vacío.")]
     public RainParticleController rainController;
@@ -89,6 +107,7 @@ public class SceneOverviewController : MonoBehaviour
     private bool[]             _hudWasActive;
     private int                _currentPreviewIndex = -1;
     private RainParticleController.RainIntensity _savedRainIntensity;
+    private float[]            _buttonTargetScales;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
@@ -114,6 +133,30 @@ public class SceneOverviewController : MonoBehaviour
 
         if (rainController == null)
             rainController = FindObjectOfType<RainParticleController>();
+
+        if (waterLevelController == null)
+            waterLevelController = FindObjectOfType<WaterLevelController>();
+
+        if (waterFlowController == null)
+            waterFlowController = FindObjectOfType<WaterFlowController>();
+
+        if (debrisControllers == null || debrisControllers.Length == 0)
+            debrisControllers = FindObjectsOfType<RiverDebrisController>();
+    }
+
+    private void Update()
+    {
+        if (!_active || stageButtons == null || _buttonTargetScales == null) return;
+
+        for (int i = 0; i < stageButtons.Length; i++)
+        {
+            if (stageButtons[i] == null) continue;
+            var t       = stageButtons[i].transform;
+            float cur   = t.localScale.x;
+            float tgt   = _buttonTargetScales[i];
+            float next  = Mathf.Lerp(cur, tgt, Time.deltaTime * buttonScaleSpeed);
+            t.localScale = new Vector3(next, next, 1f);
+        }
     }
 
     // ── API pública ────────────────────────────────────────────────────────────
@@ -210,6 +253,15 @@ public class SceneOverviewController : MonoBehaviour
         if (rainController != null)
             rainController.SetIntensity(config.rainIntensity);
 
+        // Nivel y apariencia del río
+        waterLevelController?.ForceStage(config.stage, previewWaterTransition);
+        waterFlowController?.ForceStage(config.stage, previewWaterTransition);
+
+        // Escombros: visibles solo si la etapa preview los activaría en gameplay
+        if (debrisControllers != null)
+            foreach (var dc in debrisControllers)
+                if (dc != null) ApplyDebrisForPreviewStage(dc, config.stage);
+
         RefreshButtonStates();
     }
 
@@ -221,6 +273,9 @@ public class SceneOverviewController : MonoBehaviour
 
         // Arrancar el bucle (snaps al primer shot bajo el fade negro)
         overviewSequencer.PlayLoop();
+
+        // Inicializar array de escalas: todos pequeños bajo el fade (sin animación visible)
+        InitButtonScalesImmediate(normalButtonScale);
 
         // Aplicar preset inicial: la etapa real si tiene config, si no la primera disponible
         int initialIndex = FindBestInitialPreview();
@@ -267,6 +322,13 @@ public class SceneOverviewController : MonoBehaviour
             VisualEffectsStageController.Instance?.ForceApplyStage((int)_realStage, fade: true);
             if (rainController != null)
                 rainController.SetIntensity(_savedRainIntensity);
+
+            // Restaurar nivel, apariencia del río y escombros a la etapa real
+            waterLevelController?.ForceStage(_realStage, previewWaterTransition);
+            waterFlowController?.ForceStage(_realStage, previewWaterTransition);
+            if (debrisControllers != null)
+                foreach (var dc in debrisControllers)
+                    if (dc != null) ApplyDebrisForPreviewStage(dc, _realStage);
         }
 
         // Notificar al hotspot que terminó la interacción
@@ -285,17 +347,27 @@ public class SceneOverviewController : MonoBehaviour
 
         if (overviewPanel != null) overviewPanel.SetActive(false);
 
+        // Resetear escalas al tamaño normal (por si el panel se vuelve a abrir)
+        InitButtonScalesImmediate(1f);
+
         // Revelar vista del jugador
         yield return StartCoroutine(DoFade(1f, 0f, fadeDuration));
         _transitionRoutine = null;
     }
 
-    // ── Botones: visibilidad y estado activo ──────────────────────────────────
+    // ── Botones: visibilidad, estado activo y escala objetivo ────────────────
     private void RefreshButtonStates()
     {
         if (stageButtons == null || previewConfigs == null) return;
 
         int reachedStage = StageManager.Instance != null ? (int)StageManager.Instance.CurrentStage : 0;
+
+        // Asegurar que el array de escalas objetivo existe
+        if (_buttonTargetScales == null || _buttonTargetScales.Length != stageButtons.Length)
+        {
+            _buttonTargetScales = new float[stageButtons.Length];
+            for (int i = 0; i < _buttonTargetScales.Length; i++) _buttonTargetScales[i] = normalButtonScale;
+        }
 
         for (int i = 0; i < stageButtons.Length; i++)
         {
@@ -308,6 +380,9 @@ public class SceneOverviewController : MonoBehaviour
             stageButtons[i].gameObject.SetActive(unlocked);
             if (!unlocked) continue;
 
+            // Escala objetivo: activo = tamaño completo, inactivos = más pequeños
+            _buttonTargetScales[i] = isActive ? activeButtonScale : normalButtonScale;
+
             // Resaltar el botón activo y deshabilitar su interactividad
             stageButtons[i].interactable = !isActive;
             var cb = stageButtons[i].colors;
@@ -315,6 +390,33 @@ public class SceneOverviewController : MonoBehaviour
             cb.highlightedColor = isActive ? new Color(0.30f, 0.65f, 1.00f) : new Color(0.90f, 0.90f, 0.90f);
             stageButtons[i].colors = cb;
         }
+    }
+
+    // Snap instantáneo de todas las escalas (se usa bajo el fade negro)
+    private void InitButtonScalesImmediate(float scale)
+    {
+        if (stageButtons == null) return;
+
+        if (_buttonTargetScales == null || _buttonTargetScales.Length != stageButtons.Length)
+            _buttonTargetScales = new float[stageButtons.Length];
+
+        for (int i = 0; i < stageButtons.Length; i++)
+        {
+            _buttonTargetScales[i] = scale;
+            if (stageButtons[i] != null)
+                stageButtons[i].transform.localScale = new Vector3(scale, scale, 1f);
+        }
+    }
+
+    // ── Helpers de río / escombros ────────────────────────────────────────────
+
+    /// Activa o desactiva un RiverDebrisController según si la etapa de preview
+    /// es suficiente para que debería estar activo en gameplay normal.
+    private void ApplyDebrisForPreviewStage(RiverDebrisController dc, StageManager.Stage previewStage)
+    {
+        bool shouldBeActive = (int)previewStage >= (int)dc.activateOnStage;
+        if (shouldBeActive && !dc.IsActive)  dc.Activate();
+        else if (!shouldBeActive && dc.IsActive) dc.Deactivate();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
