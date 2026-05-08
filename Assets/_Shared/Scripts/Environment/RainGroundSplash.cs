@@ -346,31 +346,29 @@ public class RainGroundSplash : MonoBehaviour
     }
 
     // ── Materiales ────────────────────────────────────────────────────────────
-    private Material BuildRippleMaterial()
+    private static Shader FindParticleShader()
     {
-        var shader = Shader.Find("Legacy Shaders/Particles/Alpha Blended");
-        if (shader == null || !shader.isSupported) shader = Shader.Find("Particles/Alpha Blended");
-        if (shader == null || !shader.isSupported) shader = Shader.Find("Sprites/Default");
-        return new Material(shader) { name = "RainRipple_Proc", mainTexture = BuildRippleTexture(), color = Color.white };
+        var s = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        if (s == null || !s.isSupported) s = Shader.Find("Universal Render Pipeline/Particles/Simple Lit");
+        if (s == null || !s.isSupported) s = Shader.Find("Legacy Shaders/Particles/Alpha Blended");
+        if (s == null || !s.isSupported) s = Shader.Find("Sprites/Default");
+        return s;
     }
 
-    private Material BuildSprayMaterial()
+    private static Material MakeMat(string name, Texture2D tex)
     {
-        var shader = Shader.Find("Legacy Shaders/Particles/Alpha Blended");
-        if (shader == null || !shader.isSupported) shader = Shader.Find("Particles/Alpha Blended");
-        if (shader == null || !shader.isSupported) shader = Shader.Find("Sprites/Default");
-        // Usa la textura de gota del usuario si está disponible
-        Texture2D tex = (dropTexture != null) ? dropTexture : BuildDotTexture();
-        return new Material(shader) { name = "RainSpray_Proc", mainTexture = tex, color = Color.white };
+        var mat = new Material(FindParticleShader()) { name = name, mainTexture = tex };
+        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", Color.white);
+        if (mat.HasProperty("_Color"))     mat.SetColor("_Color",     Color.white);
+        if (mat.HasProperty("_Surface"))   mat.SetFloat("_Surface",   1f);
+        if (mat.HasProperty("_Blend"))     mat.SetFloat("_Blend",     0f);
+        mat.renderQueue = 3000;
+        return mat;
     }
 
-    private Material BuildDotMaterial()
-    {
-        var shader = Shader.Find("Legacy Shaders/Particles/Alpha Blended");
-        if (shader == null || !shader.isSupported) shader = Shader.Find("Particles/Alpha Blended");
-        if (shader == null || !shader.isSupported) shader = Shader.Find("Sprites/Default");
-        return new Material(shader) { name = "RainSparks_Proc", mainTexture = BuildDotTexture(), color = Color.white };
-    }
+    private Material BuildRippleMaterial()  => MakeMat("RainRipple_Proc",  BuildRippleTexture());
+    private Material BuildSprayMaterial()   => MakeMat("RainSpray_Proc",   (dropTexture != null) ? dropTexture : BuildDotTexture());
+    private Material BuildDotMaterial()     => MakeMat("RainSparks_Proc",  BuildDotTexture());
 
     private Texture2D BuildRippleTexture()
     {

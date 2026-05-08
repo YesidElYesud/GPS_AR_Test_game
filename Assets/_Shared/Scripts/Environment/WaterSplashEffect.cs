@@ -1,11 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// Efecto de salpicadura de agua contra roca — cuatro capas de partículas:
+/// Efecto de salpicadura de agua contra roca — dos capas de partículas:
 ///   Jet   : chorro principal ascendente (StretchedBillboard, elongado)
 ///   Crown : corona lateral que se abre y cae de vuelta al agua
-///   Mist  : niebla fina que flota arriba del impacto
-///   Foam  : espuma blanca burbujeante en la base
 ///
 /// SETUP:
 ///   1. Posicionar el GO donde la roca toca el agua.
@@ -34,16 +32,14 @@ public class WaterSplashEffect : MonoBehaviour
     // ── Sub-sistemas ──────────────────────────────────────────────────────────
     private ParticleSystem _psJet;    // chorro principal (este componente)
     private ParticleSystem _psCrown;  // corona lateral
-    private ParticleSystem _psMist;   // niebla flotante
-    private ParticleSystem _psFoam;   // espuma base
 
     // ── Presets por intensidad ────────────────────────────────────────────────
     private struct Preset
     {
-        public float jetRate,   crownRate,   mistRate,   foamRate;
+        public float jetRate,   crownRate;
         public float jetSpeed,  crownSpeed;
-        public float jetSize,   crownSize,   mistSize,   foamSize;
-        public float jetLife,   crownLife,   mistLife,   foamLife;
+        public float jetSize,   crownSize;
+        public float jetLife,   crownLife;
         public short burstCount;
         public float burstInterval;
     }
@@ -56,30 +52,30 @@ public class WaterSplashEffect : MonoBehaviour
         // [1] Light — río en calma, choque suave
         new Preset
         {
-            jetRate=18,   crownRate=8,   mistRate=10,  foamRate=50,
+            jetRate=18,   crownRate=8,
             jetSpeed=2.2f, crownSpeed=1.0f,
-            jetSize=0.06f, crownSize=0.05f, mistSize=0.22f, foamSize=0.04f,
-            jetLife=0.55f, crownLife=0.50f, mistLife=1.1f,  foamLife=0.28f,
+            jetSize=0.06f, crownSize=0.05f,
+            jetLife=0.55f, crownLife=0.50f,
             burstCount=0,  burstInterval=0f
         },
 
         // [2] Normal — lluvia leve, caudal moderado
         new Preset
         {
-            jetRate=55,   crownRate=30,  mistRate=30,  foamRate=110,
+            jetRate=55,   crownRate=30,
             jetSpeed=5.0f, crownSpeed=2.5f,
-            jetSize=0.09f, crownSize=0.07f, mistSize=0.28f, foamSize=0.05f,
-            jetLife=0.65f, crownLife=0.55f, mistLife=1.3f,  foamLife=0.33f,
+            jetSize=0.09f, crownSize=0.07f,
+            jetLife=0.65f, crownLife=0.55f,
             burstCount=10, burstInterval=2.0f
         },
 
         // [3] Heavy — tormenta, caudal violento
         new Preset
         {
-            jetRate=120,  crownRate=80,  mistRate=65,  foamRate=240,
+            jetRate=120,  crownRate=80,
             jetSpeed=9.5f, crownSpeed=4.8f,
-            jetSize=0.13f, crownSize=0.10f, mistSize=0.34f, foamSize=0.06f,
-            jetLife=0.80f, crownLife=0.65f, mistLife=1.5f,  foamLife=0.40f,
+            jetSize=0.13f, crownSize=0.10f,
+            jetLife=0.80f, crownLife=0.65f,
             burstCount=22, burstInterval=1.0f
         },
     };
@@ -88,6 +84,7 @@ public class WaterSplashEffect : MonoBehaviour
     void Awake()
     {
         EnsureSubSystems();
+        DestroyLegacyChildren();
         ApplySettings();
     }
 
@@ -120,8 +117,16 @@ public class WaterSplashEffect : MonoBehaviour
     {
         _psJet   = GetComponent<ParticleSystem>();
         _psCrown = GetOrCreateChildPS("_Crown");
-        _psMist  = GetOrCreateChildPS("_Mist");
-        _psFoam  = GetOrCreateChildPS("_Foam");
+    }
+
+    // Destruye hijos _Mist y _Foam si quedaron de versiones anteriores
+    private void DestroyLegacyChildren()
+    {
+        foreach (string suffix in new[] { "_Mist", "_Foam" })
+        {
+            Transform t = transform.Find(gameObject.name + suffix);
+            if (t != null) Destroy(t.gameObject);
+        }
     }
 
     private ParticleSystem GetOrCreateChildPS(string suffix)
@@ -154,19 +159,13 @@ public class WaterSplashEffect : MonoBehaviour
 
         ConfigureJet  (_psJet,   p, dir, off);
         ConfigureCrown(_psCrown, p, dir, off);
-        ConfigureMist (_psMist,  p,      off);
-        ConfigureFoam (_psFoam,  p,      off);
 
         if (!Application.isPlaying) return;
         PlayOrStop(_psJet,   off);
         PlayOrStop(_psCrown, off);
-        PlayOrStop(_psMist,  off);
-        PlayOrStop(_psFoam,  off);
     }
 
     // ── JET — chorro principal ascendente ─────────────────────────────────────
-    // Partículas elongadas (StretchedBillboard) que suben con fuerza y caen.
-    // Son el elemento más visible del choque.
     private void ConfigureJet(ParticleSystem ps, Preset p, Vector3 dir, bool off)
     {
         var main = ps.main;
@@ -187,7 +186,6 @@ public class WaterSplashEffect : MonoBehaviour
         emission.rateOverTime = p.jetRate;
         SetBursts(emission, p);
 
-        // Cono estrecho — jet concentrado que sube casi vertical
         var shape = ps.shape;
         shape.enabled         = true;
         shape.shapeType       = ParticleSystemShapeType.Cone;
@@ -196,7 +194,6 @@ public class WaterSplashEffect : MonoBehaviour
         shape.radiusThickness = 1f;
         shape.rotation        = Quaternion.FromToRotation(Vector3.up, dir).eulerAngles;
 
-        // Noise: turbulencia orgánica del agua
         var noise = ps.noise;
         noise.enabled     = !off;
         noise.strength    = new ParticleSystem.MinMaxCurve(0.3f, 0.65f);
@@ -204,7 +201,6 @@ public class WaterSplashEffect : MonoBehaviour
         noise.scrollSpeed = 0.5f;
         noise.quality     = ParticleSystemNoiseQuality.Medium;
 
-        // Size over lifetime: aparece rápido, se encoge
         var sol = ps.sizeOverLifetime;
         sol.enabled = true;
         sol.size    = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
@@ -213,12 +209,10 @@ public class WaterSplashEffect : MonoBehaviour
             new Keyframe(0.70f, 0.5f),
             new Keyframe(1f,    0.0f)));
 
-        // Color over lifetime: aparece rápido, se desvanece al final
         var col = ps.colorOverLifetime;
         col.enabled = true;
         col.color   = MakeAlphaGradient(0f, 0.08f, 0.9f,  0.55f, 0.9f,  0.0f, 1.0f);
 
-        // StretchedBillboard: el jet se ve elongado según la velocidad de la partícula
         var rend = ps.GetComponent<ParticleSystemRenderer>();
         rend.renderMode        = ParticleSystemRenderMode.Stretch;
         rend.velocityScale     = 0.14f;
@@ -228,9 +222,6 @@ public class WaterSplashEffect : MonoBehaviour
     }
 
     // ── CROWN — corona lateral ────────────────────────────────────────────────
-    // Cono muy abierto emitiendo solo desde el borde (radiusThickness=0).
-    // Las partículas salen a 65° del eje, arcan hacia afuera y caen al agua.
-    // Crea el efecto de "corona" visible en chorros reales de agua contra roca.
     private void ConfigureCrown(ParticleSystem ps, Preset p, Vector3 dir, bool off)
     {
         var main = ps.main;
@@ -249,7 +240,6 @@ public class WaterSplashEffect : MonoBehaviour
         var emission = ps.emission;
         emission.enabled      = !off;
         emission.rateOverTime = p.crownRate;
-        // La corona también recibe bursts (la mitad del jet)
         if (!off && p.burstCount > 0 && p.burstInterval > 0f)
             emission.SetBursts(new[] {
                 new ParticleSystem.Burst(0f, (short)(p.burstCount / 2), (short)(p.burstCount / 2),
@@ -257,13 +247,12 @@ public class WaterSplashEffect : MonoBehaviour
         else
             emission.SetBursts(new ParticleSystem.Burst[0]);
 
-        // Cono ancho emitiendo solo desde el borde — crea la forma de corona
         var shape = ps.shape;
         shape.enabled         = true;
         shape.shapeType       = ParticleSystemShapeType.Cone;
         shape.angle           = 65f;
         shape.radius          = 0.12f;
-        shape.radiusThickness = 0f;  // solo desde el borde exterior → corona
+        shape.radiusThickness = 0f;
         shape.rotation        = Quaternion.FromToRotation(Vector3.up, dir).eulerAngles;
 
         var noise = ps.noise;
@@ -288,116 +277,6 @@ public class WaterSplashEffect : MonoBehaviour
         rend.receiveShadows    = false;
     }
 
-    // ── MIST — niebla flotante ────────────────────────────────────────────────
-    // Partículas grandes y muy transparentes que se disuelven hacia arriba.
-    // Dan volumen y atmósfera alrededor del impacto.
-    private void ConfigureMist(ParticleSystem ps, Preset p, bool off)
-    {
-        var main = ps.main;
-        main.loop            = true;
-        main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.gravityModifier = new ParticleSystem.MinMaxCurve(-0.06f, 0.04f);
-        main.startLifetime   = new ParticleSystem.MinMaxCurve(p.mistLife * 0.65f, p.mistLife);
-        main.startSpeed      = new ParticleSystem.MinMaxCurve(0.08f, 0.35f);
-        main.startSize       = new ParticleSystem.MinMaxCurve(p.mistSize * 0.55f, p.mistSize * 1.5f);
-        main.maxParticles    = Mathf.Max(1, off ? 1 : Mathf.RoundToInt(p.mistRate * p.mistLife * 1.5f));
-
-        // Niebla casi blanca con tinte del agua
-        float r = splashColor.r * 0.85f + 0.15f;
-        float g = splashColor.g * 0.85f + 0.15f;
-        float b = splashColor.b * 0.85f + 0.15f;
-        main.startColor = new ParticleSystem.MinMaxGradient(
-            new Color(1f, 1f, 1f, 0.30f),
-            new Color(r,  g,  b,  0.15f));
-
-        var emission = ps.emission;
-        emission.enabled      = !off;
-        emission.rateOverTime = p.mistRate;
-        emission.SetBursts(new ParticleSystem.Burst[0]);
-
-        // Hemisferio apuntando arriba — la niebla sube del impacto
-        var shape = ps.shape;
-        shape.enabled   = true;
-        shape.shapeType = ParticleSystemShapeType.Hemisphere;
-        shape.radius    = 0.18f;
-
-        // Noise suave: la niebla flota orgánicamente
-        var noise = ps.noise;
-        noise.enabled     = !off;
-        noise.strength    = new ParticleSystem.MinMaxCurve(0.12f, 0.22f);
-        noise.frequency   = 0.7f;
-        noise.scrollSpeed = 0.18f;
-        noise.quality     = ParticleSystemNoiseQuality.Low;
-
-        var sol = ps.sizeOverLifetime;
-        sol.enabled = true;
-        sol.size    = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
-            new Keyframe(0f,    0.0f),
-            new Keyframe(0.30f, 1.0f),
-            new Keyframe(1f,    0.0f)));
-
-        var col = ps.colorOverLifetime;
-        col.enabled = true;
-        col.color   = MakeAlphaGradient(0f, 0.0f, 0.55f, 0.25f, 0.45f, 0.0f, 1.0f);
-
-        var rend = ps.GetComponent<ParticleSystemRenderer>();
-        rend.renderMode        = ParticleSystemRenderMode.Billboard;
-        rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        rend.receiveShadows    = false;
-    }
-
-    // ── FOAM — espuma base ────────────────────────────────────────────────────
-    // Muchas partículas pequeñas y blancas que burbujean en el punto de impacto.
-    // Alta tasa de emisión + vida corta = zona de espuma churning perpetua.
-    private void ConfigureFoam(ParticleSystem ps, Preset p, bool off)
-    {
-        var main = ps.main;
-        main.loop            = true;
-        main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.gravityModifier = new ParticleSystem.MinMaxCurve(0f, 0.08f);
-        main.startLifetime   = new ParticleSystem.MinMaxCurve(p.foamLife * 0.4f, p.foamLife);
-        main.startSpeed      = new ParticleSystem.MinMaxCurve(0.04f, 0.30f);
-        main.startSize       = new ParticleSystem.MinMaxCurve(p.foamSize * 0.4f, p.foamSize * 1.6f);
-        main.maxParticles    = Mathf.Max(1, off ? 1 : Mathf.RoundToInt(p.foamRate * p.foamLife * 2.2f));
-
-        // Espuma: blanca pura con variación de alpha
-        main.startColor = new ParticleSystem.MinMaxGradient(
-            new Color(1f, 1f, 1f, 0.92f),
-            new Color(0.94f, 0.97f, 1f, 0.50f));
-
-        var emission = ps.emission;
-        emission.enabled      = !off;
-        emission.rateOverTime = p.foamRate;
-        emission.SetBursts(new ParticleSystem.Burst[0]);
-
-        // Círculo plano en la base: la espuma se forma justo donde el agua choca
-        var shape = ps.shape;
-        shape.enabled         = true;
-        shape.shapeType       = ParticleSystemShapeType.Circle;
-        shape.radius          = 0.20f;
-        shape.radiusThickness = 1f;
-
-        var noise = ps.noise;
-        noise.enabled = false;
-
-        var sol = ps.sizeOverLifetime;
-        sol.enabled = true;
-        sol.size    = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
-            new Keyframe(0f,    0.0f),
-            new Keyframe(0.10f, 1.0f),
-            new Keyframe(0.65f, 0.75f),
-            new Keyframe(1f,    0.0f)));
-
-        var col = ps.colorOverLifetime;
-        col.enabled = true;
-        col.color   = MakeAlphaGradient(0f, 0.04f, 1.0f, 0.55f, 0.9f, 0.0f, 1.0f);
-
-        var rend = ps.GetComponent<ParticleSystemRenderer>();
-        rend.renderMode        = ParticleSystemRenderMode.Billboard;
-        rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        rend.receiveShadows    = false;
-    }
-
     // ── Utilidades ────────────────────────────────────────────────────────────
 
     private static void SetBursts(ParticleSystem.EmissionModule emission, Preset p)
@@ -409,7 +288,6 @@ public class WaterSplashEffect : MonoBehaviour
             emission.SetBursts(new ParticleSystem.Burst[0]);
     }
 
-    // Gradiente con 3 stops de alpha: t0=a0, t1=a1, t2=a2, t3=a3 (los tiempos son fijos)
     private static ParticleSystem.MinMaxGradient MakeAlphaGradient(
         float a0, float t1, float a1, float t2, float a2, float a3, float t3)
     {
@@ -434,7 +312,6 @@ public class WaterSplashEffect : MonoBehaviour
             ps.Play();
     }
 
-    // Gizmo: flecha azul mostrando la dirección del spray
     void OnDrawGizmosSelected()
     {
         Gizmos.color = new Color(0.2f, 0.6f, 1f, 0.9f);

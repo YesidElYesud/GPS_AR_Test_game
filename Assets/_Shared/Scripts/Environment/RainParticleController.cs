@@ -14,8 +14,10 @@ public class RainParticleController : MonoBehaviour
     public float transitionDuration = 0.8f;
 
     [Header("Área")]
-    [Range(10f, 60f)] public float areaSize = 22f;
+    [Range(10f, 80f)] public float areaSize = 38f;
     [Range(8f,  40f)] public float height   = 22f;
+    [Tooltip("Metros que el área de spawn se desplaza hacia adelante de la cámara. Evita que la lluvia quede atrás al caminar.")]
+    [Range(0f, 12f)]  public float forwardBias = 5f;
 
     [Header("Viento")]
     [Range(0f, 360f)] public float windAngle = 215f;
@@ -31,21 +33,22 @@ public class RainParticleController : MonoBehaviour
 
     // Presets: (rate, dropWidth, lengthScale, velocityScale, fallSpeed, windMultiplier, areaScale)
     // areaScale: fracción de areaSize — Heavy usa área más pequeña para mayor densidad visual frente a cámara
+    // Valores de stretch (len/width) inspirados en el VFX tutorial: streaks muy finos y largos (ratio ~1:10)
     private static readonly (float rate, float width, float len, float vel, float spd, float windMult, float areaMult)[] k_Presets =
     {
-        (    0f, 0.000f, 0.0f, 0.000f,  0f, 0.0f, 1.00f),   // None
-        (  200f, 0.018f, 1.6f, 0.008f, 18f, 1.0f, 1.00f),   // Light
-        (  550f, 0.030f, 2.2f, 0.013f, 26f, 1.6f, 0.85f),   // Medium
-        ( 1600f, 0.062f, 3.8f, 0.024f, 36f, 2.5f, 0.60f),   // Heavy — torrencial
+        (    0f, 0.000f,  0.0f, 0.000f,  0f, 0.0f, 1.00f),   // None
+        (  420f, 0.010f,  5.0f, 0.010f, 24f, 1.0f, 1.00f),   // Light
+        ( 1000f, 0.015f,  7.0f, 0.016f, 27f, 1.6f, 0.92f),   // Medium
+        ( 2800f, 0.022f, 10.0f, 0.022f, 30f, 2.5f, 0.75f),   // Heavy — torrencial
     };
 
-    // Color de gota por intensidad (más oscuro/opaco cuanto más fuerte)
+    // Color blanco puro con variación mínima de opacidad, igual que el VFX tutorial (gotas blancas, no azuladas)
     private static readonly (Color min, Color max)[] k_Colors =
     {
         (Color.clear,                                    Color.clear),
-        (new Color(0.72f, 0.86f, 1.00f, 0.50f),  new Color(0.90f, 0.96f, 1.00f, 0.85f)),  // Light
-        (new Color(0.65f, 0.78f, 0.95f, 0.65f),  new Color(0.85f, 0.92f, 1.00f, 0.95f)),  // Medium
-        (new Color(0.50f, 0.65f, 0.82f, 0.78f),  new Color(0.70f, 0.82f, 0.95f, 1.00f)),  // Heavy
+        (new Color(0.92f, 0.96f, 1.00f, 0.45f),  new Color(1.00f, 1.00f, 1.00f, 0.80f)),  // Light
+        (new Color(0.90f, 0.95f, 1.00f, 0.60f),  new Color(1.00f, 1.00f, 1.00f, 0.92f)),  // Medium
+        (new Color(0.88f, 0.93f, 1.00f, 0.75f),  new Color(1.00f, 1.00f, 1.00f, 1.00f)),  // Heavy
     };
 
     // ── Internos ──────────────────────────────────────────────────────────────
@@ -140,14 +143,15 @@ public class RainParticleController : MonoBehaviour
         var colLife     = _ps.colorOverLifetime;
         colLife.enabled = true;
         var grad        = new Gradient();
+        // Alpha: fade-in rápido (0→1 en 10% del lifetime), hold, fade-out al final — igual que el VFX tutorial
         grad.SetKeys(
             new[] {
-                new GradientColorKey(new Color(0.78f, 0.89f, 1f), 0.00f),
-                new GradientColorKey(new Color(0.92f, 0.97f, 1f), 0.50f),
-                new GradientColorKey(Color.white,                  1.00f),
+                new GradientColorKey(Color.white, 0.00f),
+                new GradientColorKey(Color.white, 1.00f),
             },
             new[] {
-                new GradientAlphaKey(1.00f, 0.00f),
+                new GradientAlphaKey(0.00f, 0.00f),
+                new GradientAlphaKey(1.00f, 0.10f),
                 new GradientAlphaKey(1.00f, 0.80f),
                 new GradientAlphaKey(0.00f, 1.00f),
             }
@@ -185,33 +189,48 @@ public class RainParticleController : MonoBehaviour
     // ── Material ──────────────────────────────────────────────────────────────
     private Material BuildRainMaterial()
     {
-        var shader = Shader.Find("Legacy Shaders/Particles/Alpha Blended");
-        if (shader == null || !shader.isSupported) shader = Shader.Find("Particles/Alpha Blended");
+        var shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        if (shader == null || !shader.isSupported) shader = Shader.Find("Universal Render Pipeline/Particles/Simple Lit");
+        if (shader == null || !shader.isSupported) shader = Shader.Find("Legacy Shaders/Particles/Alpha Blended");
         if (shader == null || !shader.isSupported) shader = Shader.Find("Sprites/Default");
 
         var mat         = new Material(shader) { name = "RainDrop_Auto" };
         mat.mainTexture = (dropTexture != null) ? dropTexture : BuildStreakTexture();
-        mat.color       = Color.white;
+        if (mat.HasProperty("_BaseColor"))  mat.SetColor("_BaseColor",  Color.white);
+        if (mat.HasProperty("_Color"))      mat.SetColor("_Color",      Color.white);
+        if (mat.HasProperty("_Surface"))    mat.SetFloat("_Surface",    1f); // Transparent en URP
+        if (mat.HasProperty("_Blend"))      mat.SetFloat("_Blend",      0f); // Alpha blend
+        mat.renderQueue = 3000;
         return mat;
     }
 
     private Texture2D BuildStreakTexture()
     {
-        const int W = 4, H = 32;
+        // Textura inspirada en Gota.png del tutorial: 8×64 blanca, fade suave en tips (10% arriba/abajo), perfil gaussiano en X
+        const int W = 8, H = 64;
         var tex = new Texture2D(W, H, TextureFormat.RGBA32, false)
         {
             filterMode = FilterMode.Bilinear,
             wrapMode   = TextureWrapMode.Clamp,
             name       = "RainStreak_Auto",
         };
+        float halfW = (W - 1) * 0.5f;
         for (int y = 0; y < H; y++)
         {
-            float t      = y / (float)(H - 1);
-            float alpha  = Mathf.SmoothStep(0f, 1f, t * 3.5f) * Mathf.SmoothStep(0f, 1f, 1f - t * 0.25f);
-            alpha        = Mathf.Clamp01(alpha) * 0.85f;
-            float bright = 0.80f + 0.16f * Mathf.Sin(t * Mathf.PI);
-            var   c      = new Color(bright * 0.82f, bright * 0.92f, bright * 1.00f, alpha);
-            for (int x = 0; x < W; x++) tex.SetPixel(x, y, c);
+            float t = y / (float)(H - 1);
+            // Alpha: fade-in en 10%, hold, fade-out en último 20% — igual que el VFX tutorial
+            float alphaY = t < 0.10f ? t / 0.10f
+                         : t > 0.80f ? 1f - (t - 0.80f) / 0.20f
+                         : 1f;
+            alphaY = Mathf.SmoothStep(0f, 1f, alphaY);
+
+            for (int x = 0; x < W; x++)
+            {
+                // Perfil gaussiano en X: más brillante en el centro, casi invisible en los bordes
+                float dx     = (x - halfW) / halfW;
+                float alphaX = Mathf.Exp(-dx * dx * 4f);
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, alphaY * alphaX));
+            }
         }
         tex.Apply();
         return tex;
@@ -332,8 +351,12 @@ public class RainParticleController : MonoBehaviour
 
     private void SnapToCamera()
     {
-        Vector3 p          = _cam.position;
-        transform.position = new Vector3(p.x, p.y + height, p.z);
+        Vector3 p   = _cam.position;
+        // Desplaza el área hacia adelante para que las gotas caigan frente al jugador, no detrás
+        Vector3 fwd = Vector3.ProjectOnPlane(_cam.forward, Vector3.up);
+        if (fwd.sqrMagnitude > 0.001f) fwd.Normalize();
+        Vector3 bias = fwd * forwardBias;
+        transform.position = new Vector3(p.x + bias.x, p.y + height, p.z + bias.z);
     }
 
     private void OnValidate()

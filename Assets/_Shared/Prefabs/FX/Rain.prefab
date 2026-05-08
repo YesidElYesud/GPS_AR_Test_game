@@ -4844,8 +4844,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   intensity: 1
-  areaSize: 25
-  height: 20
-  fallSpeed: 14
+  transitionDuration: 0.8
+  areaSize: 40
+  height: 22
+  forwardBias: 5
+  windAngle: 215
+  windSpeed: 1.5
+  dropTexture: {fileID: 2800000, guid: 8949e4f4433c792308605e99534b0db4, type: 3}
+  rainMaterial: {fileID: 0}
   followCamera: 1
-  rainMaterial: {fileID: 2100000, guid: 21182c17cff3bb91594361ba1758f9e2, type: 2}
