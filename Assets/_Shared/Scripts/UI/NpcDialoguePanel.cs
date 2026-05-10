@@ -4,14 +4,14 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// NpcDialoguePanel v2 — Panel de conversación con NPC.
+/// NpcDialoguePanel v3 — Panel de conversación con NPC.
 ///
-/// Responsabilidades de ESTE script:
+/// Responsabilidades:
 ///   - Mostrar foto, nombre y texto del NPC.
-///   - Delegar toda la lógica de opciones a MultipleChoicePanel (campo choicePanel).
+///   - Paginar el diálogo con un botón "Continuar" generado por MultipleChoicePanel.
+///   - En la última página, mostrar las opciones reales (si las hay) o un botón "Cerrar".
+///   - Delegar toda la lógica de botones a MultipleChoicePanel (campo choicePanel).
 ///   - Bloquear/desbloquear el input del jugador.
-///   - Al responder correctamente: esperar correctAnswerDelay → NextStage() → cerrar.
-///   - Al responder incorrectamente: solo registrarlo (MultipleChoicePanel ya muestra feedback).
 ///
 /// Singleton para ser llamado desde HotspotController.
 ///
@@ -55,6 +55,16 @@ public class NpcDialoguePanel : MonoBehaviour
     private Coroutine         _correctRoutine;
     private Coroutine         _wrongRoutine;
     private System.Action     _onCorrectCallback;
+    private string[]          _lines;
+    private int               _lineIndex;
+
+    // Opción reutilizable para botones de navegación (evita alloaciones en cada ShowLine)
+    private static readonly DialogueOption _continueOption = new DialogueOption
+        { optionText = "Continuar", isCorrect = true, feedbackText = "" };
+    private static readonly DialogueOption _closeOption = new DialogueOption
+        { optionText = "Cerrar", isCorrect = true, feedbackText = "" };
+    private static readonly DialogueOption[] _continueOptions = { _continueOption };
+    private static readonly DialogueOption[] _closeOptions    = { _closeOption };
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
@@ -68,7 +78,7 @@ public class NpcDialoguePanel : MonoBehaviour
 
     /// <summary>
     /// Muestra el panel con los datos del diálogo indicado.
-    /// Llamado desde HotspotController (NpcConversation y SiataCall).
+    /// Llamado desde HotspotController.
     /// </summary>
     public void Show(NpcDialogueData data, HotspotController source, System.Action onCorrect = null)
     {
@@ -82,8 +92,12 @@ public class NpcDialoguePanel : MonoBehaviour
         _sourceHotspot     = source;
         _onCorrectCallback = onCorrect;
 
+        bool hasLines = data.dialogueLines != null && data.dialogueLines.Length > 0;
+        _lines     = hasLines ? data.dialogueLines : new string[] { data.npcText };
+        _lineIndex = 0;
+
         PopulateNpcInfo();
-        SetupChoicePanel();
+        ShowLine(0);
 
         gameObject.SetActive(true);
         BlockInput(true);
@@ -95,7 +109,6 @@ public class NpcDialoguePanel : MonoBehaviour
         if (_correctRoutine != null) { StopCoroutine(_correctRoutine); _correctRoutine = null; }
         if (_wrongRoutine   != null) { StopCoroutine(_wrongRoutine);   _wrongRoutine   = null; }
 
-        // Desconectar eventos para evitar dobles disparos
         UnsubscribeChoiceEvents();
 
         if (choicePanel != null) choicePanel.Clear();
@@ -113,6 +126,41 @@ public class NpcDialoguePanel : MonoBehaviour
         gameObject.SetActive(false);
     }
 
+    // ── Paginación ────────────────────────────────────────────────────────────
+    private void ShowLine(int index)
+    {
+        if (_lines == null || index < 0 || index >= _lines.Length) return;
+
+        if (dialogueText != null) dialogueText.text = _lines[index];
+
+        bool isLast  = index >= _lines.Length - 1;
+        bool hasOpts = HasOptions();
+
+        UnsubscribeChoiceEvents();
+
+        if (choicePanel != null)
+        {
+            choicePanel.OnCorrect += HandleCorrectAnswer;
+            choicePanel.OnWrong   += HandleWrongAnswer;
+            choicePanel.OnRetry   += HandleRetry;
+
+            if (!isLast)
+                choicePanel.SetOptions(_continueOptions);
+            else if (hasOpts)
+                choicePanel.SetOptions(_currentData.options);
+            else
+                choicePanel.SetOptions(_closeOptions);
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    private bool HasOptions() =>
+        _currentData != null &&
+        _currentData.options != null &&
+        _currentData.options.Length > 0;
+
+    private bool IsOnLastLine() => _lines == null || _lineIndex >= _lines.Length - 1;
+
     // ── Población de UI ───────────────────────────────────────────────────────
     private void PopulateNpcInfo()
     {
@@ -125,28 +173,10 @@ public class NpcDialoguePanel : MonoBehaviour
             if (hasPhoto) npcPhoto.sprite = _currentData.npcPhoto;
         }
 
-        if (npcNameText  != null) npcNameText.text  = _currentData.npcName;
-        if (dialogueText != null) dialogueText.text  = _currentData.npcText;
+        if (npcNameText != null) npcNameText.text = _currentData.npcName;
     }
 
-    // ── Configuración de opciones ─────────────────────────────────────────────
-    private void SetupChoicePanel()
-    {
-        if (choicePanel == null)
-        {
-            Debug.LogWarning("[NpcDialoguePanel] choicePanel no asignado en el Inspector.");
-            return;
-        }
-
-        // Suscribir antes de SetOptions para que los eventos estén listos
-        UnsubscribeChoiceEvents();
-        choicePanel.OnCorrect += HandleCorrectAnswer;
-        choicePanel.OnWrong   += HandleWrongAnswer;
-        choicePanel.OnRetry   += HandleRetry;
-
-        choicePanel.SetOptions(_currentData.options);
-    }
-
+    // ── Suscripción de eventos ────────────────────────────────────────────────
     private void UnsubscribeChoiceEvents()
     {
         if (choicePanel == null) return;
@@ -158,19 +188,34 @@ public class NpcDialoguePanel : MonoBehaviour
     // ── Respuestas ────────────────────────────────────────────────────────────
     private void HandleCorrectAnswer()
     {
-        _correctRoutine = StartCoroutine(CorrectAnswerRoutine());
+        if (!IsOnLastLine())
+        {
+            // Botón "Continuar" en página intermedia → avanzar a la siguiente línea
+            _lineIndex++;
+            ShowLine(_lineIndex);
+            return;
+        }
+
+        // Última página
+        if (HasOptions())
+        {
+            // Respuesta correcta a la pregunta real → cerrar panel y avanzar etapa
+            _correctRoutine = StartCoroutine(CorrectAnswerRoutine());
+        }
+        else
+        {
+            // Botón "Cerrar" en última página sin pregunta
+            Hide();
+        }
     }
 
     private void HandleRetry()
     {
-        // El jugador pulsó "Intentar de nuevo" — cancelar el auto-reintento por timer.
         if (_wrongRoutine != null) { StopCoroutine(_wrongRoutine); _wrongRoutine = null; }
     }
 
     private void HandleWrongAnswer()
     {
-        // MultipleChoicePanel muestra el feedback rojo y el botón de reintento (si está asignado).
-        // Como fallback, relanzamos las opciones automáticamente tras un delay.
         if (_wrongRoutine != null) StopCoroutine(_wrongRoutine);
         _wrongRoutine = StartCoroutine(WrongAnswerRoutine());
     }
@@ -180,7 +225,7 @@ public class NpcDialoguePanel : MonoBehaviour
         float delay = _currentData != null ? _currentData.correctAnswerDelay : 1.5f;
         yield return new WaitForSeconds(delay);
         _wrongRoutine = null;
-        if (_currentData != null) SetupChoicePanel();
+        if (_currentData != null) ShowLine(_lineIndex);
     }
 
     private IEnumerator CorrectAnswerRoutine()
@@ -194,7 +239,6 @@ public class NpcDialoguePanel : MonoBehaviour
                 StageManager.Instance.NextStage();
         }
 
-        // Guardar callback antes de Hide() porque Hide() lo limpia
         System.Action walkerCallback = _onCorrectCallback;
         Hide();
         walkerCallback?.Invoke();

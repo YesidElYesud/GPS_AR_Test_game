@@ -135,6 +135,12 @@ public class HotspotData : ScriptableObject
              "y será leído por el RiskLevelIndicator (HUD). None = badge oculto.")]
     public RiskLevel riskLevel = RiskLevel.None;
 
+    // ── Ruta de Evacuación ────────────────────────────────────────────────────
+    [Header("Ruta de Evacuación")]
+    [Tooltip("Si true, al cerrar este panel el EvacuationRouteController muestra la línea verde en suelo.\n" +
+             "Usar solo en el hotspot 'Ruta de Evacuación'.")]
+    public bool activatesEvacuationRoute = false;
+
     // ── Visual ────────────────────────────────────────────────────────────────
     [Header("Visual")]
     [Tooltip("Color del marcador del hotspot en la escena")]

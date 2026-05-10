@@ -12,14 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1ef9622e3be7f0cdd8d063b28538a030, type: 3}
   m_Name: Hotspot Data Test NPC Diag
   m_EditorClassIdentifier: 
-  title: Hotspot de dialogo
-  description: "Npc de conversaci\xF3n"
+  title: "L\xEDder comunitario"
+  description: "Npc de conversaci\xF3n L\xEDder comunitario"
   icon: {fileID: 21300000, guid: 144d5c35043c7f04193d57dc3c38bbcb, type: 3}
   actionType: 2
   cinematicClip: {fileID: 0}
   cinematicUrl: 
   cinematicAdvancesStage: 1
-  dialogueData: {fileID: 11400000, guid: 3eb617d410c77a5d9a1dd55920097bbc, type: 2}
+  dialogueData: {fileID: 11400000, guid: f13ffee75f98d03cbaedf669a60c4fc4, type: 2}
+  siataSequence: {fileID: 0}
   infoSlides: []
   infoSlideAdvancesStage: 0
   sequenceAdvancesStage: 1
@@ -28,6 +29,7 @@ MonoBehaviour:
   requiredStage: -1
   headerImage: {fileID: 0}
   riskLevel: 0
+  activatesEvacuationRoute: 0
   markerColor: {r: 0.2, g: 0.8, b: 1, a: 0.9}
   hotspotMaterial: {fileID: 0}
   isBlinking: 1

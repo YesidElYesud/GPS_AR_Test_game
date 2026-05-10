@@ -86,6 +86,12 @@ public class RiskLevelIndicator : MonoBehaviour
     [Tooltip("Alpha del fondo de notificación (0 = transparente, 1 = sólido).")]
     public float notificacionAlpha = 0.80f;
 
+    [Tooltip("Color del texto cuando el fondo es claro (N1 verde, N2 amarillo, N3 naranja). Se elige automáticamente por luminosidad.")]
+    public Color textColorOnLight = new Color(0.10f, 0.08f, 0.06f, 1f);
+
+    [Tooltip("Color del texto cuando el fondo es oscuro (N4 rojo). Se elige automáticamente por luminosidad.")]
+    public Color textColorOnDark  = new Color(0.97f, 0.97f, 0.97f, 1f);
+
     // ── Textos de notificación por nivel ─────────────────────────────────────
     [Header("Textos de notificación por nivel")]
     [TextArea(2, 4)]
@@ -282,8 +288,20 @@ public class RiskLevelIndicator : MonoBehaviour
     private void ApplyNotificacionColor(Color baseColor)
     {
         if (fondoNotificacion == null) return;
+
+        // Elegir color de texto ANTES de modificar alpha (la luminancia depende solo de RGB)
+        if (textNotificacion != null)
+            textNotificacion.color = GetContrastingTextColor(baseColor);
+
         baseColor.a = notificacionAlpha;
         fondoNotificacion.color = baseColor;
+    }
+
+    // Luminosidad percibida (fórmula sRGB estándar). >0.5 = fondo claro → texto oscuro.
+    private Color GetContrastingTextColor(Color bg)
+    {
+        float luminance = 0.299f * bg.r + 0.587f * bg.g + 0.114f * bg.b;
+        return luminance > 0.5f ? textColorOnLight : textColorOnDark;
     }
 
     private StageRiskConfig FindStageConfig(StageManager.Stage stage)

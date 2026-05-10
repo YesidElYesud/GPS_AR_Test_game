@@ -10,30 +10,29 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1ef9622e3be7f0cdd8d063b28538a030, type: 3}
-  m_Name: Hotspot Data Test
+  m_Name: "HP Ruta Evacuaci\xF3n"
   m_EditorClassIdentifier: 
-  title: Hotspot Test
-  description: Lorem Ipsum is simply dummy text of the printing and typesetting industry.
-    Lorem Ipsum has been the industry's standard dummy text ever since the 1500s,
-    when an unknown printer took a galley of type and scrambled it to make a type
-    specimen book. It has survived not only five centuries, but also the leap into
-    electronic typesetting, remaining essentially unchanged.
-  icon: {fileID: 21300000, guid: ccf760065da59d2c48627142492f0a12, type: 3}
+  title: "Ruta de Evacuaci\xF3n"
+  description: "La ruta de evacuaci\xF3n es el camino m\xE1s seguro para llegar a
+    un punto de encuentro en caso de una emergencia, evitando las zonas de riesgo.
+    Conocer esta ruta te permite actuar de manera r\xE1pida y organizada cuando sea
+    necesario."
+  icon: {fileID: 21300000, guid: f5eaa1fc5c7e4da72817c5936d8fe7b2, type: 3}
   actionType: 0
   cinematicClip: {fileID: 0}
   cinematicUrl: 
-  cinematicAdvancesStage: 1
+  cinematicAdvancesStage: 0
   dialogueData: {fileID: 0}
   siataSequence: {fileID: 0}
   infoSlides: []
-  infoSlideAdvancesStage: 1
-  sequenceAdvancesStage: 1
+  infoSlideAdvancesStage: 0
+  sequenceAdvancesStage: 0
   triggerRadius: 3
   allowClick: 1
-  requiredStage: 1
+  requiredStage: -1
   headerImage: {fileID: 0}
   riskLevel: 0
-  activatesEvacuationRoute: 0
+  activatesEvacuationRoute: 1
   markerColor: {r: 0.2, g: 0.8, b: 1, a: 0.9}
   hotspotMaterial: {fileID: 0}
   isBlinking: 1

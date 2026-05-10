@@ -306,6 +306,9 @@ public class HotspotController : MonoBehaviour
         _isPanelOpen = false;
         if (uiPanel != null) uiPanel.Hide();
 
+        if (data != null && data.activatesEvacuationRoute)
+            EvacuationRouteController.Instance?.Show();
+
         // Si el jugador sigue en rango, volver a mostrar el botón de prompt
         if (_isNearby)
             HotspotPromptButton.Instance?.RegisterHotspot(this);

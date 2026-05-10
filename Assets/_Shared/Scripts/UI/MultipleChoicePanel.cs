@@ -135,9 +135,10 @@ public class MultipleChoicePanel : MonoBehaviour
             Image btnImage = btnGo.GetComponent<Image>();
             _buttonImages.Add(btnImage);
 
-            // Texto con prefijo de letra: "A) texto de la opción"
+            // Prefijo de letra solo cuando hay más de una opción (A) B) C)…)
+            // Una sola opción (Continuar / Cerrar) no necesita prefijo
             TextMeshProUGUI label = btnGo.GetComponentInChildren<TextMeshProUGUI>();
-            string prefix = (i < _letters.Length) ? $"{_letters[i]})  " : $"{i + 1})  ";
+            string prefix = (options.Length > 1 && i < _letters.Length) ? $"{_letters[i]})  " : "";
             if (label != null) label.text = prefix + options[i].optionText;
 
             // Closure seguro

@@ -88,24 +88,40 @@ public class CriticalModePanel : MonoBehaviour
     [Range(0f, 5f)]
     public float showDelay = 1f;
 
+    [Tooltip("Segundos hasta que el modal se cierra automáticamente.\n" +
+             "0 = el jugador debe pulsar el botón 'Entendido'.")]
+    [Range(0f, 10f)]
+    public float autoDismissDelay = 0f;
+
     // ── Internos ──────────────────────────────────────────────────────────────
-    private Coroutine _showDelayRoutine;
+    private Coroutine _autoDismissRoutine;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
-        gameObject.SetActive(false);
+
+        if (continueButton != null)
+            continueButton.onClick.AddListener(Hide);
+        // NO llamar SetActive(false) aquí: CriticalModePanel está antes que StageManager
+        // en la jerarquía, así que su Awake() corre primero y StageManager.Instance es null.
     }
 
     private void Start()
     {
-        if (continueButton != null)
-            continueButton.onClick.AddListener(Hide);
-
+        // En Start() todos los Awake() ya corrieron → StageManager.Instance está garantizado.
         if (StageManager.Instance != null)
+        {
             StageManager.Instance.OnStageChanged += OnStageChanged;
+            Debug.Log("[CriticalModePanel] Suscrito a OnStageChanged ✓");
+        }
+        else
+        {
+            Debug.LogError("[CriticalModePanel] StageManager.Instance es null en Start() — el panel NO se mostrará automáticamente.");
+        }
+
+        gameObject.SetActive(false); // Ocultar DESPUÉS de suscribirse
     }
 
     private void OnDestroy()
@@ -114,23 +130,44 @@ public class CriticalModePanel : MonoBehaviour
             StageManager.Instance.OnStageChanged -= OnStageChanged;
     }
 
+    // ── Test en Editor ────────────────────────────────────────────────────────
+    [ContextMenu("Test: Mostrar Etapa4")]
+    private void TestShowEtapa4()
+    {
+        StageContent content = FindContent(StageManager.Stage.Etapa4);
+        if (content == null)
+        {
+            Debug.LogWarning("[CriticalModePanel] No hay StageContent para Etapa4 en stageContents[].");
+            return;
+        }
+        Show(content);
+    }
+
+    [ContextMenu("Test: Mostrar Etapa3")]
+    private void TestShowEtapa3()
+    {
+        StageContent content = FindContent(StageManager.Stage.Etapa3);
+        if (content == null)
+        {
+            Debug.LogWarning("[CriticalModePanel] No hay StageContent para Etapa3 en stageContents[].");
+            return;
+        }
+        Show(content);
+    }
+
     // ── Reacción al cambio de etapa ───────────────────────────────────────────
     private void OnStageChanged(StageManager.Stage previous, StageManager.Stage current)
     {
+        Debug.Log($"[CriticalModePanel] OnStageChanged recibido: {previous} → {current}");
         StageContent content = FindContent(current);
-        if (content == null) return;
-
-        if (_showDelayRoutine != null) StopCoroutine(_showDelayRoutine);
-        _showDelayRoutine = StartCoroutine(ShowDelayed(content));
-    }
-
-    private System.Collections.IEnumerator ShowDelayed(StageContent content)
-    {
-        if (showDelay > 0f)
-            yield return new WaitForSeconds(showDelay);
-
+        if (content == null)
+        {
+            Debug.Log($"[CriticalModePanel] No hay contenido para {current}, no se muestra.");
+            return;
+        }
+        // Show() activa el GO antes de cualquier otra operación, por lo que
+        // es seguro llamarlo directamente — StartCoroutine en un GO inactivo falla silenciosamente.
         Show(content);
-        _showDelayRoutine = null;
     }
 
     // ── API pública ───────────────────────────────────────────────────────────
@@ -147,20 +184,28 @@ public class CriticalModePanel : MonoBehaviour
         gameObject.SetActive(true);
         BlockInput(true);
 
+        if (autoDismissDelay > 0f)
+        {
+            if (_autoDismissRoutine != null) StopCoroutine(_autoDismissRoutine);
+            _autoDismissRoutine = StartCoroutine(AutoDismissRoutine());
+        }
+
         Debug.Log($"[CriticalModePanel] Mostrando modal para {content.stage}: {content.title}");
     }
 
-    /// <summary>Cierra el modal y desbloquea el input. Llamado por el botón "Entendido".</summary>
+    /// <summary>Cierra el modal y desbloquea el input. Llamado por el botón "Entendido" o por auto-dismiss.</summary>
     public void Hide()
     {
-        if (_showDelayRoutine != null)
-        {
-            StopCoroutine(_showDelayRoutine);
-            _showDelayRoutine = null;
-        }
+        if (_autoDismissRoutine != null) { StopCoroutine(_autoDismissRoutine); _autoDismissRoutine = null; }
 
         BlockInput(false);
         gameObject.SetActive(false);
+    }
+
+    private System.Collections.IEnumerator AutoDismissRoutine()
+    {
+        yield return new WaitForSeconds(autoDismissDelay);
+        Hide();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

@@ -259,7 +259,7 @@ public class RainParticleController : MonoBehaviour
         if (preset == RainIntensity.None)
         {
             emission.rateOverTime = 0f;
-            _ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            _ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             _currentRate  = 0f;
             _currentSpeed = 0f;
             _currentArea  = 0f;
@@ -342,7 +342,7 @@ public class RainParticleController : MonoBehaviour
         _currentSpeed         = targetSpd;
 
         if (target == RainIntensity.None)
-            _ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            _ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         else if (lerpSpeed)
             ApplyVelocityOverLifetime(targetSpd, windMult);
 

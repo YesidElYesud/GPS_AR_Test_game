@@ -44,8 +44,14 @@ public class NpcDialogueData : ScriptableObject
     public Sprite npcPhoto;
 
     // ── Diálogo ───────────────────────────────────────────────────────────────
-    [Header("Diálogo")]
-    [Tooltip("Texto que dice el NPC al iniciar la conversación")]
+    [Header("Diálogo paginado")]
+    [Tooltip("Líneas de diálogo en secuencia. El jugador avanza con 'Continuar'.\n" +
+             "Al llegar al final aparecen las opciones (si las hay) o se cierra el panel.\n" +
+             "Si está vacío se usa el campo 'Texto legado' de abajo (modo retrocompatible).")]
+    public string[] dialogueLines;
+
+    [Header("Texto legado (solo si dialogueLines está vacío)")]
+    [Tooltip("Texto único del NPC. Ignorado si dialogueLines tiene contenido.")]
     [TextArea(3, 6)]
     public string npcText = "Texto del NPC.";
 

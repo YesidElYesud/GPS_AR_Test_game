@@ -17,7 +17,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &2629568558299545217
 Transform:
   m_ObjectHideFlags: 0
@@ -237,6 +237,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   data: {fileID: 11400000, guid: 876fd24f8a14e4b56ad56ab21ee0b491, type: 2}
   uiPanel: {fileID: 0}
+  cameraSequencer: {fileID: 0}
+  linkedWalker: {fileID: 0}
+  replayButton: {fileID: 0}
+  meshTransform: {fileID: 0}
+  rotationSpeed: 60
 --- !u!1001 &4368586523081020158
 PrefabInstance:
   m_ObjectHideFlags: 0
