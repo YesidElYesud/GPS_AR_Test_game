@@ -61,6 +61,11 @@ public class CinematicSequencer : MonoBehaviour
     [Tooltip("Panel del joystick táctil. Se oculta al iniciar y se restaura al terminar o saltar.")]
     public GameObject joystickPanel;
 
+    [Header("HUD")]
+    [Tooltip("Elementos del HUD que se ocultan durante la secuencia y se restauran al terminar.\n" +
+             "Arrastra aquí: StatusPanel, RiskLevelIndicator, ListadoBotones, HotspotPromptBtn, etc.")]
+    public GameObject[] hudElements;
+
     [Header("Indicador de Progreso")]
     [Tooltip("Image circular que se llena conforme avanza la secuencia.\n" +
              "Configurar en Inspector: Image Type=Filled · Fill Method=Radial360 · Fill Origin=Top · Clockwise=true.\n" +
@@ -73,6 +78,7 @@ public class CinematicSequencer : MonoBehaviour
     private HotspotController _caller;
     private bool _advancesStage;
     private Transform _cam;
+    private bool[] _hudWasActive;
 
     // Ruido procedural (dron) — acumulan durante toda la secuencia
     private float _noiseTime;
@@ -135,6 +141,17 @@ public class CinematicSequencer : MonoBehaviour
         // Ocultar joystick
         bool joystickWasActive = joystickPanel != null && joystickPanel.activeSelf;
         if (joystickPanel != null) joystickPanel.SetActive(false);
+
+        // Ocultar HUD
+        if (hudElements != null && hudElements.Length > 0)
+        {
+            _hudWasActive = new bool[hudElements.Length];
+            for (int h = 0; h < hudElements.Length; h++)
+            {
+                _hudWasActive[h] = hudElements[h] != null && hudElements[h].activeSelf;
+                if (hudElements[h] != null) hudElements[h].SetActive(false);
+            }
+        }
 
         // Calcular duración total y arrancar anillo de progreso
         float totalDuration = 0f;
@@ -222,6 +239,16 @@ public class CinematicSequencer : MonoBehaviour
         StageManager.Instance?.SetPlayerInputBlocked(false);
 
         if (joystickWasActive && joystickPanel != null) joystickPanel.SetActive(true);
+
+        // Restaurar HUD
+        if (hudElements != null && _hudWasActive != null)
+        {
+            for (int h = 0; h < hudElements.Length; h++)
+            {
+                if (hudElements[h] != null)
+                    hudElements[h].SetActive(_hudWasActive[h]);
+            }
+        }
 
         _caller?.ClosePanel();
 
@@ -315,6 +342,10 @@ public class CinematicSequencer : MonoBehaviour
             yield break;
         }
 
+        // El GO puede estar inactivo (alpha=0 en reposo) — activarlo para que el fade sea visible
+        fadeOverlay.gameObject.SetActive(true);
+        SetFadeAlpha(fromAlpha);
+
         float elapsed = 0f;
         while (elapsed < duration)
         {
@@ -324,6 +355,10 @@ public class CinematicSequencer : MonoBehaviour
         }
 
         SetFadeAlpha(toAlpha);
+
+        // Al terminar en transparente, desactivar el GO para que no bloquee el raycast
+        if (toAlpha <= 0f)
+            fadeOverlay.gameObject.SetActive(false);
     }
 
     private void SetFadeAlpha(float alpha)

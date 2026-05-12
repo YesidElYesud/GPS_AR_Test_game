@@ -15,9 +15,9 @@ public class WaterSplashManager : MonoBehaviour
     [Tooltip("6 entradas: Intro, Etapa1, Etapa2, Etapa3, Etapa4, Etapa5")]
     [SerializeField] private WaterSplashEffect.SplashIntensity[] stageIntensities =
     {
-        WaterSplashEffect.SplashIntensity.Light,    // Intro
-        WaterSplashEffect.SplashIntensity.Light,    // Etapa1
-        WaterSplashEffect.SplashIntensity.Normal,   // Etapa2
+        WaterSplashEffect.SplashIntensity.Off,      // Intro
+        WaterSplashEffect.SplashIntensity.Off,      // Etapa1  ← N1: día soleado, sin agua en suelo
+        WaterSplashEffect.SplashIntensity.Light,    // Etapa2
         WaterSplashEffect.SplashIntensity.Normal,   // Etapa3
         WaterSplashEffect.SplashIntensity.Heavy,    // Etapa4
         WaterSplashEffect.SplashIntensity.Heavy,    // Etapa5

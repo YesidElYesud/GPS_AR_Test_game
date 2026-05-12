@@ -141,6 +141,13 @@ public class HotspotData : ScriptableObject
              "Usar solo en el hotspot 'Ruta de Evacuación'.")]
     public bool activatesEvacuationRoute = false;
 
+    // ── Secuencia de cámara post-cierre ───────────────────────────────────────
+    [Header("Secuencia de cámara al cerrar el panel")]
+    [Tooltip("Si true, al cerrar el panel de información se lanza automáticamente la secuencia del\n" +
+             "cameraSequencer asignado en el HotspotController. Ideal para mostrar postes de alarma\n" +
+             "u otros puntos de interés tras el panel informativo. No avanza la etapa del juego.")]
+    public bool postCloseSequence = false;
+
     // ── Visual ────────────────────────────────────────────────────────────────
     [Header("Visual")]
     [Tooltip("Color del marcador del hotspot en la escena")]

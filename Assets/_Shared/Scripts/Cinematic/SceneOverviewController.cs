@@ -82,6 +82,10 @@ public class SceneOverviewController : MonoBehaviour
     [Range(0.2f, 4f)] public float previewWaterTransition = 1.2f;
     [Tooltip("RiverDebrisControllers de la escena. Se buscan automáticamente si queda vacío.")]
     public RiverDebrisController[] debrisControllers;
+    [Tooltip("GrassWindController de la escena. Se busca automáticamente si queda vacío.")]
+    public GrassWindController grassWindController;
+    [Tooltip("TreeWindController de la escena. Se busca automáticamente si queda vacío.")]
+    public TreeWindController treeWindController;
 
     [Header("Escala de botones")]
     [Tooltip("Escala de los botones inactivos (más pequeños).")]
@@ -142,6 +146,11 @@ public class SceneOverviewController : MonoBehaviour
 
         if (debrisControllers == null || debrisControllers.Length == 0)
             debrisControllers = FindObjectsOfType<RiverDebrisController>();
+
+        if (grassWindController == null)
+            grassWindController = FindObjectOfType<GrassWindController>();
+        if (treeWindController == null)
+            treeWindController = FindObjectOfType<TreeWindController>();
     }
 
     private void Update()
@@ -249,9 +258,9 @@ public class SceneOverviewController : MonoBehaviour
         // Efectos visuales (skybox, iluminación, niebla) — objetos 3D los gestiona StageManager
         VisualEffectsStageController.Instance?.ForceApplyStage((int)config.stage, fade: true);
 
-        // Lluvia
+        // Lluvia — usa los stagePresets de RainParticleController para garantizar que N1 = None
         if (rainController != null)
-            rainController.SetIntensity(config.rainIntensity);
+            rainController.ApplyStageIntensity(config.stage);
 
         // Nivel y apariencia del río
         waterLevelController?.ForceStage(config.stage, previewWaterTransition);
@@ -261,6 +270,10 @@ public class SceneOverviewController : MonoBehaviour
         if (debrisControllers != null)
             foreach (var dc in debrisControllers)
                 if (dc != null) ApplyDebrisForPreviewStage(dc, config.stage);
+
+        // Viento de hojas y árboles — sin esto quedan en la intensidad del nivel anterior
+        grassWindController?.ForcePreset((int)config.stage);
+        treeWindController?.ForcePreset((int)config.stage);
 
         RefreshButtonStates();
     }
@@ -310,12 +323,8 @@ public class SceneOverviewController : MonoBehaviour
         // Avanzar etapa o restaurar visuals de la etapa real
         if (_advancesStageOnExit && StageManager.Instance != null)
         {
-            // NextStage dispara OnStageChanged → VisualEffects y Audio reaccionan automáticamente
+            // NextStage dispara OnStageChanged → RainParticleController y VisualEffects reaccionan automáticamente
             StageManager.Instance.NextStage();
-            // Solo actualizamos la lluvia manualmente (no escucha OnStageChanged)
-            var newStage = StageManager.Instance.CurrentStage;
-            if (rainController != null)
-                rainController.SetIntensity(GetRainForStage(newStage));
         }
         else
         {
@@ -329,6 +338,10 @@ public class SceneOverviewController : MonoBehaviour
             if (debrisControllers != null)
                 foreach (var dc in debrisControllers)
                     if (dc != null) ApplyDebrisForPreviewStage(dc, _realStage);
+
+            // Restaurar viento a la etapa real
+            grassWindController?.ForcePreset((int)_realStage);
+            treeWindController?.ForcePreset((int)_realStage);
         }
 
         // Notificar al hotspot que terminó la interacción
@@ -440,14 +453,6 @@ public class SceneOverviewController : MonoBehaviour
         for (int i = 0; i < previewConfigs.Length; i++)
             if ((int)previewConfigs[i].stage <= reachedStage) best = i;
         return best;
-    }
-
-    private RainParticleController.RainIntensity GetRainForStage(StageManager.Stage stage)
-    {
-        if (previewConfigs == null) return RainParticleController.RainIntensity.None;
-        for (int i = 0; i < previewConfigs.Length; i++)
-            if (previewConfigs[i].stage == stage) return previewConfigs[i].rainIntensity;
-        return RainParticleController.RainIntensity.None;
     }
 
     // ── Fade ─────────────────────────────────────────────────────────────────

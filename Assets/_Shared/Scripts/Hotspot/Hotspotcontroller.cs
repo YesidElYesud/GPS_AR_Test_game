@@ -309,6 +309,13 @@ public class HotspotController : MonoBehaviour
         if (data != null && data.activatesEvacuationRoute)
             EvacuationRouteController.Instance?.Show();
 
+        // Secuencia de cámara post-cierre (ej: mostrar postes de alarma tras el panel)
+        if (data != null && data.postCloseSequence && cameraSequencer != null)
+        {
+            cameraSequencer.Play(null, false);
+            return; // No re-registrar en prompt: la cámara está siendo usada por el secuenciador
+        }
+
         // Si el jugador sigue en rango, volver a mostrar el botón de prompt
         if (_isNearby)
             HotspotPromptButton.Instance?.RegisterHotspot(this);

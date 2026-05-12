@@ -6,12 +6,32 @@ public class RainParticleController : MonoBehaviour
 {
     public enum RainIntensity { None, Light, Medium, Heavy }
 
+    [System.Serializable]
+    public struct StageRainPreset
+    {
+        public StageManager.Stage stage;
+        [Tooltip("Intensidad de lluvia para esta etapa.")]
+        public RainIntensity intensity;
+    }
+
     // ── Inspector ─────────────────────────────────────────────────────────────
     [Header("Intensidad")]
     public RainIntensity intensity = RainIntensity.Light;
 
     [Range(0f, 3f)]
     public float transitionDuration = 0.8f;
+
+    [Header("Control por Etapa")]
+    [Tooltip("Intensidad de lluvia por etapa del juego. Si la etapa no está listada, la lluvia no cambia al transicionar a ella.")]
+    public StageRainPreset[] stagePresets = new StageRainPreset[]
+    {
+        new StageRainPreset { stage = StageManager.Stage.Intro,  intensity = RainIntensity.None   },
+        new StageRainPreset { stage = StageManager.Stage.Etapa1, intensity = RainIntensity.None   },
+        new StageRainPreset { stage = StageManager.Stage.Etapa2, intensity = RainIntensity.Light  },
+        new StageRainPreset { stage = StageManager.Stage.Etapa3, intensity = RainIntensity.Medium },
+        new StageRainPreset { stage = StageManager.Stage.Etapa4, intensity = RainIntensity.Heavy  },
+        new StageRainPreset { stage = StageManager.Stage.Etapa5, intensity = RainIntensity.None   },
+    };
 
     [Header("Área")]
     [Range(10f, 80f)] public float areaSize = 38f;
@@ -68,6 +88,11 @@ public class RainParticleController : MonoBehaviour
         _renderer         = GetComponent<ParticleSystemRenderer>();
         transform.rotation = Quaternion.identity;
 
+        // Detener inmediatamente: evita que playOnAwake (escena) emita antes de Start()
+        _ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        _ps.Clear(true);
+        if (_renderer != null) _renderer.enabled = false;
+
         BuildParticleSystem();
         EnsureSplashSystem();
     }
@@ -78,8 +103,41 @@ public class RainParticleController : MonoBehaviour
         if (cam != null) _cam = cam.transform;
 
         SnapToCamera();
-        ApplyIntensityImmediate(intensity);
-        _splash?.SetIntensity(intensity);
+
+        if (StageManager.Instance != null)
+        {
+            StageManager.Instance.OnStageChanged += OnStageChanged;
+            ApplyStageIntensity(StageManager.Instance.CurrentStage);
+        }
+        else
+        {
+            ApplyIntensityImmediate(intensity);
+            _splash?.SetIntensity(intensity);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (StageManager.Instance != null)
+            StageManager.Instance.OnStageChanged -= OnStageChanged;
+    }
+
+    private void OnStageChanged(StageManager.Stage previous, StageManager.Stage current)
+    {
+        ApplyStageIntensity(current);
+    }
+
+    public void ApplyStageIntensity(StageManager.Stage stage)
+    {
+        if (stagePresets == null) return;
+        foreach (var p in stagePresets)
+        {
+            if (p.stage == stage)
+            {
+                SetIntensity(p.intensity);
+                return;
+            }
+        }
     }
 
     private void LateUpdate()
@@ -95,7 +153,9 @@ public class RainParticleController : MonoBehaviour
 
         if (_transitionRoutine != null) StopCoroutine(_transitionRoutine);
 
-        if (transitionDuration > 0f)
+        // None siempre se aplica inmediatamente — no tiene sentido que gotas de N4
+        // sigan cayendo mientras el hub ya muestra N1 (día soleado).
+        if (transitionDuration > 0f && newIntensity != RainIntensity.None)
             _transitionRoutine = StartCoroutine(IntensityTransition(newIntensity));
         else
             ApplyIntensityImmediate(newIntensity);
@@ -130,7 +190,7 @@ public class RainParticleController : MonoBehaviour
         main.maxParticles    = maxP;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.gravityModifier = 0f;
-        main.stopAction      = ParticleSystemStopAction.Disable;
+        main.stopAction      = ParticleSystemStopAction.None;
 
         var shape       = _ps.shape;
         shape.enabled   = true;
@@ -260,11 +320,15 @@ public class RainParticleController : MonoBehaviour
         {
             emission.rateOverTime = 0f;
             _ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            _ps.Clear(true);
+            if (_renderer != null) _renderer.enabled = false;
             _currentRate  = 0f;
             _currentSpeed = 0f;
             _currentArea  = 0f;
             return;
         }
+
+        if (_renderer != null) _renderer.enabled = true;
 
         float lifetime = (height / spd) + 0.4f;
         float area     = areaMult * areaSize;
@@ -303,6 +367,8 @@ public class RainParticleController : MonoBehaviour
         {
             float lifetime   = (height / targetSpd) + 0.4f;
             float targetArea = areaMult * areaSize;
+
+            if (_renderer != null) _renderer.enabled = true;
 
             var main           = _ps.main;
             main.startSize     = new ParticleSystem.MinMaxCurve(width * 0.65f, width * 1.35f);

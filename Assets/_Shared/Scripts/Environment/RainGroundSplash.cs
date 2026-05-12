@@ -98,9 +98,9 @@ public class RainGroundSplash : MonoBehaviour
 
         if (preset == RainParticleController.RainIntensity.None)
         {
-            _ripplePs.Stop(true, ParticleSystemStopBehavior.StopEmitting);
-            _sprayPs.Stop(true,  ParticleSystemStopBehavior.StopEmitting);
-            _sparksPs.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            _ripplePs.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            _sprayPs.Stop(true,  ParticleSystemStopBehavior.StopEmittingAndClear);
+            _sparksPs.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             return;
         }
 
@@ -108,6 +108,12 @@ public class RainGroundSplash : MonoBehaviour
         SetRipplePreset(rRate, scaledRMax);
         SetSprayPreset(sRate);
         SetSparksPreset(spkRate);
+
+        // stopAction=None garantiza que los GOs hijo no se auto-deshabiliten.
+        // SetActive explícito como red de seguridad por si algo externo los desactivó.
+        if (!_ripplePs.gameObject.activeSelf) _ripplePs.gameObject.SetActive(true);
+        if (!_sprayPs.gameObject.activeSelf)  _sprayPs.gameObject.SetActive(true);
+        if (!_sparksPs.gameObject.activeSelf) _sparksPs.gameObject.SetActive(true);
 
         if (!_ripplePs.isPlaying) _ripplePs.Play();
         if (!_sprayPs.isPlaying)  _sprayPs.Play();
@@ -145,7 +151,7 @@ public class RainGroundSplash : MonoBehaviour
         main.maxParticles    = 120;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.gravityModifier = 0f;
-        main.stopAction      = ParticleSystemStopAction.Disable;
+        main.stopAction      = ParticleSystemStopAction.None;
 
         var shape = _ripplePs.shape;
         shape.enabled         = true;
@@ -213,7 +219,7 @@ public class RainGroundSplash : MonoBehaviour
         main.maxParticles    = 200;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.gravityModifier = 2.8f;
-        main.stopAction      = ParticleSystemStopAction.Disable;
+        main.stopAction      = ParticleSystemStopAction.None;
 
         var shape = _sprayPs.shape;
         shape.enabled               = true;
@@ -266,7 +272,7 @@ public class RainGroundSplash : MonoBehaviour
         main.maxParticles    = 250;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.gravityModifier = 4.5f;
-        main.stopAction      = ParticleSystemStopAction.Disable;
+        main.stopAction      = ParticleSystemStopAction.None;
 
         // Radio ligeramente menor que spray para concentrar las chispas
         float sparksRadius = Mathf.Min(splashRadius * 0.7f, 4f);
