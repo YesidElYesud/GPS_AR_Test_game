@@ -86,6 +86,8 @@ public class SceneOverviewController : MonoBehaviour
     public GrassWindController grassWindController;
     [Tooltip("TreeWindController de la escena. Se busca automáticamente si queda vacío.")]
     public TreeWindController treeWindController;
+    [Tooltip("WetGroundController del camino. Se busca automáticamente si queda vacío.")]
+    public WetGroundController wetGroundController;
 
     [Header("Escala de botones")]
     [Tooltip("Escala de los botones inactivos (más pequeños).")]
@@ -151,6 +153,8 @@ public class SceneOverviewController : MonoBehaviour
             grassWindController = FindObjectOfType<GrassWindController>();
         if (treeWindController == null)
             treeWindController = FindObjectOfType<TreeWindController>();
+        if (wetGroundController == null)
+            wetGroundController = FindObjectOfType<WetGroundController>();
     }
 
     private void Update()
@@ -275,6 +279,9 @@ public class SceneOverviewController : MonoBehaviour
         grassWindController?.ForcePreset((int)config.stage);
         treeWindController?.ForcePreset((int)config.stage);
 
+        // Suelo mojado: reflectividad según la etapa preview
+        wetGroundController?.ForceStage(config.stage, previewWaterTransition);
+
         RefreshButtonStates();
     }
 
@@ -342,6 +349,9 @@ public class SceneOverviewController : MonoBehaviour
             // Restaurar viento a la etapa real
             grassWindController?.ForcePreset((int)_realStage);
             treeWindController?.ForcePreset((int)_realStage);
+
+            // Restaurar suelo mojado a la etapa real
+            wetGroundController?.ForceStage(_realStage, previewWaterTransition);
         }
 
         // Notificar al hotspot que terminó la interacción

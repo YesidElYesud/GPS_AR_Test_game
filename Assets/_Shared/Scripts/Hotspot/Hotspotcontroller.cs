@@ -9,7 +9,7 @@ using UnityEngine.EventSystems;
 /// Al salir del radio el botón se oculta; si había un panel abierto se cierra.
 /// </summary>
 [RequireComponent(typeof(Collider))]
-public class HotspotController : MonoBehaviour
+public class HotspotController : MonoBehaviour, IHotspotInteractable
 {
     [Header("Datos del Hotspot")]
     [Tooltip("ScriptableObject con el contenido de este hotspot")]
@@ -41,11 +41,20 @@ public class HotspotController : MonoBehaviour
     [Tooltip("Grados por segundo de rotación sobre el eje Y")]
     public float rotationSpeed = 60f;
 
+    [Header("Efecto Visitado")]
+    [Tooltip("Activa el efecto translúcido al interactuar. Desactivar en hotspots de NPC para no afectar el personaje.")]
+    [SerializeField] private bool enableVisitedEffect = true;
+    [Tooltip("Alpha que tendrán los materiales de la malla tras la primera interacción (0 = invisible, 1 = opaco).")]
+    [Range(0f, 1f)]
+    [SerializeField] private float visitedAlpha = 0.35f;
+
     // ── Internos ──────────────────────────────────────────────────────────────
     private Transform _playerCamera;
     private bool      _isNearby    = false;
     private bool      _isPanelOpen = false;
     private bool      _replayButtonActivated = false;
+    private bool      _hasBeenVisited = false;
+    private Renderer  _meshRenderer;
 
     // ── Gizmos en editor ──────────────────────────────────────────────────────
     private void OnDrawGizmosSelected()
@@ -67,6 +76,9 @@ public class HotspotController : MonoBehaviour
     {
         if (meshTransform == null && transform.childCount > 0)
             meshTransform = transform.GetChild(0);
+
+        if (meshTransform != null)
+            _meshRenderer = meshTransform.GetComponent<Renderer>();
 
         ApplyHotspotMaterial();
 
@@ -304,6 +316,10 @@ public class HotspotController : MonoBehaviour
     public void ClosePanel()
     {
         _isPanelOpen = false;
+
+        if (!_hasBeenVisited && enableVisitedEffect)
+            MarkAsVisited();
+
         if (uiPanel != null) uiPanel.Hide();
 
         if (data != null && data.activatesEvacuationRoute)
@@ -341,5 +357,43 @@ public class HotspotController : MonoBehaviour
         }
         if (!cameraSequencer.IsPlaying)
             cameraSequencer.Play(null, false);
+    }
+
+    // ── Efecto visitado ───────────────────────────────────────────────────────
+    private void MarkAsVisited()
+    {
+        _hasBeenVisited = true;
+        if (_meshRenderer == null) return;
+
+        // Instanciar los materiales para no modificar los assets compartidos
+        Material[] mats = _meshRenderer.materials;
+        foreach (Material mat in mats)
+            ApplyVisitedTransparency(mat, visitedAlpha);
+        _meshRenderer.materials = mats;
+    }
+
+    private static void ApplyVisitedTransparency(Material mat, float alpha)
+    {
+        if (mat == null) return;
+
+        // Cambiar a modo Transparent del Standard shader
+        if (mat.HasProperty("_Mode"))
+        {
+            mat.SetFloat("_Mode", 3f);
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            mat.SetInt("_ZWrite", 0);
+            mat.DisableKeyword("_ALPHATEST_ON");
+            mat.EnableKeyword("_ALPHABLEND_ON");
+            mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            mat.renderQueue = 3000;
+        }
+
+        if (mat.HasProperty("_Color"))
+        {
+            Color c = mat.GetColor("_Color");
+            c.a = alpha;
+            mat.SetColor("_Color", c);
+        }
     }
 }

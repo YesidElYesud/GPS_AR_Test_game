@@ -306,10 +306,11 @@ public class WaterSplashEffect : MonoBehaviour
     private static void PlayOrStop(ParticleSystem ps, bool off)
     {
         if (ps == null) return;
-        if (off)
-            ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
-        else if (!ps.isPlaying)
-            ps.Play();
+        // Limpiar siempre las partículas existentes para que el cambio de intensidad
+        // sea inmediato. Sin esto, las partículas de intensidad alta persisten hasta
+        // que expira su lifetime aunque la tasa de emisión ya sea la nueva (baja).
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        if (!off) ps.Play();
     }
 
     void OnDrawGizmosSelected()

@@ -36,11 +36,13 @@ MonoBehaviour:
     image: {fileID: 21300000, guid: 2d9b3175605562ff8bbde8696ea82c77, type: 3}
   infoSlideAdvancesStage: 0
   sequenceAdvancesStage: 0
-  triggerRadius: 3
+  triggerRadius: 2
   allowClick: 1
   requiredStage: 1
   headerImage: {fileID: 0}
   riskLevel: 0
+  activatesEvacuationRoute: 0
+  postCloseSequence: 0
   markerColor: {r: 0.2, g: 0.8, b: 1, a: 0.9}
   hotspotMaterial: {fileID: 0}
   isBlinking: 1

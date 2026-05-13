@@ -38,8 +38,8 @@ public class HotspotPromptButton : MonoBehaviour
     [SerializeField] private float pulseSpeed = 1.6f;
 
     // ── Estado interno ─────────────────────────────────────────────────────────
-    private readonly List<HotspotController> _nearbyHotspots = new List<HotspotController>();
-    private HotspotController _activeHotspot;
+    private readonly List<IHotspotInteractable> _nearbyHotspots = new List<IHotspotInteractable>();
+    private IHotspotInteractable _activeHotspot;
     private Coroutine _pulseRoutine;
 
     // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ public class HotspotPromptButton : MonoBehaviour
     /// Llamado por HotspotController al entrar en su radio (o al cerrarse su panel mientras
     /// el jugador sigue en rango).
     /// </summary>
-    public void RegisterHotspot(HotspotController hotspot)
+    public void RegisterHotspot(IHotspotInteractable hotspot)
     {
         if (hotspot == null) return;
         if (!_nearbyHotspots.Contains(hotspot))
@@ -78,7 +78,7 @@ public class HotspotPromptButton : MonoBehaviour
     /// o se oculta si no queda ninguno.
     /// Llamado al salir del radio, al abrir el panel o al desactivarse el hotspot.
     /// </summary>
-    public void UnregisterHotspot(HotspotController hotspot)
+    public void UnregisterHotspot(IHotspotInteractable hotspot)
     {
         _nearbyHotspots.Remove(hotspot);
         RefreshActive();
@@ -98,13 +98,13 @@ public class HotspotPromptButton : MonoBehaviour
         ShowButton();
     }
 
-    private HotspotController FindClosest()
+    private IHotspotInteractable FindClosest()
     {
         Transform cam = Camera.main != null ? Camera.main.transform : null;
         if (cam == null) return _nearbyHotspots[0];
 
-        HotspotController best  = null;
-        float             bestD = float.MaxValue;
+        IHotspotInteractable best  = null;
+        float                bestD = float.MaxValue;
         foreach (var h in _nearbyHotspots)
         {
             if (h == null) continue;
