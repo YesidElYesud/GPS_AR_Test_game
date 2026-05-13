@@ -30,21 +30,29 @@ public class WaterSplashManager : MonoBehaviour
     private WaterSplashEffect[] _effects;
 
     // ──────────────────────────────────────────────────────────────────────
-    void Awake()
+    void Start()
     {
+        // Re-escanear aquí porque en Awake otros GOs pueden no haber inicializado aún
         _effects = FindObjectsOfType<WaterSplashEffect>();
-
-        // Sincronizar dirección de flujo inicial
         SetFlowDirection(globalFlowDirection);
-    }
 
-    void OnEnable()
-    {
         if (StageManager.Instance != null)
+        {
             StageManager.Instance.OnStageChanged += OnStageChanged;
+
+            // Aplicar la etapa actual inmediatamente — sin esperar el próximo cambio
+            int idx = (int)StageManager.Instance.CurrentStage;
+            if (idx >= 0 && idx < stageIntensities.Length)
+                SetIntensity(stageIntensities[idx]);
+        }
+        else
+        {
+            Debug.LogWarning("[WaterSplashManager] StageManager.Instance es null en Start. " +
+                             "Las chispas no responderán a cambios de etapa.", this);
+        }
     }
 
-    void OnDisable()
+    void OnDestroy()
     {
         if (StageManager.Instance != null)
             StageManager.Instance.OnStageChanged -= OnStageChanged;

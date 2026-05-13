@@ -50,8 +50,8 @@ public class NpcDialoguePanel : MonoBehaviour
     public MultipleChoicePanel choicePanel;
 
     // ── Internos ──────────────────────────────────────────────────────────────
-    private NpcDialogueData   _currentData;
-    private HotspotController _sourceHotspot;
+    private NpcDialogueData      _currentData;
+    private IHotspotInteractable _sourceHotspot;
     private Coroutine         _correctRoutine;
     private Coroutine         _wrongRoutine;
     private System.Action     _onCorrectCallback;
@@ -80,7 +80,7 @@ public class NpcDialoguePanel : MonoBehaviour
     /// Muestra el panel con los datos del diálogo indicado.
     /// Llamado desde HotspotController.
     /// </summary>
-    public void Show(NpcDialogueData data, HotspotController source, System.Action onCorrect = null)
+    public void Show(NpcDialogueData data, IHotspotInteractable source, System.Action onCorrect = null)
     {
         if (data == null)
         {

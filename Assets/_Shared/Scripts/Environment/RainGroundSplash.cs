@@ -110,14 +110,17 @@ public class RainGroundSplash : MonoBehaviour
         SetSparksPreset(spkRate);
 
         // stopAction=None garantiza que los GOs hijo no se auto-deshabiliten.
-        // SetActive explícito como red de seguridad por si algo externo los desactivó.
         if (!_ripplePs.gameObject.activeSelf) _ripplePs.gameObject.SetActive(true);
         if (!_sprayPs.gameObject.activeSelf)  _sprayPs.gameObject.SetActive(true);
         if (!_sparksPs.gameObject.activeSelf) _sparksPs.gameObject.SetActive(true);
 
-        if (!_ripplePs.isPlaying) _ripplePs.Play();
-        if (!_sprayPs.isPlaying)  _sprayPs.Play();
-        if (!_sparksPs.isPlaying) _sparksPs.Play();
+        // Limpiar partículas del preset anterior para que el cambio sea inmediato
+        _ripplePs.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        _sprayPs.Stop(true,  ParticleSystemStopBehavior.StopEmittingAndClear);
+        _sparksPs.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        _ripplePs.Play();
+        _sprayPs.Play();
+        _sparksPs.Play();
     }
 
     /// <summary>Llamado por RainParticleController si el usuario asigna una textura de gota.</summary>

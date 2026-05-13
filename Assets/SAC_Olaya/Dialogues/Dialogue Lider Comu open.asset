@@ -10,21 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a4b488c86b9ab9a45bd0ccc96dd123bd, type: 3}
-  m_Name: Dialogue Lider Comu
+  m_Name: Dialogue Lider Comu open
   m_EditorClassIdentifier: 
   npcName: Lider Comunitario
   npcPhoto: {fileID: 21300000, guid: 182acf71ddf9c950fa17aa1f5eb640e3, type: 3}
   dialogueLines:
-  - "Hola, soy el l\xEDder comunitario de este sector"
-  - "Estoy aqu\xED para apoyarte y orientarte en todo lo relacionado con la gesti\xF3n
-    del riesgo"
+  - Bienvenido a esta experiencia!
   npcText: "\xBFQu\xE9 haces ante una alerta de inundaci\xF3n?"
-  options:
-  - optionText: Quedarme en casa
-    isCorrect: 0
-    feedbackText: Incorrecto, debes evacuar.
-  - optionText: Evacuar al punto seguro
-    isCorrect: 1
-    feedbackText: "\xA1Correcto! El punto de evacuaci\xF3n salva vidas."
+  options: []
   advancesStageOnCorrect: 0
   correctAnswerDelay: 1.5

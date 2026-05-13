@@ -10,14 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a4b488c86b9ab9a45bd0ccc96dd123bd, type: 3}
-  m_Name: Dialogue Lider Comu
+  m_Name: Dialogue Lider Comu 3
   m_EditorClassIdentifier: 
   npcName: Lider Comunitario
   npcPhoto: {fileID: 21300000, guid: 182acf71ddf9c950fa17aa1f5eb640e3, type: 3}
   dialogueLines:
-  - "Hola, soy el l\xEDder comunitario de este sector"
-  - "Estoy aqu\xED para apoyarte y orientarte en todo lo relacionado con la gesti\xF3n
-    del riesgo"
+  - "Estas herramientas te ayudar\xE1n a actuar a tiempo y a tomar mejores decisiones
+    para cuidar tu vida y la de quienes te rodean."
   npcText: "\xBFQu\xE9 haces ante una alerta de inundaci\xF3n?"
   options:
   - optionText: Quedarme en casa
