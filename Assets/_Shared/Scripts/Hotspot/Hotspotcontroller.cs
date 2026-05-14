@@ -48,6 +48,15 @@ public class HotspotController : MonoBehaviour, IHotspotInteractable
     [Range(0f, 1f)]
     [SerializeField] private float visitedAlpha = 0.35f;
 
+    [Header("Al cerrar el panel")]
+    [Tooltip("GameObjects que se OCULTARÁN (SetActive false) cuando se cierre este hotspot.\n" +
+             "Útil para hacer desaparecer la malla del hotspot u objetos relacionados.")]
+    [SerializeField] private GameObject[] objectsToHideOnClose;
+
+    [Tooltip("GameObjects que se MOSTRARÁN (SetActive true) cuando se cierre este hotspot.\n" +
+             "Útil para revelar un NPC u otro objeto que estaba oculto.")]
+    [SerializeField] private GameObject[] objectsToShowOnClose;
+
     // ── Internos ──────────────────────────────────────────────────────────────
     private Transform _playerCamera;
     private bool      _isNearby    = false;
@@ -325,6 +334,8 @@ public class HotspotController : MonoBehaviour, IHotspotInteractable
         if (data != null && data.activatesEvacuationRoute)
             EvacuationRouteController.Instance?.Show();
 
+        ApplyOnCloseVisibility();
+
         // Secuencia de cámara post-cierre (ej: mostrar postes de alarma tras el panel)
         if (data != null && data.postCloseSequence && cameraSequencer != null)
         {
@@ -335,6 +346,17 @@ public class HotspotController : MonoBehaviour, IHotspotInteractable
         // Si el jugador sigue en rango, volver a mostrar el botón de prompt
         if (_isNearby)
             HotspotPromptButton.Instance?.RegisterHotspot(this);
+    }
+
+    private void ApplyOnCloseVisibility()
+    {
+        if (objectsToHideOnClose != null)
+            foreach (var go in objectsToHideOnClose)
+                if (go != null) go.SetActive(false);
+
+        if (objectsToShowOnClose != null)
+            foreach (var go in objectsToShowOnClose)
+                if (go != null) go.SetActive(true);
     }
 
     // ── Repetición de secuencia ───────────────────────────────────────────────

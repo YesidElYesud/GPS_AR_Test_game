@@ -41,6 +41,9 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
 
         [Tooltip("ScriptableObject NpcDialogueData para el diálogo de esta parada.")]
         public NpcDialogueData dialogue;
+
+        [Tooltip("Si está activo, avanza automáticamente a la siguiente etapa (NextStage) al cerrar el diálogo de esta parada.")]
+        public bool advancesStageOnClose;
     }
 
     // ── Inspector ──────────────────────────────────────────────────────────────
@@ -172,9 +175,11 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     {
         _dialogueOpen = false;
 
+        Debug.Log($"[NPCStageWalker] ClosePanel — currentStop={_currentStop}, stopsLength={stops?.Length}");
+
         if (_currentStop >= stops.Length - 1)
         {
-            // Última parada — terminar
+            Debug.Log("[NPCStageWalker] → Última parada, estado=Finished");
             _state = WalkerState.Finished;
             SetAnimSpeed(0f);
             if (disappearAfterFinalDialogue)
@@ -182,11 +187,26 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
             return;
         }
 
-        // Avanzar al siguiente stop y comenzar a caminar
+        // Avanzar etapa ANTES de cambiar el estado: OnStageChanged encontrará al NPC en
+        // IdleInteractable (no WaitingForStage) y no re-evaluará la posición actual.
+        if (stops[_currentStop].advancesStageOnClose)
+            StageManager.Instance?.NextStage();
+
         _currentStop++;
         _pathWaypointIdx = 0;
         _state = WalkerState.WalkingToNext;
         SetAnimSpeed(moveSpeed);
+
+        var nextStop = stops[_currentStop];
+        Debug.Log($"[NPCStageWalker] → Caminando a stop[{_currentStop}] standPoint={(nextStop.standPoint != null ? nextStop.standPoint.name : "NULL")}, waypoints={nextStop.pathWaypoints?.Length ?? 0}");
+
+        if (nextStop.standPoint == null)
+            Debug.LogWarning($"[NPCStageWalker] ADVERTENCIA: stops[{_currentStop}].standPoint es null — el NPC no se moverá.", this);
+
+        if (nextStop.pathWaypoints != null)
+            for (int i = 0; i < nextStop.pathWaypoints.Length; i++)
+                if (nextStop.pathWaypoints[i] == null)
+                    Debug.LogWarning($"[NPCStageWalker] ADVERTENCIA: stops[{_currentStop}].pathWaypoints[{i}] es null — se saltará.", this);
     }
 
     // ── Eventos de etapa ──────────────────────────────────────────────────────
