@@ -19,21 +19,25 @@ MonoBehaviour:
     specimen book. It has survived not only five centuries, but also the leap into
     electronic typesetting, remaining essentially unchanged.
   icon: {fileID: 21300000, guid: ccf760065da59d2c48627142492f0a12, type: 3}
-  actionType: 0
+  actionType: 4
   cinematicClip: {fileID: 0}
   cinematicUrl: 
   cinematicAdvancesStage: 1
   dialogueData: {fileID: 0}
   siataSequence: {fileID: 0}
-  infoSlides: []
+  infoSlides:
+  - title: 
+    body: 'Pendiente '
+    image: {fileID: 21300000, guid: 0b040751fb703d0e78fa816d390e0003, type: 3}
   infoSlideAdvancesStage: 1
   sequenceAdvancesStage: 1
-  triggerRadius: 3
+  triggerRadius: 2
   allowClick: 1
   requiredStage: 1
   headerImage: {fileID: 0}
   riskLevel: 0
   activatesEvacuationRoute: 0
+  postCloseSequence: 0
   markerColor: {r: 0.2, g: 0.8, b: 1, a: 0.9}
   hotspotMaterial: {fileID: 0}
   isBlinking: 1

@@ -172,7 +172,12 @@ public class CinematicSequencer : MonoBehaviour
         // Fade a negro (cubre el salto al primer anchor)
         yield return StartCoroutine(DoFade(0f, 1f, fadeDuration));
 
-        if (skipButton != null) skipButton.SetActive(true);
+        if (skipButton != null)
+        {
+            skipButton.SetActive(true);
+            var btn = skipButton.GetComponent<Button>();
+            btn?.onClick.AddListener(RequestSkip);
+        }
 
         // Saltar inmediatamente al anchor de la primera toma bajo el fade
         if (shots.Length > 0 && shots[0].anchor != null)
@@ -221,7 +226,11 @@ public class CinematicSequencer : MonoBehaviour
         }
 
         // Ocultar botón y anillo
-        if (skipButton != null) skipButton.SetActive(false);
+        if (skipButton != null)
+        {
+            skipButton.GetComponent<Button>()?.onClick.RemoveListener(RequestSkip);
+            skipButton.SetActive(false);
+        }
         if (ringRoutine != null) StopCoroutine(ringRoutine);
         if (progressRing != null) progressRing.gameObject.SetActive(false);
 

@@ -91,13 +91,29 @@ public class RiverDebrisController : MonoBehaviour
     private Coroutine _spawnCoroutine;
 
     // ── Ciclo de vida ─────────────────────────────────────────────────────────
-    void OnEnable()
+
+    // Start() en lugar de OnEnable(): en Start() todos los Awake() ya corrieron,
+    // garantizando que StageManager.Instance no sea null al suscribirse.
+    void Start()
     {
-        if (StageManager.Instance != null)
-            StageManager.Instance.OnStageChanged += OnStageChanged;
+        if (StageManager.Instance == null)
+        {
+            Debug.LogWarning("[RiverDebrisController] StageManager.Instance es null en Start. " +
+                             "Los escombros no responderán a cambios de etapa.", this);
+            return;
+        }
+
+        StageManager.Instance.OnStageChanged += OnStageChanged;
+
+        // Aplicar la etapa actual de inmediato — sin esperar el próximo cambio.
+        var current = StageManager.Instance.CurrentStage;
+        if (current == activateOnStage)
+            Activate();
+        else if (_isActive && deactivateOnNextStage && (int)current > (int)activateOnStage)
+            Deactivate();
     }
 
-    void OnDisable()
+    void OnDestroy()
     {
         if (StageManager.Instance != null)
             StageManager.Instance.OnStageChanged -= OnStageChanged;

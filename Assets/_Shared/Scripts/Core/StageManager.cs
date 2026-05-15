@@ -117,6 +117,17 @@ public class StageManager : MonoBehaviour
         GoToStage((Stage)next);
     }
 
+    public void PreviousStage()
+    {
+        int prev = (int)CurrentStage - 1;
+        if (prev < 0)
+        {
+            if (debugLogs) Debug.Log("[StageManager] Ya está en la primera etapa.");
+            return;
+        }
+        GoToStage((Stage)prev);
+    }
+
     /// <summary>
     /// Salta directamente a la etapa indicada.
     /// Útil para debugging o para que WelcomePanel inicie en Etapa1.

@@ -32,15 +32,13 @@ public class WaterSplashManager : MonoBehaviour
     // ──────────────────────────────────────────────────────────────────────
     void Start()
     {
-        // Re-escanear aquí porque en Awake otros GOs pueden no haber inicializado aún
-        _effects = FindObjectsOfType<WaterSplashEffect>();
+        _effects = GetComponentsInChildren<WaterSplashEffect>(includeInactive: true);
         SetFlowDirection(globalFlowDirection);
 
         if (StageManager.Instance != null)
         {
             StageManager.Instance.OnStageChanged += OnStageChanged;
 
-            // Aplicar la etapa actual inmediatamente — sin esperar el próximo cambio
             int idx = (int)StageManager.Instance.CurrentStage;
             if (idx >= 0 && idx < stageIntensities.Length)
                 SetIntensity(stageIntensities[idx]);
@@ -70,6 +68,14 @@ public class WaterSplashManager : MonoBehaviour
     }
 
     // ─── API pública ──────────────────────────────────────────────────────
+
+    /// <summary>Aplica la intensidad correspondiente a una etapa del StageManager (para preview).</summary>
+    public void ApplyStageIntensity(StageManager.Stage stage)
+    {
+        int idx = (int)stage;
+        if (idx < 0 || idx >= stageIntensities.Length) return;
+        SetIntensity(stageIntensities[idx]);
+    }
 
     public void SetIntensity(WaterSplashEffect.SplashIntensity intensity)
     {
