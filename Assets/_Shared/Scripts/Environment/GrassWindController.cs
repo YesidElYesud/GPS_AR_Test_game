@@ -67,6 +67,11 @@ public class GrassWindController : MonoBehaviour
         new WindPreset { maxAngleDeg =  4.0f, swaySpeed = 1.1f, gustFrequency = 0.20f, gustAmplitudeMult = 1.4f },  // Etapa5 — post-tormenta
     };
 
+    [Header("Rendimiento")]
+    [Tooltip("Actualizar las matas cada N frames. 1=cada frame, 2=cada 2 frames (recomendado WebGL), 3=cada 3 frames.")]
+    [Range(1, 4)]
+    public int updateEveryNFrames = 2;
+
     // ── Internos ──────────────────────────────────────────────────────────────
     private struct GrassEntry
     {
@@ -82,6 +87,7 @@ public class GrassWindController : MonoBehaviour
     private WindPreset        _targetPreset;
     private float             _blendT = 1f;    // 0=current→target, 1=reached target
     private Coroutine         _blendRoutine;
+    private int               _frameCounter;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
@@ -113,6 +119,9 @@ public class GrassWindController : MonoBehaviour
     private void Update()
     {
         if (_grasses.Count == 0) return;
+
+        _frameCounter++;
+        if (_frameCounter % updateEveryNFrames != 0) return;
 
         // Interpolar preset actual → target
         WindPreset p = LerpPreset(_currentPreset, _targetPreset, _blendT);

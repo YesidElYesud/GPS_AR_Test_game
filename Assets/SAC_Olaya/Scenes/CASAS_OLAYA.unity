@@ -49685,7 +49685,7 @@ PrefabInstance:
     - target: {fileID: 3125995042610548346, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
       propertyPath: m_Materials.Array.data[1]
       value: 
-      objectReference: {fileID: 2100000, guid: af8cbfdfc57b14788bfb7bc68c079df7, type: 2}
+      objectReference: {fileID: 2100000, guid: bcc803c07fd762282bd1c1e29f6de195, type: 2}
     - target: {fileID: 3434394184870601275, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
       propertyPath: m_IsActive
       value: 0
@@ -66121,6 +66121,7 @@ MonoBehaviour:
     swaySpeed: 1.1
     gustFrequency: 0.2
     gustAmplitudeMult: 1.4
+  updateEveryNFrames: 2
 --- !u!1001 &942485609
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -96625,7 +96626,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5630625985142052841, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
       propertyPath: m_Name
-      value: Hotspot InfoAboit (1)
+      value: Hotspot AlarmasPoste
       objectReference: {fileID: 0}
     - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
       propertyPath: data
