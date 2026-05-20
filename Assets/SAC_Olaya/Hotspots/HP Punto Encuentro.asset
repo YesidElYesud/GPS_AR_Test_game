@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ef9622e3be7f0cdd8d063b28538a030, type: 3}
+  m_Name: HP Punto Encuentro
+  m_EditorClassIdentifier: 
+  title: "Ruta de Evacuaci\xF3n"
+  description: 
+  icon: {fileID: 21300000, guid: f5eaa1fc5c7e4da72817c5936d8fe7b2, type: 3}
+  actionType: 4
+  cinematicClip: {fileID: 0}
+  cinematicUrl: 
+  cinematicAdvancesStage: 0
+  dialogueData: {fileID: 0}
+  siataSequence: {fileID: 0}
+  infoSlides:
+  - title: 
+    body: 
+    image: {fileID: 21300000, guid: 01dc278a734cb711fa5c1259f1893c38, type: 3}
+  infoSlideAdvancesStage: 0
+  sequenceAdvancesStage: 0
+  triggerRadius: 2
+  allowClick: 1
+  requiredStage: -1
+  headerImage: {fileID: 0}
+  riskLevel: 0
+  activatesEvacuationRoute: 0
+  postCloseSequence: 0
+  markerColor: {r: 0.2, g: 0.8, b: 1, a: 0.9}
+  hotspotMaterial: {fileID: 0}
+  isBlinking: 1
+  blinkSpeed: 1.5

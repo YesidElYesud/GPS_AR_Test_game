@@ -13,10 +13,7 @@ MonoBehaviour:
   m_Name: "HP Ruta Evacuaci\xF3n"
   m_EditorClassIdentifier: 
   title: "Ruta de Evacuaci\xF3n"
-  description: "La ruta de evacuaci\xF3n es el camino m\xE1s seguro para llegar a
-    un punto de encuentro en caso de una emergencia, evitando las zonas de riesgo.
-    Conocer esta ruta te permite actuar de manera r\xE1pida y organizada cuando sea
-    necesario."
+  description: 
   icon: {fileID: 21300000, guid: f5eaa1fc5c7e4da72817c5936d8fe7b2, type: 3}
   actionType: 4
   cinematicClip: {fileID: 0}
@@ -27,7 +24,7 @@ MonoBehaviour:
   infoSlides:
   - title: 
     body: 
-    image: {fileID: 21300000, guid: 060bb28c225e906b4b40d2b11df5f381, type: 3}
+    image: {fileID: 21300000, guid: 16ae66b57a8f86c12b516cd96f278bc8, type: 3}
   infoSlideAdvancesStage: 0
   sequenceAdvancesStage: 0
   triggerRadius: 2
