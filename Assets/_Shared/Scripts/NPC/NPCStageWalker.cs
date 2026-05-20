@@ -41,6 +41,9 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
 
         [Tooltip("ScriptableObject NpcDialogueData para el diálogo de esta parada.")]
         public NpcDialogueData dialogue;
+
+        [Tooltip("Si está activo, avanza automáticamente a la siguiente etapa (NextStage) al cerrar el diálogo de esta parada.")]
+        public bool advancesStageOnClose;
     }
 
     // ── Inspector ──────────────────────────────────────────────────────────────
@@ -80,6 +83,7 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     private int         _currentStop      = 0;
     private int         _pathWaypointIdx  = 0; // Índice dentro de stops[_currentStop].pathWaypoints
 
+
     // ── Componentes ───────────────────────────────────────────────────────────
     private CharacterController _cc;
     private Animator            _anim;
@@ -90,6 +94,8 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     private bool  _dialogueOpen;
     private float _verticalVel;
 
+    private bool _startHasRun;
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
     {
@@ -98,8 +104,18 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
         _anim.applyRootMotion = false;
     }
 
+    private void OnEnable()
+    {
+        _verticalVel = 0f;
+        // Re-snap si el NPC se reactiva después del Start (SetActive ciclos).
+        // En la primera activación _startHasRun es false, Start() se encarga.
+        if (_startHasRun && stops != null && _currentStop < stops.Length)
+            SnapToStop(_currentStop);
+    }
+
     private void Start()
     {
+        _startHasRun = true;
         if (Camera.main != null)
             _playerCamera = Camera.main.transform;
 
@@ -115,6 +131,8 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
             StageManager.Instance.OnStageChanged += OnStageChanged;
 
         EvaluateStateForCurrentStop(StageManager.Instance?.CurrentStage ?? StageManager.Stage.Intro);
+
+        ExcludePlayerWalls();
     }
 
     private void OnDestroy()
@@ -143,6 +161,7 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
                 WalkStep();
                 break;
         }
+
     }
 
     // ── IHotspotInteractable ──────────────────────────────────────────────────
@@ -172,9 +191,11 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     {
         _dialogueOpen = false;
 
+        Debug.Log($"[NPCStageWalker] ClosePanel — currentStop={_currentStop}, stopsLength={stops?.Length}");
+
         if (_currentStop >= stops.Length - 1)
         {
-            // Última parada — terminar
+            Debug.Log("[NPCStageWalker] → Última parada, estado=Finished");
             _state = WalkerState.Finished;
             SetAnimSpeed(0f);
             if (disappearAfterFinalDialogue)
@@ -182,11 +203,27 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
             return;
         }
 
-        // Avanzar al siguiente stop y comenzar a caminar
+        // Avanzar etapa ANTES de cambiar el estado: OnStageChanged encontrará al NPC en
+        // IdleInteractable (no WaitingForStage) y no re-evaluará la posición actual.
+        if (stops[_currentStop].advancesStageOnClose)
+            StageManager.Instance?.NextStage();
+
         _currentStop++;
         _pathWaypointIdx = 0;
         _state = WalkerState.WalkingToNext;
+        _cc.enabled = false; // Deshabilitar CC para atravesar paredes libremente
         SetAnimSpeed(moveSpeed);
+
+        var nextStop = stops[_currentStop];
+        Debug.Log($"[NPCStageWalker] → Caminando a stop[{_currentStop}] standPoint={(nextStop.standPoint != null ? nextStop.standPoint.name : "NULL")}, waypoints={nextStop.pathWaypoints?.Length ?? 0}");
+
+        if (nextStop.standPoint == null)
+            Debug.LogWarning($"[NPCStageWalker] ADVERTENCIA: stops[{_currentStop}].standPoint es null — el NPC no se moverá.", this);
+
+        if (nextStop.pathWaypoints != null)
+            for (int i = 0; i < nextStop.pathWaypoints.Length; i++)
+                if (nextStop.pathWaypoints[i] == null)
+                    Debug.LogWarning($"[NPCStageWalker] ADVERTENCIA: stops[{_currentStop}].pathWaypoints[{i}] es null — se saltará.", this);
     }
 
     // ── Eventos de etapa ──────────────────────────────────────────────────────
@@ -247,26 +284,28 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
 
         if (dist <= arrivalRadius)
         {
-            // ¿Llegamos a un waypoint intermedio o al standPoint?
             var pathWps = stops[_currentStop].pathWaypoints;
             bool onWaypoint = pathWps != null && _pathWaypointIdx < pathWps.Length;
 
             if (onWaypoint)
-                _pathWaypointIdx++; // Siguiente waypoint (o standPoint si ya no hay más)
+                _pathWaypointIdx++;
             else
-                OnArrived();        // Llegamos al standPoint
+                OnArrived();
 
             return;
         }
 
-        Vector3 dir = (flatTarget - flatSelf).normalized;
-        if (dir.sqrMagnitude > 0.001f)
+        Vector3 flatDir = (flatTarget - flatSelf).normalized;
+        if (flatDir.sqrMagnitude > 0.001f)
             transform.rotation = Quaternion.Slerp(
                 transform.rotation,
-                Quaternion.LookRotation(dir),
+                Quaternion.LookRotation(flatDir),
                 rotationSpeed * Time.deltaTime);
 
-        _cc.Move(dir * (moveSpeed * Time.deltaTime));
+        // Movimiento directo por transform — el NPC atraviesa paredes y casas sin fricción.
+        // El CC está deshabilitado durante todo el trayecto (ver ClosePanel/OnArrived).
+        Vector3 dir3D = (target.position - transform.position).normalized;
+        transform.position += dir3D * (moveSpeed * Time.deltaTime);
     }
 
     /// <summary>
@@ -288,14 +327,11 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     {
         SetAnimSpeed(0f);
 
-        // Snap exacto al standPoint para eliminar deriva de CharacterController
+        // Snap exacto al standPoint y re-habilitar CC para gravedad/interacción
         var sp = stops[_currentStop].standPoint;
-        if (sp != null)
-        {
-            _cc.enabled = false;
-            transform.position = sp.position;
-            _cc.enabled = true;
-        }
+        if (sp != null) transform.position = sp.position;
+        _cc.enabled = true;
+        _verticalVel = 0f;
 
         // Proximidad parte de cero en cada nueva parada
         _isNearby = false;
@@ -328,6 +364,7 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     // ── Gravedad ──────────────────────────────────────────────────────────────
     private void ApplyGravity()
     {
+        if (_state == WalkerState.WalkingToNext) return; // CC deshabilitado durante el camino
         _verticalVel = _cc.isGrounded ? -2f : _verticalVel + gravity * Time.deltaTime;
         _cc.Move(Vector3.up * (_verticalVel * Time.deltaTime));
     }
@@ -336,9 +373,8 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     private void SnapToStop(int index)
     {
         if (stops == null || index >= stops.Length || stops[index].standPoint == null) return;
-        _cc.enabled = false;
         transform.position = stops[index].standPoint.position;
-        _cc.enabled = true;
+        _verticalVel = 0f;
     }
 
     // ── Fade-out final ────────────────────────────────────────────────────────
@@ -458,6 +494,16 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
         // Radio de interacción sobre la posición actual del NPC
         Gizmos.color = new Color(0f, 1f, 0f, 0.10f);
         Gizmos.DrawSphere(transform.position, interactRadius);
+    }
+
+    [Header("Paredes que ignora el NPC")]
+    [Tooltip("Layer de los BlockVolumen. El NPC los atraviesa; el jugador sigue siendo bloqueado.")]
+    public LayerMask npcIgnoreWallsLayer;
+
+    private void ExcludePlayerWalls()
+    {
+        if (npcIgnoreWallsLayer == 0) return;
+        _cc.excludeLayers |= npcIgnoreWallsLayer;
     }
 
     private static Vector3 FlatXZ(Vector3 v) => new Vector3(v.x, 0f, v.z);

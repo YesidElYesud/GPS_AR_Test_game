@@ -100,6 +100,8 @@ public class SceneOverviewController : MonoBehaviour
     [Header("Referencias")]
     [Tooltip("Se busca automáticamente en la escena si queda vacío.")]
     public RainParticleController rainController;
+    [Tooltip("WaterSplashManager de ChispasRio. Se busca automáticamente si queda vacío.")]
+    public WaterSplashManager waterSplashManager;
 
     // ── Estado interno ────────────────────────────────────────────────────────
     private bool               _active;
@@ -139,6 +141,8 @@ public class SceneOverviewController : MonoBehaviour
 
         if (rainController == null)
             rainController = FindObjectOfType<RainParticleController>();
+        if (waterSplashManager == null)
+            waterSplashManager = FindObjectOfType<WaterSplashManager>();
 
         if (waterLevelController == null)
             waterLevelController = FindObjectOfType<WaterLevelController>();
@@ -266,6 +270,9 @@ public class SceneOverviewController : MonoBehaviour
         if (rainController != null)
             rainController.ApplyStageIntensity(config.stage);
 
+        // Chispas de agua (ChispasRio)
+        waterSplashManager?.ApplyStageIntensity(config.stage);
+
         // Nivel y apariencia del río
         waterLevelController?.ForceStage(config.stage, previewWaterTransition);
         waterFlowController?.ForceStage(config.stage, previewWaterTransition);
@@ -338,6 +345,7 @@ public class SceneOverviewController : MonoBehaviour
             VisualEffectsStageController.Instance?.ForceApplyStage((int)_realStage, fade: true);
             if (rainController != null)
                 rainController.SetIntensity(_savedRainIntensity);
+            waterSplashManager?.ApplyStageIntensity(_realStage);
 
             // Restaurar nivel, apariencia del río y escombros a la etapa real
             waterLevelController?.ForceStage(_realStage, previewWaterTransition);

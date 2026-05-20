@@ -138,8 +138,12 @@ public class CinematicSequencer : MonoBehaviour
         Vector3    savedPos = _cam.position;
         Quaternion savedRot = _cam.rotation;
 
-        // Ocultar joystick
-        bool joystickWasActive = joystickPanel != null && joystickPanel.activeSelf;
+        // Ocultar joystick.
+        // Cuando _caller == null la secuencia fue disparada desde postCloseSequence: el panel ya
+        // se cerró pero ScreenBackground.LateUpdate() todavía no restauró el HUD, por lo que
+        // activeSelf sería false aunque el joystick debería estar visible al terminar.
+        bool joystickWasActive = joystickPanel != null &&
+                                 (joystickPanel.activeSelf || _caller == null);
         if (joystickPanel != null) joystickPanel.SetActive(false);
 
         // Ocultar HUD
@@ -148,7 +152,11 @@ public class CinematicSequencer : MonoBehaviour
             _hudWasActive = new bool[hudElements.Length];
             for (int h = 0; h < hudElements.Length; h++)
             {
-                _hudWasActive[h] = hudElements[h] != null && hudElements[h].activeSelf;
+                // Cuando _caller == null (postCloseSequence) el HUD sigue oculto porque
+                // ScreenBackground.LateUpdate() aún no corrió: todos los activeSelf son false
+                // aunque deberían estar activos al terminar. Asumir que sí deben restaurarse.
+                _hudWasActive[h] = _caller == null ||
+                                   (hudElements[h] != null && hudElements[h].activeSelf);
                 if (hudElements[h] != null) hudElements[h].SetActive(false);
             }
         }
@@ -172,7 +180,12 @@ public class CinematicSequencer : MonoBehaviour
         // Fade a negro (cubre el salto al primer anchor)
         yield return StartCoroutine(DoFade(0f, 1f, fadeDuration));
 
-        if (skipButton != null) skipButton.SetActive(true);
+        if (skipButton != null)
+        {
+            skipButton.SetActive(true);
+            var btn = skipButton.GetComponent<Button>();
+            btn?.onClick.AddListener(RequestSkip);
+        }
 
         // Saltar inmediatamente al anchor de la primera toma bajo el fade
         if (shots.Length > 0 && shots[0].anchor != null)
@@ -221,7 +234,11 @@ public class CinematicSequencer : MonoBehaviour
         }
 
         // Ocultar botón y anillo
-        if (skipButton != null) skipButton.SetActive(false);
+        if (skipButton != null)
+        {
+            skipButton.GetComponent<Button>()?.onClick.RemoveListener(RequestSkip);
+            skipButton.SetActive(false);
+        }
         if (ringRoutine != null) StopCoroutine(ringRoutine);
         if (progressRing != null) progressRing.gameObject.SetActive(false);
 
@@ -238,8 +255,6 @@ public class CinematicSequencer : MonoBehaviour
         arCtrl?.SetAerialMode(false);
         StageManager.Instance?.SetPlayerInputBlocked(false);
 
-        if (joystickWasActive && joystickPanel != null) joystickPanel.SetActive(true);
-
         // Restaurar HUD
         if (hudElements != null && _hudWasActive != null)
         {
@@ -249,6 +264,10 @@ public class CinematicSequencer : MonoBehaviour
                     hudElements[h].SetActive(_hudWasActive[h]);
             }
         }
+
+        // Restaurar joystick después del loop de HUD para ganar si joystickPanel
+        // está también en hudElements (evita que la restauración del array lo sobreescriba).
+        if (joystickWasActive && joystickPanel != null) joystickPanel.SetActive(true);
 
         _caller?.ClosePanel();
 
