@@ -27,6 +27,15 @@ public class GyroscopeManager : MonoBehaviour
              "Recomendado: activado para navegación AR en portrait.")]
     [SerializeField] private bool suppressRoll = true;
 
+    // ── Inversión de ejes (configurables desde SettingsPanel) ────────────────
+    public bool InvertPitch { get; private set; }
+    public bool InvertRoll  { get; private set; }
+    public bool InvertYaw   { get; private set; }
+
+    private const string PREF_INV_PITCH = "Gyro_InvertPitch";
+    private const string PREF_INV_ROLL  = "Gyro_InvertRoll";
+    private const string PREF_INV_YAW   = "Gyro_InvertYaw";
+
     private Quaternion _target       = Quaternion.identity;
     private bool       _hasFirstRead = false;
     private float      _lastYaw      = 0f;   // yaw preservado cuando pitch → ±90°
@@ -89,6 +98,32 @@ public class GyroscopeManager : MonoBehaviour
         float yaw   = PlayerPrefs.GetFloat(PREF_YAW,   0f);
         float roll  = PlayerPrefs.GetFloat(PREF_ROLL,  0f);
         _eulerOffset = new Vector3(pitch, yaw, roll);
+
+        InvertPitch = PlayerPrefs.GetInt(PREF_INV_PITCH, 0) == 1;
+        InvertRoll  = PlayerPrefs.GetInt(PREF_INV_ROLL,  0) == 1;
+        InvertYaw   = PlayerPrefs.GetInt(PREF_INV_YAW,   0) == 1;
+    }
+
+    // ── API inversión de ejes ─────────────────────────────────────────────────
+    public void SetInvertPitch(bool val)
+    {
+        InvertPitch = val;
+        PlayerPrefs.SetInt(PREF_INV_PITCH, val ? 1 : 0);
+        PlayerPrefs.Save();
+    }
+
+    public void SetInvertRoll(bool val)
+    {
+        InvertRoll = val;
+        PlayerPrefs.SetInt(PREF_INV_ROLL, val ? 1 : 0);
+        PlayerPrefs.Save();
+    }
+
+    public void SetInvertYaw(bool val)
+    {
+        InvertYaw = val;
+        PlayerPrefs.SetInt(PREF_INV_YAW, val ? 1 : 0);
+        PlayerPrefs.Save();
     }
 
     public void Recalibrate()
@@ -197,7 +232,26 @@ public class GyroscopeManager : MonoBehaviour
                     yaw = _lastYaw;
                 }
 
+                if (InvertPitch) pitch = -pitch;
+                if (InvertYaw)   yaw   = -yaw;
+                // InvertRoll no tiene efecto visual con suppressRoll=true (roll siempre 0)
+
                 _target = Quaternion.Euler(pitch, yaw, 0f);
+            }
+            else
+            {
+                // Sin suppressRoll: aplicar inversiones sobre los ángulos de Euler completos
+                if (InvertPitch || InvertRoll || InvertYaw)
+                {
+                    Vector3 e = _target.eulerAngles;
+                    float ep = e.x > 180f ? e.x - 360f : e.x;
+                    float ey = e.y > 180f ? e.y - 360f : e.y;
+                    float er = e.z > 180f ? e.z - 360f : e.z;
+                    if (InvertPitch) ep = -ep;
+                    if (InvertYaw)   ey = -ey;
+                    if (InvertRoll)  er = -er;
+                    _target = Quaternion.Euler(ep, ey, er);
+                }
             }
 
             if (!_hasFirstRead)
