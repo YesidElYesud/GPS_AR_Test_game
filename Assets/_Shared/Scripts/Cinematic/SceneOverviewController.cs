@@ -89,6 +89,13 @@ public class SceneOverviewController : MonoBehaviour
     [Tooltip("WetGroundController del camino. Se busca automáticamente si queda vacío.")]
     public WetGroundController wetGroundController;
 
+    [Header("Charcos (preview)")]
+    [Tooltip("Planos de charco en calle. Arrastrar los GameObjects aquí.\n" +
+             "Se activan en el hub solo cuando la etapa preview >= charcoFromStage.")]
+    public GameObject[] charcoObjects;
+    [Tooltip("Etapa a partir de la cual los charcos son visibles (por defecto Etapa3).")]
+    public StageManager.Stage charcoFromStage = StageManager.Stage.Etapa3;
+
     [Header("Escala de botones")]
     [Tooltip("Escala de los botones inactivos (más pequeños).")]
     [Range(0.5f, 1f)]  public float normalButtonScale = 0.82f;
@@ -289,6 +296,9 @@ public class SceneOverviewController : MonoBehaviour
         // Suelo mojado: reflectividad según la etapa preview
         wetGroundController?.ForceStage(config.stage, previewWaterTransition);
 
+        // Charcos: visibles solo desde charcoFromStage en adelante
+        ApplyCharcosForPreviewStage(config.stage);
+
         RefreshButtonStates();
     }
 
@@ -360,6 +370,9 @@ public class SceneOverviewController : MonoBehaviour
 
             // Restaurar suelo mojado a la etapa real
             wetGroundController?.ForceStage(_realStage, previewWaterTransition);
+
+            // Restaurar charcos al estado de la etapa real
+            ApplyCharcosForPreviewStage(_realStage);
         }
 
         // Notificar al hotspot que terminó la interacción
@@ -440,6 +453,14 @@ public class SceneOverviewController : MonoBehaviour
     }
 
     // ── Helpers de río / escombros ────────────────────────────────────────────
+
+    private void ApplyCharcosForPreviewStage(StageManager.Stage previewStage)
+    {
+        if (charcoObjects == null) return;
+        bool visible = (int)previewStage >= (int)charcoFromStage;
+        foreach (var charco in charcoObjects)
+            if (charco != null) charco.SetActive(visible);
+    }
 
     /// Activa o desactiva un RiverDebrisController según si la etapa de preview
     /// es suficiente para que debería estar activo en gameplay normal.

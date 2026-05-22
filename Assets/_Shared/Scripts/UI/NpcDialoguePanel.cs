@@ -4,67 +4,92 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// NpcDialoguePanel v3 — Panel de conversación con NPC.
+/// NpcDialoguePanel v4 — Panel de conversación con NPC.
 ///
-/// Responsabilidades:
-///   - Mostrar foto, nombre y texto del NPC.
-///   - Paginar el diálogo con un botón "Continuar" generado por MultipleChoicePanel.
-///   - En la última página, mostrar las opciones reales (si las hay) o un botón "Cerrar".
-///   - Delegar toda la lógica de botones a MultipleChoicePanel (campo choicePanel).
-///   - Bloquear/desbloquear el input del jugador.
+/// Jerarquía real en escena:
+///   NpcDialoguePanel            [este script]
+///   ├── OptionsGrid             [Image, VLG]              ← _optionsContainer (oculto en modo statement)
+///   │   ├── Pregunta            [HLG]
+///   │   │   └── Text (TMP)                               ← _preguntaText (enunciado sobre botones)
+///   │   └── grid                [GridLayoutGroup 2 cols]
+///   │       ├── OptionBtn_0     [Button + Image + TMP]   ← _optionButtons[0]
+///   │       ├── OptionBtn_1     [Button + Image + TMP]   ← _optionButtons[1]
+///   │       ├── OptionBtn_2     [Button + Image + TMP]   ← _optionButtons[2]
+///   │       └── OptionBtn_3     [Button + Image + TMP]   ← _optionButtons[3]
+///   └── Dialogo                 [Image, HLG]              (siempre visible)
+///       ├── Text (TMP)                                    ← _dialogueText
+///       └── contiBTN            [Button]                  ← _continueButton (▶)
 ///
-/// Singleton para ser llamado desde HotspotController.
-///
-/// Jerarquía sugerida en Canvas:
-///   NpcDialoguePanel  (inactivo por defecto)
-///   ├── NpcInfoRow
-///   │   ├── NpcPhoto        (Image)
-///   │   └── NpcName         (TextMeshProUGUI)
-///   ├── DialogueText        (TextMeshProUGUI)
-///   └── MultipleChoicePanelGO  ← MultipleChoicePanel.cs aquí
-///       ├── OptionsContainer   (Vertical Layout Group)
-///       ├── FeedbackSection
-///       │   ├── FeedbackBG     (Image)
-///       │   ├── FeedbackText   (TextMeshProUGUI)
-///       │   └── RetryButton    (Button)
+/// Modos:
+///   • Statement: OptionsGrid oculto, ▶ activo → avanza línea o cierra.
+///   • Question:  OptionsGrid visible (_preguntaText = enunciado, botones A-D activos),
+///                ▶ deshabilitado → el jugador responde via botones.
+///                Respuesta incorrecta → botón rojo + reintento.
 /// </summary>
 public class NpcDialoguePanel : MonoBehaviour
 {
     // ── Singleton ─────────────────────────────────────────────────────────────
     public static NpcDialoguePanel Instance { get; private set; }
 
-    // ── Inspector: NPC ────────────────────────────────────────────────────────
-    [Header("Sección NPC")]
-    [Tooltip("Imagen del NPC. Se oculta automáticamente si el NpcDialogueData no tiene foto.")]
-    public Image npcPhoto;
+    // ── Panel Dialogo (solo texto + continuar) ─────────────────────────────────
+    [Header("Panel Dialogo (sin opciones)")]
+    [Tooltip("GO 'Dialogo'. Visible cuando no hay opciones, oculto cuando las hay.")]
+    [SerializeField] private GameObject _dialogoContainer;
 
-    [Tooltip("Nombre del NPC.")]
-    public TextMeshProUGUI npcNameText;
+    [Tooltip("Texto principal del NPC dentro de Dialogo.")]
+    [SerializeField] private TextMeshProUGUI _dialogueText;
 
-    [Tooltip("Texto principal del diálogo.")]
-    public TextMeshProUGUI dialogueText;
+    [Tooltip("Botón ▶ para avanzar o cerrar (contiBTN).")]
+    [SerializeField] private Button _continueButton;
 
-    // ── Inspector: Opciones múltiples ─────────────────────────────────────────
-    [Header("Panel de opciones múltiples")]
-    [Tooltip("Componente hijo que maneja la generación de botones, feedback y reintento.")]
-    public MultipleChoicePanel choicePanel;
+    // ── Cuadrícula de opciones ─────────────────────────────────────────────────
+    [Header("Cuadrícula de opciones")]
+    [Tooltip("GO raíz de OptionsGrid. Se activa en modo pregunta, se oculta en modo statement.")]
+    [SerializeField] private GameObject _optionsContainer;
 
-    // ── Internos ──────────────────────────────────────────────────────────────
+    [Tooltip("TMP dentro de Pregunta (hijo directo de OptionsGrid). " +
+             "Muestra el enunciado/pregunta encima de los botones.")]
+    [SerializeField] private TextMeshProUGUI _preguntaText;
+
+    [Tooltip("Exactamente 4 botones en orden A), B), C), D) dentro de 'grid'. " +
+             "Los sobrantes se ocultan si hay menos opciones.")]
+    [SerializeField] private Button[] _optionButtons = new Button[4];
+
+    // ── Colores de feedback ────────────────────────────────────────────────────
+    [Header("Colores de feedback")]
+    [SerializeField] private Color _colorDefault = new Color(1.00f, 0.80f, 0.00f, 1f); // amarillo
+    [SerializeField] private Color _colorCorrect = new Color(0.13f, 0.69f, 0.30f, 1f); // verde
+    [SerializeField] private Color _colorWrong   = new Color(0.86f, 0.20f, 0.18f, 1f); // rojo
+
+    [Header("Comportamiento")]
+    [Tooltip("Segundos de color de feedback antes de resetear (incorrecto) o avanzar (correcto).")]
+    [Range(0.3f, 3f)]
+    [SerializeField] private float _feedbackDuration = 1.2f;
+
+    // ── Info NPC (opcional) ────────────────────────────────────────────────────
+    [Header("Info NPC (opcional)")]
+    [Tooltip("Imagen del NPC. Se oculta si NpcDialogueData no tiene foto asignada.")]
+    [SerializeField] private Image _npcPhoto;
+
+    [Tooltip("Nombre del NPC. Opcional — se puede omitir en el nuevo diseño de banner.")]
+    [SerializeField] private TextMeshProUGUI _npcNameText;
+
+    // ── HUD ───────────────────────────────────────────────────────────────────
+    [Header("HUD — ocultar durante el diálogo")]
+    [Tooltip("Elementos del HUD que se ocultarán mientras el diálogo esté abierto.\n" +
+             "Al cerrar se restaura el estado previo (activeSelf) de cada uno.")]
+    [SerializeField] private GameObject[] _hudElementsToHide;
+
+    // ── Estado interno ─────────────────────────────────────────────────────────
     private NpcDialogueData      _currentData;
     private IHotspotInteractable _sourceHotspot;
-    private Coroutine         _correctRoutine;
-    private Coroutine         _wrongRoutine;
-    private System.Action     _onCorrectCallback;
-    private string[]          _lines;
-    private int               _lineIndex;
+    private System.Action        _onCorrectCallback;
+    private string[]             _lines;
+    private int                  _lineIndex;
+    private Coroutine            _feedbackRoutine;
+    private bool[]               _hudWasActive;
 
-    // Opción reutilizable para botones de navegación (evita alloaciones en cada ShowLine)
-    private static readonly DialogueOption _continueOption = new DialogueOption
-        { optionText = "Continuar", isCorrect = true, feedbackText = "" };
-    private static readonly DialogueOption _closeOption = new DialogueOption
-        { optionText = "Cerrar", isCorrect = true, feedbackText = "" };
-    private static readonly DialogueOption[] _continueOptions = { _continueOption };
-    private static readonly DialogueOption[] _closeOptions    = { _closeOption };
+    private static readonly string[] _prefixes = { "A)", "B)", "C)", "D)" };
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
@@ -74,10 +99,16 @@ public class NpcDialoguePanel : MonoBehaviour
         gameObject.SetActive(false);
     }
 
+    private void Start()
+    {
+        if (_continueButton != null)
+            _continueButton.onClick.AddListener(OnContinueClicked);
+    }
+
     // ── API pública ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Muestra el panel con los datos del diálogo indicado.
+    /// Abre el panel con el diálogo indicado.
     /// Llamado desde HotspotController.
     /// </summary>
     public void Show(NpcDialogueData data, IHotspotInteractable source, System.Action onCorrect = null)
@@ -93,25 +124,30 @@ public class NpcDialoguePanel : MonoBehaviour
         _onCorrectCallback = onCorrect;
 
         bool hasLines = data.dialogueLines != null && data.dialogueLines.Length > 0;
-        _lines     = hasLines ? data.dialogueLines : new string[] { data.npcText };
+        _lines     = hasLines ? data.dialogueLines : new[] { data.npcText };
         _lineIndex = 0;
 
         PopulateNpcInfo();
         ShowLine(0);
 
+        SaveAndHideHud();
+        ScreenBackground.Instance?.SetSuppressed(true);
+
         gameObject.SetActive(true);
         BlockInput(true);
     }
 
-    /// <summary>Cierra el panel, limpia el estado y desbloquea el input.</summary>
+    /// <summary>Cierra el panel y desbloquea el input.</summary>
     public void Hide()
     {
-        if (_correctRoutine != null) { StopCoroutine(_correctRoutine); _correctRoutine = null; }
-        if (_wrongRoutine   != null) { StopCoroutine(_wrongRoutine);   _wrongRoutine   = null; }
+        if (_feedbackRoutine != null) { StopCoroutine(_feedbackRoutine); _feedbackRoutine = null; }
 
-        UnsubscribeChoiceEvents();
+        ResetOptionColors();
+        if (_optionsContainer != null) _optionsContainer.SetActive(false);
+        if (_dialogoContainer  != null) _dialogoContainer.SetActive(true);
 
-        if (choicePanel != null) choicePanel.Clear();
+        RestoreHud();
+        ScreenBackground.Instance?.SetSuppressed(false);
 
         BlockInput(false);
 
@@ -127,127 +163,197 @@ public class NpcDialoguePanel : MonoBehaviour
     }
 
     // ── Paginación ────────────────────────────────────────────────────────────
+
     private void ShowLine(int index)
     {
         if (_lines == null || index < 0 || index >= _lines.Length) return;
 
-        if (dialogueText != null) dialogueText.text = _lines[index];
+        if (_feedbackRoutine != null) { StopCoroutine(_feedbackRoutine); _feedbackRoutine = null; }
+
+        _lineIndex = index;
+        if (_dialogueText != null) _dialogueText.text = _lines[index];
 
         bool isLast  = index >= _lines.Length - 1;
         bool hasOpts = HasOptions();
 
-        UnsubscribeChoiceEvents();
+        if (isLast && hasOpts)
+            EnterQuestionMode();
+        else
+            EnterStatementMode();
+    }
 
-        if (choicePanel != null)
+    // ── Modos de UI ───────────────────────────────────────────────────────────
+
+    private void EnterStatementMode()
+    {
+        if (_dialogoContainer  != null) _dialogoContainer.SetActive(true);
+        if (_optionsContainer  != null) _optionsContainer.SetActive(false);
+        if (_continueButton    != null) _continueButton.interactable = true;
+    }
+
+    private void EnterQuestionMode()
+    {
+        if (_dialogoContainer != null) _dialogoContainer.SetActive(false);
+
+        if (_preguntaText != null && _lines != null)
+            _preguntaText.text = _lines[_lineIndex];
+
+        SetupOptionButtons(_currentData.options);
+        if (_optionsContainer != null) _optionsContainer.SetActive(true);
+    }
+
+    // ── Botones de opción ──────────────────────────────────────────────────────
+
+    private void SetupOptionButtons(DialogueOption[] options)
+    {
+        ResetOptionColors();
+
+        for (int i = 0; i < _optionButtons.Length; i++)
         {
-            choicePanel.OnCorrect += HandleCorrectAnswer;
-            choicePanel.OnWrong   += HandleWrongAnswer;
-            choicePanel.OnRetry   += HandleRetry;
+            if (_optionButtons[i] == null) continue;
 
-            if (!isLast)
-                choicePanel.SetOptions(_continueOptions);
-            else if (hasOpts)
-                choicePanel.SetOptions(_currentData.options);
-            else
-                choicePanel.SetOptions(_closeOptions);
+            bool visible = options != null && i < options.Length;
+            _optionButtons[i].gameObject.SetActive(visible);
+            if (!visible) continue;
+
+            _optionButtons[i].interactable = true;
+
+            var label = _optionButtons[i].GetComponentInChildren<TextMeshProUGUI>();
+            if (label != null)
+                label.text = _prefixes[i] + " " + options[i].optionText;
+
+            int captured = i;
+            _optionButtons[i].onClick.RemoveAllListeners();
+            _optionButtons[i].onClick.AddListener(() => OnOptionClicked(captured));
         }
     }
 
+    private void OnOptionClicked(int index)
+    {
+        if (_currentData?.options == null || index >= _currentData.options.Length) return;
+
+        DialogueOption opt = _currentData.options[index];
+
+        SetOptionsInteractable(false);
+        SetButtonColor(index, opt.isCorrect ? _colorCorrect : _colorWrong);
+
+        _feedbackRoutine = opt.isCorrect
+            ? StartCoroutine(CorrectAnswerRoutine())
+            : StartCoroutine(WrongAnswerRoutine());
+    }
+
+    private IEnumerator CorrectAnswerRoutine()
+    {
+        yield return new WaitForSeconds(_feedbackDuration);
+
+        if (_currentData != null && _currentData.advancesStageOnCorrect)
+            StageManager.Instance?.NextStage();
+
+        System.Action cb = _onCorrectCallback;
+        Hide();
+        cb?.Invoke();
+    }
+
+    private IEnumerator WrongAnswerRoutine()
+    {
+        yield return new WaitForSeconds(_feedbackDuration);
+        _feedbackRoutine = null;
+
+        // Resetear colores y permitir reintento
+        if (_currentData?.options != null)
+            SetupOptionButtons(_currentData.options);
+    }
+
+    // ── Botón continuar ────────────────────────────────────────────────────────
+
+    private void OnContinueClicked()
+    {
+        if (!IsOnLastLine())
+        {
+            _lineIndex++;
+            ShowLine(_lineIndex);
+        }
+        else
+        {
+            Hide(); // última línea sin opciones → cerrar
+        }
+    }
+
+    // ── Colores ───────────────────────────────────────────────────────────────
+
+    private void SetButtonColor(int index, Color color)
+    {
+        if (index < 0 || index >= _optionButtons.Length || _optionButtons[index] == null) return;
+        var img = _optionButtons[index].GetComponent<Image>();
+        if (img != null) img.color = color;
+    }
+
+    private void ResetOptionColors()
+    {
+        for (int i = 0; i < _optionButtons.Length; i++)
+            SetButtonColor(i, _colorDefault);
+    }
+
+    private void SetOptionsInteractable(bool interactable)
+    {
+        foreach (var btn in _optionButtons)
+            if (btn != null) btn.interactable = interactable;
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
+
     private bool HasOptions() =>
-        _currentData != null &&
-        _currentData.options != null &&
-        _currentData.options.Length > 0;
+        _currentData?.options != null && _currentData.options.Length > 0;
 
-    private bool IsOnLastLine() => _lines == null || _lineIndex >= _lines.Length - 1;
+    private bool IsOnLastLine() =>
+        _lines == null || _lineIndex >= _lines.Length - 1;
 
-    // ── Población de UI ───────────────────────────────────────────────────────
+    // ── NPC Info ──────────────────────────────────────────────────────────────
+
     private void PopulateNpcInfo()
     {
         if (_currentData == null) return;
 
         bool hasPhoto = _currentData.npcPhoto != null;
-        if (npcPhoto != null)
+        if (_npcPhoto != null)
         {
-            npcPhoto.gameObject.SetActive(hasPhoto);
-            if (hasPhoto) npcPhoto.sprite = _currentData.npcPhoto;
+            _npcPhoto.gameObject.SetActive(hasPhoto);
+            if (hasPhoto) _npcPhoto.sprite = _currentData.npcPhoto;
         }
 
-        if (npcNameText != null) npcNameText.text = _currentData.npcName;
+        if (_npcNameText != null) _npcNameText.text = _currentData.npcName;
     }
 
-    // ── Suscripción de eventos ────────────────────────────────────────────────
-    private void UnsubscribeChoiceEvents()
-    {
-        if (choicePanel == null) return;
-        choicePanel.OnCorrect -= HandleCorrectAnswer;
-        choicePanel.OnWrong   -= HandleWrongAnswer;
-        choicePanel.OnRetry   -= HandleRetry;
-    }
+    // ── HUD ───────────────────────────────────────────────────────────────────
 
-    // ── Respuestas ────────────────────────────────────────────────────────────
-    private void HandleCorrectAnswer()
+    private void SaveAndHideHud()
     {
-        if (!IsOnLastLine())
-        {
-            // Botón "Continuar" en página intermedia → avanzar a la siguiente línea
-            _lineIndex++;
-            ShowLine(_lineIndex);
-            return;
-        }
+        if (_hudElementsToHide == null || _hudElementsToHide.Length == 0) return;
 
-        // Última página
-        if (HasOptions())
+        _hudWasActive = new bool[_hudElementsToHide.Length];
+        for (int i = 0; i < _hudElementsToHide.Length; i++)
         {
-            // Respuesta correcta a la pregunta real → cerrar panel y avanzar etapa
-            _correctRoutine = StartCoroutine(CorrectAnswerRoutine());
-        }
-        else
-        {
-            // Botón "Cerrar" en última página sin pregunta
-            Hide();
+            if (_hudElementsToHide[i] == null) continue;
+            _hudWasActive[i] = _hudElementsToHide[i].activeSelf;
+            _hudElementsToHide[i].SetActive(false);
         }
     }
 
-    private void HandleRetry()
+    private void RestoreHud()
     {
-        if (_wrongRoutine != null) { StopCoroutine(_wrongRoutine); _wrongRoutine = null; }
-    }
+        if (_hudElementsToHide == null || _hudWasActive == null) return;
 
-    private void HandleWrongAnswer()
-    {
-        if (_wrongRoutine != null) StopCoroutine(_wrongRoutine);
-        _wrongRoutine = StartCoroutine(WrongAnswerRoutine());
-    }
-
-    private IEnumerator WrongAnswerRoutine()
-    {
-        float delay = _currentData != null ? _currentData.correctAnswerDelay : 1.5f;
-        yield return new WaitForSeconds(delay);
-        _wrongRoutine = null;
-        if (_currentData != null) ShowLine(_lineIndex);
-    }
-
-    private IEnumerator CorrectAnswerRoutine()
-    {
-        float delay = _currentData != null ? _currentData.correctAnswerDelay : 1.5f;
-        yield return new WaitForSeconds(delay);
-
-        if (_currentData != null && _currentData.advancesStageOnCorrect)
+        for (int i = 0; i < _hudElementsToHide.Length; i++)
         {
-            if (StageManager.Instance != null)
-                StageManager.Instance.NextStage();
+            if (_hudElementsToHide[i] == null) continue;
+            if (i < _hudWasActive.Length)
+                _hudElementsToHide[i].SetActive(_hudWasActive[i]);
         }
-
-        System.Action walkerCallback = _onCorrectCallback;
-        Hide();
-        walkerCallback?.Invoke();
+        _hudWasActive = null;
     }
 
     // ── Input ─────────────────────────────────────────────────────────────────
-    private void BlockInput(bool block)
-    {
-        if (StageManager.Instance != null)
-            StageManager.Instance.SetPlayerInputBlocked(block);
-    }
+
+    private void BlockInput(bool block) =>
+        StageManager.Instance?.SetPlayerInputBlocked(block);
 }

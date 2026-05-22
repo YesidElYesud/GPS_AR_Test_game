@@ -288,6 +288,11 @@ public class HotspotController : MonoBehaviour, IHotspotInteractable
                 }
                 break;
 
+            case HotspotActionType.RiskLevelOnly:
+                // El riskLevel ya se aplicó arriba; solo cerrar para marcar como visitado.
+                ClosePanel();
+                break;
+
             case HotspotActionType.CameraSequence:
                 if (cameraSequencer != null)
                 {

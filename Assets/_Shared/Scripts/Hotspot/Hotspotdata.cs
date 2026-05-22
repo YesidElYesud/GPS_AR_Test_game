@@ -52,6 +52,13 @@ public enum HotspotActionType
     /// Ideal para mostrar el estado atmosférico/ambiental actual (Programación 2, 5, etc.).
     /// </summary>
     CameraSequence  = 5,
+
+    /// <summary>
+    /// Solo actualiza el RiskLevelIndicator con el riskLevel asignado y cierra.
+    /// No abre ningún panel ni secuencia. Usar riskLevel = None para que la
+    /// interacción no cambie el indicador (marcador de zona sin contenido extra).
+    /// </summary>
+    RiskLevelOnly   = 6,
 }
 
 // ── ScriptableObject ──────────────────────────────────────────────────────────
@@ -76,7 +83,11 @@ public class HotspotData : ScriptableObject
              "• InfoPanel       → muestra panel de texto (comportamiento original)\n" +
              "• Cinematic       → reproduce un video en pantalla completa\n" +
              "• NpcConversation → abre diálogo con NPC y opciones de respuesta\n" +
-             "• SiataCall       → simula una llamada al SIATA con opciones de reporte")]
+             "• SiataCall       → simula una llamada al SIATA con opciones de reporte\n" +
+             "• InfoSlidePanel  → muestra slides secuenciales de contenido educativo\n" +
+             "• CameraSequence  → ejecuta secuencia de tomas de cámara en escena\n" +
+             "• RiskLevelOnly   → solo actualiza el indicador de riesgo, sin panel\n" +
+             "                    (riskLevel = None → interacción sin efecto en indicador)")]
     public HotspotActionType actionType = HotspotActionType.InfoPanel;
 
     [Header("Datos según tipo de acción")]

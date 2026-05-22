@@ -138,25 +138,17 @@ public class CinematicSequencer : MonoBehaviour
         Vector3    savedPos = _cam.position;
         Quaternion savedRot = _cam.rotation;
 
-        // Ocultar joystick.
-        // Cuando _caller == null la secuencia fue disparada desde postCloseSequence: el panel ya
-        // se cerró pero ScreenBackground.LateUpdate() todavía no restauró el HUD, por lo que
-        // activeSelf sería false aunque el joystick debería estar visible al terminar.
-        bool joystickWasActive = joystickPanel != null &&
-                                 (joystickPanel.activeSelf || _caller == null);
+        // Ocultar joystick
+        bool joystickWasActive = joystickPanel != null && joystickPanel.activeSelf;
         if (joystickPanel != null) joystickPanel.SetActive(false);
 
-        // Ocultar HUD
+        // Ocultar HUD — guardar estado real para restaurar exactamente lo que había
         if (hudElements != null && hudElements.Length > 0)
         {
             _hudWasActive = new bool[hudElements.Length];
             for (int h = 0; h < hudElements.Length; h++)
             {
-                // Cuando _caller == null (postCloseSequence) el HUD sigue oculto porque
-                // ScreenBackground.LateUpdate() aún no corrió: todos los activeSelf son false
-                // aunque deberían estar activos al terminar. Asumir que sí deben restaurarse.
-                _hudWasActive[h] = _caller == null ||
-                                   (hudElements[h] != null && hudElements[h].activeSelf);
+                _hudWasActive[h] = hudElements[h] != null && hudElements[h].activeSelf;
                 if (hudElements[h] != null) hudElements[h].SetActive(false);
             }
         }
