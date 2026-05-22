@@ -118,7 +118,6 @@ public class RiskLevelIndicator : MonoBehaviour
     /// </summary>
     public void SetLevel(RiskLevel level)
     {
-        if (level == CurrentLevel) return;
         CurrentLevel = level;
 
         bool visible = level != RiskLevel.None;
@@ -142,8 +141,9 @@ public class RiskLevelIndicator : MonoBehaviour
     // ── Restaurar sprite al reactivarse ──────────────────────────────────────
     private void OnEnable()
     {
-        if (CurrentLevel == RiskLevel.None || levelImage == null) return;
-        levelImage.sprite = GetSprite(CurrentLevel);
+        if (CurrentLevel == RiskLevel.None) return;
+        if (indicatorRoot != null) indicatorRoot.SetActive(true);
+        if (levelImage != null) levelImage.sprite = GetSprite(CurrentLevel);
     }
 
     // ── Pulso de escala (N3 / N4) ─────────────────────────────────────────────

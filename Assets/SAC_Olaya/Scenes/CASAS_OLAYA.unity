@@ -6637,6 +6637,7 @@ MonoBehaviour:
   rotationSpeed: 60
   enableVisitedEffect: 1
   visitedAlpha: 0.35
+  _interactOnce: 0
   objectsToHideOnClose: []
   objectsToShowOnClose: []
 --- !u!135 &253072900
@@ -22839,6 +22840,7 @@ MonoBehaviour:
   rotationSpeed: 60
   enableVisitedEffect: 0
   visitedAlpha: 0.35
+  _interactOnce: 0
   objectsToHideOnClose: []
   objectsToShowOnClose: []
 --- !u!143 &375682866
@@ -49737,11 +49739,31 @@ PrefabInstance:
     - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
       propertyPath: data
       value: 
-      objectReference: {fileID: 11400000, guid: 554a6a8bac488f58489680e2ecb5a2ff, type: 2}
+      objectReference: {fileID: 11400000, guid: eaa2c638f1e000e7284da18e42122e6f, type: 2}
     - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
       propertyPath: uiPanel
       value: 
       objectReference: {fileID: 1333724696}
+    - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
+      propertyPath: _interactOnce
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
+      propertyPath: objectsToHideOnClose.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
+      propertyPath: objectsToShowOnClose.Array.size
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
+      propertyPath: objectsToHideOnClose.Array.data[0]
+      value: 
+      objectReference: {fileID: 84991916}
+    - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
+      propertyPath: objectsToShowOnClose.Array.data[0]
+      value: 
+      objectReference: {fileID: 84991916}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

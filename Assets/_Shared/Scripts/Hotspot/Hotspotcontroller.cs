@@ -48,6 +48,11 @@ public class HotspotController : MonoBehaviour, IHotspotInteractable
     [Range(0f, 1f)]
     [SerializeField] private float visitedAlpha = 0.35f;
 
+    [Tooltip("Si true, solo puede activarse UNA VEZ por sesión.\n" +
+             "Tras la primera interacción el botón de prompt no vuelve a aparecer aunque el jugador\n" +
+             "salga y vuelva a entrar en rango. Ideal para hotspots RiskLevelOnly o de evento único.")]
+    [SerializeField] private bool _interactOnce = false;
+
     [Header("Al cerrar el panel")]
     [Tooltip("GameObjects que se OCULTARÁN (SetActive false) cuando se cierre este hotspot.\n" +
              "Útil para hacer desaparecer la malla del hotspot u objetos relacionados.")]
@@ -193,8 +198,7 @@ public class HotspotController : MonoBehaviour, IHotspotInteractable
         {
             _isNearby = true;
             Debug.Log($"[Hotspot] Entrando en rango de: {data.title}");
-            // Solo mostrar botón si no hay un panel abierto de este hotspot
-            if (!_isPanelOpen)
+            if (!_isPanelOpen && !(_interactOnce && _hasBeenVisited))
                 HotspotPromptButton.Instance?.RegisterHotspot(this);
         }
         else if (!nowNearby && _isNearby)
@@ -331,8 +335,11 @@ public class HotspotController : MonoBehaviour, IHotspotInteractable
     {
         _isPanelOpen = false;
 
-        if (!_hasBeenVisited && enableVisitedEffect)
-            MarkAsVisited();
+        if (!_hasBeenVisited)
+        {
+            if (enableVisitedEffect) MarkAsVisited(); // MarkAsVisited también pone _hasBeenVisited = true
+            else _hasBeenVisited = true;
+        }
 
         if (uiPanel != null) uiPanel.Hide();
 
@@ -348,8 +355,8 @@ public class HotspotController : MonoBehaviour, IHotspotInteractable
             return; // No re-registrar en prompt: la cámara está siendo usada por el secuenciador
         }
 
-        // Si el jugador sigue en rango, volver a mostrar el botón de prompt
-        if (_isNearby)
+        // Si el jugador sigue en rango y el hotspot permite re-activación, mostrar el botón
+        if (_isNearby && !(_interactOnce && _hasBeenVisited))
             HotspotPromptButton.Instance?.RegisterHotspot(this);
     }
 
