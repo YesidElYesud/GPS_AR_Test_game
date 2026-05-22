@@ -70,6 +70,10 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     public float disappearDelay   = 0.8f;
     public float fadeOutDuration  = 1.5f;
 
+    [Header("Giro al iniciar interacción")]
+    [Tooltip("Velocidad (°/s) con la que el NPC gira para mirar al jugador al iniciar el diálogo. 0 = desactivado.")]
+    public float lookAtPlayerSpeed = 180f;
+
     // ── Estado ────────────────────────────────────────────────────────────────
     private enum WalkerState
     {
@@ -94,7 +98,8 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     private bool  _dialogueOpen;
     private float _verticalVel;
 
-    private bool _startHasRun;
+    private bool      _startHasRun;
+    private Coroutine _lookRoutine;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
@@ -181,6 +186,12 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
         _dialogueOpen = true;
         HotspotPromptButton.Instance?.UnregisterHotspot(this);
 
+        if (lookAtPlayerSpeed > 0f && _playerCamera != null)
+        {
+            if (_lookRoutine != null) StopCoroutine(_lookRoutine);
+            _lookRoutine = StartCoroutine(LookAtCameraRoutine());
+        }
+
         if (NpcDialoguePanel.Instance != null)
             NpcDialoguePanel.Instance.Show(stop.dialogue, this);
         else
@@ -238,14 +249,26 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
         if (stops == null || _currentStop >= stops.Length) return;
         if (_state == WalkerState.WalkingToNext || _state == WalkerState.Finished) return;
 
-        bool match = ((int)current == (int)stops[_currentStop].requiredStage);
+        int stageInt    = (int)current;
+        int requiredInt = (int)stops[_currentStop].requiredStage;
 
-        if (match)
+        if (stageInt == requiredInt)
         {
             _state = WalkerState.IdleInteractable;
             SetAnimSpeed(0f);
-            // Si el jugador ya estaba en rango, activar el botón sin esperar que se mueva
             CheckProximityImmediate();
+        }
+        else if (stageInt > requiredInt && _state == WalkerState.WaitingForStage && _currentStop < stops.Length - 1)
+        {
+            // La etapa avanzó más allá de la requerida por este stop (p.ej. el jugador
+            // usó "Evacuación Inmediata" sin haber cerrado el diálogo del NPC primero).
+            // Avanzar al siguiente stop y caminar sin diálogo.
+            _currentStop++;
+            _pathWaypointIdx = 0;
+            _cc.enabled = false;
+            _state = WalkerState.WalkingToNext;
+            SetAnimSpeed(moveSpeed);
+            // OnArrived() volverá a evaluar con la etapa actual al llegar.
         }
         else
         {
@@ -336,9 +359,19 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
         // Proximidad parte de cero en cada nueva parada
         _isNearby = false;
 
-        // Evaluar si la etapa ya permite interacción o debe seguir esperando
-        _state = WalkerState.WaitingForStage;
-        EvaluateStateForCurrentStop(StageManager.Instance?.CurrentStage ?? StageManager.Stage.Intro);
+        // Al llegar: si la etapa ya alcanzó (o superó) la requerida → interactuable.
+        // Si aún no llegó → esperar. NO auto-avanzar al llegar: el jugador debe
+        // poder interactuar aquí aunque la etapa ya haya pasado de largo.
+        StageManager.Stage current = StageManager.Instance?.CurrentStage ?? StageManager.Stage.Intro;
+        if ((int)current >= (int)stops[_currentStop].requiredStage)
+        {
+            _state = WalkerState.IdleInteractable;
+            CheckProximityImmediate();
+        }
+        else
+        {
+            _state = WalkerState.WaitingForStage;
+        }
     }
 
     // ── Proximidad ────────────────────────────────────────────────────────────
@@ -507,4 +540,28 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     }
 
     private static Vector3 FlatXZ(Vector3 v) => new Vector3(v.x, 0f, v.z);
+
+    // ── Giro hacia la cámara al iniciar diálogo ───────────────────────────────
+    private IEnumerator LookAtCameraRoutine()
+    {
+        Vector3 flatToPlayer = FlatXZ(_playerCamera.position - transform.position);
+        if (flatToPlayer.sqrMagnitude < 0.001f) yield break;
+
+        Quaternion targetRot = Quaternion.LookRotation(flatToPlayer);
+
+        while (Quaternion.Angle(transform.rotation, targetRot) > 0.5f)
+        {
+            // Recalcula dirección cada frame por si la cámara se movió un poco
+            flatToPlayer = FlatXZ(_playerCamera.position - transform.position);
+            if (flatToPlayer.sqrMagnitude > 0.001f)
+                targetRot = Quaternion.LookRotation(flatToPlayer);
+
+            transform.rotation = Quaternion.RotateTowards(
+                transform.rotation, targetRot, lookAtPlayerSpeed * Time.deltaTime);
+            yield return null;
+        }
+
+        transform.rotation = targetRot;
+        _lookRoutine = null;
+    }
 }

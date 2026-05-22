@@ -28,7 +28,8 @@ MonoBehaviour:
   allowClick: 1
   requiredStage: -1
   headerImage: {fileID: 0}
-  riskLevel: 4
+  riskLevel: 0
+  advancesStageOnClose: 1
   activatesEvacuationRoute: 0
   postCloseSequence: 0
   markerColor: {r: 0.2, g: 0.8, b: 1, a: 0.9}

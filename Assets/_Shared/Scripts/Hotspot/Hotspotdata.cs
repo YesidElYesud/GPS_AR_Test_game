@@ -146,6 +146,13 @@ public class HotspotData : ScriptableObject
              "y será leído por el RiskLevelIndicator (HUD). None = badge oculto.")]
     public RiskLevel riskLevel = RiskLevel.None;
 
+    // ── Avance de etapa al cerrar ─────────────────────────────────────────────
+    [Header("Avance de Etapa")]
+    [Tooltip("Si true, al cerrar este hotspot (o al interactuar con él si es RiskLevelOnly)\n" +
+             "se llama a StageManager.NextStage() y cambian HDRI, efectos, audio, etc.\n" +
+             "Combinar con '_interactOnce = true' para que solo ocurra una vez.")]
+    public bool advancesStageOnClose = false;
+
     // ── Ruta de Evacuación ────────────────────────────────────────────────────
     [Header("Ruta de Evacuación")]
     [Tooltip("Si true, al cerrar este panel el EvacuationRouteController muestra la línea verde en suelo.\n" +
@@ -158,6 +165,12 @@ public class HotspotData : ScriptableObject
              "cameraSequencer asignado en el HotspotController. Ideal para mostrar postes de alarma\n" +
              "u otros puntos de interés tras el panel informativo. No avanza la etapa del juego.")]
     public bool postCloseSequence = false;
+
+    // ── Fin del juego ─────────────────────────────────────────────────────────
+    [Header("Fin del juego")]
+    [Tooltip("Si true, al cerrar este panel se muestra el EndGamePanel (pantalla de felicitación).\n" +
+             "Usar únicamente en el hotspot del Punto de Encuentro (último hotspot del recorrido).")]
+    public bool activatesEndGame = false;
 
     // ── Visual ────────────────────────────────────────────────────────────────
     [Header("Visual")]
