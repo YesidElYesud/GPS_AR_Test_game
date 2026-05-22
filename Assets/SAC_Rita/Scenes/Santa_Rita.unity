@@ -70907,7 +70907,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5156f53db131fedf8080775ed8a072a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  flowDirection: {x: 0, y: -1}
+  flowDirection: {x: 0, y: 1}
   flowSpeed: 0.08
   stageConfigs:
   - stage: 0
