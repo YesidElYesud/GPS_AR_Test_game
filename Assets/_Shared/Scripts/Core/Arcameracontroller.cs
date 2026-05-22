@@ -51,6 +51,17 @@ public class ARCameraController : MonoBehaviour
     private float             _mlYaw, _mlPitch; // mouse look acumulado
     private float             _verticalVelocity = 0f;
 
+    // ── Giro suave hacia NPC ──────────────────────────────────────────────────
+    [Header("Giro suave al interactuar con NPC")]
+    [Tooltip("Velocidad (°/s) del giro hacia el NPC al iniciar un diálogo.")]
+    [SerializeField] private float npcLookSpeed = 120f;
+    [Tooltip("Ángulo máximo (°) que la cámara se desviará para centrar al NPC. " +
+             "Evita giros bruscos cuando el NPC está muy de lado.")]
+    [SerializeField] private float npcLookMaxAngle = 50f;
+
+    private float _yawNudge       = 0f; // offset activo (world-space °)
+    private float _yawNudgeTarget = 0f; // offset destino
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
     {
@@ -88,10 +99,14 @@ public class ARCameraController : MonoBehaviour
     {
         if (_inputBlocked || _aerialMode) return;
 
+        // Animar el offset de yaw hacia el NPC (o de vuelta a 0)
+        _yawNudge = Mathf.MoveTowardsAngle(_yawNudge, _yawNudgeTarget, npcLookSpeed * Time.deltaTime);
+        Quaternion nudgeRot = Quaternion.AngleAxis(_yawNudge, Vector3.up);
+
         bool gyroOk = GyroscopeManager.Instance != null && GyroscopeManager.Instance.IsAvailable;
         if (gyroOk)
         {
-            transform.rotation = GyroscopeManager.Instance.DeviceRotation;
+            transform.rotation = nudgeRot * GyroscopeManager.Instance.DeviceRotation;
             return;
         }
 
@@ -101,9 +116,31 @@ public class ARCameraController : MonoBehaviour
             _mlYaw   += Input.GetAxis("Mouse X") * mouseLookSensitivity;
             _mlPitch -= Input.GetAxis("Mouse Y") * mouseLookSensitivity;
             _mlPitch  = Mathf.Clamp(_mlPitch, -89f, 89f);
-            transform.rotation = Quaternion.Euler(_mlPitch, _mlYaw, 0f);
+            transform.rotation = nudgeRot * Quaternion.Euler(_mlPitch, _mlYaw, 0f);
         }
     }
+
+    // ── API: giro suave hacia un yaw mundo ───────────────────────────────────
+    /// <summary>
+    /// Gira suavemente la cámara para centrar el punto que está en worldYaw (grados, espacio mundo).
+    /// El giro está limitado a npcLookMaxAngle para evitar desorientar al jugador.
+    /// </summary>
+    public void LookTowardWorldYaw(float worldYaw)
+    {
+        // Rotación base sin el nudge (giroscopio o mouse-look)
+        Quaternion baseRot = (GyroscopeManager.Instance != null && GyroscopeManager.Instance.IsAvailable)
+            ? GyroscopeManager.Instance.DeviceRotation
+            : Quaternion.Euler(_mlPitch, _mlYaw, 0f);
+
+        Vector3 baseFwd = baseRot * Vector3.forward;
+        float   baseYaw = Mathf.Atan2(baseFwd.x, baseFwd.z) * Mathf.Rad2Deg;
+
+        float delta = Mathf.DeltaAngle(baseYaw + _yawNudge, worldYaw);
+        _yawNudgeTarget = Mathf.Clamp(_yawNudge + delta, -npcLookMaxAngle, npcLookMaxAngle);
+    }
+
+    /// <summary>Devuelve la cámara suavemente a su orientación natural (sin offset NPC).</summary>
+    public void ResetYawNudge() => _yawNudgeTarget = 0f;
 
     private bool IsPointerOverUI()
     {

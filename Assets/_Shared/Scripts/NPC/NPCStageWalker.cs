@@ -192,6 +192,17 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
             _lookRoutine = StartCoroutine(LookAtCameraRoutine());
         }
 
+        // Girar la cámara para que el NPC quede centrado en pantalla
+        if (_playerCamera != null)
+        {
+            Vector3 flatDir = FlatXZ(transform.position - _playerCamera.position);
+            if (flatDir.sqrMagnitude > 0.001f)
+            {
+                float npcYaw = Mathf.Atan2(flatDir.x, flatDir.z) * Mathf.Rad2Deg;
+                _playerCamera.GetComponent<ARCameraController>()?.LookTowardWorldYaw(npcYaw);
+            }
+        }
+
         if (NpcDialoguePanel.Instance != null)
             NpcDialoguePanel.Instance.Show(stop.dialogue, this);
         else
@@ -201,6 +212,9 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     public void ClosePanel()
     {
         _dialogueOpen = false;
+
+        // Devolver la cámara a su orientación natural
+        _playerCamera?.GetComponent<ARCameraController>()?.ResetYawNudge();
 
         Debug.Log($"[NPCStageWalker] ClosePanel — currentStop={_currentStop}, stopsLength={stops?.Length}");
 
