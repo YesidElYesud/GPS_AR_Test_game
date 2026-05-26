@@ -730,11 +730,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!1 &84991916 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 5630625985142052841, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-  m_PrefabInstance: {fileID: 737086676}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &87297742 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 77f2f973800dd48e7a172a3567eaba4d, type: 3}
@@ -11742,6 +11737,8 @@ MonoBehaviour:
   mouseLookSensitivity: 3
   forceJoystick: 0
   gravity: -20
+  npcLookSpeed: 120
+  npcLookMaxAngle: 50
 --- !u!20 &269569559
 Camera:
   m_ObjectHideFlags: 0
@@ -22892,7 +22889,7 @@ MonoBehaviour:
     standPoint: {fileID: 274052151}
     requiredStage: 2
     dialogue: {fileID: 11400000, guid: 41b07d1f866c251b89d86cdee65a4e7a, type: 2}
-    advancesStageOnClose: 1
+    advancesStageOnClose: 0
   - pathWaypoints:
     - {fileID: 750428611}
     - {fileID: 2055303468}
@@ -43763,13 +43760,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 083572973a10abfa98f8bb018c0e8d83, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  alarmClip: {fileID: 8300000, guid: 044a71797beb2f133b3b6763c25a6092, type: 3}
+  alarmClipN3: {fileID: 8300000, guid: 68e7caeea79599c5084d201974d6eafb, type: 3}
+  alarmClipN4: {fileID: 8300000, guid: a7c6b7236c1bfb4a583da9324e6429fe, type: 3}
   minDistance: 5
   maxDistance: 40
-  activateFromStage: 4
-  activateUntilStage: 4
   fadeInDuration: 1.5
   fadeOutDuration: 2.5
+  clipSwitchFadeDuration: 0.5
   sirenEffect: 1
   sirenPitchMin: 0.88
   sirenPitchMax: 1.12
@@ -49165,7 +49162,7 @@ MonoBehaviour:
     - {fileID: 924105185}
     objectsToDeactivate:
     - {fileID: 595542211}
-    - {fileID: 84991916}
+    - {fileID: 0}
   - stageName: Etapa2
     objectsToActivate: []
     objectsToDeactivate:
@@ -49179,7 +49176,7 @@ MonoBehaviour:
     - {fileID: 0}
     - {fileID: 1275488531}
     - {fileID: 1041794613}
-    - {fileID: 84991916}
+    - {fileID: 0}
     objectsToDeactivate: []
   - stageName: Etapa4
     objectsToActivate:
@@ -49673,103 +49670,6 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: -7738138954801929848, guid: 4d7f07df3f115fb49a5cb048e4fc4d9e, type: 3}
---- !u!1001 &737086676
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 0}
-    m_Modifications:
-    - target: {fileID: 1125166457356388788, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: m_IsTrigger
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 3125995042610548346, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: m_Materials.Array.data[1]
-      value: 
-      objectReference: {fileID: 2100000, guid: bcc803c07fd762282bd1c1e29f6de195, type: 2}
-    - target: {fileID: 3434394184870601275, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: m_IsActive
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4052488774052720890, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 29.61
-      objectReference: {fileID: 0}
-    - target: {fileID: 4052488774052720890, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: -1.14
-      objectReference: {fileID: 0}
-    - target: {fileID: 4052488774052720890, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: -36.2
-      objectReference: {fileID: 0}
-    - target: {fileID: 4052488774052720890, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 4052488774052720890, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4052488774052720890, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4052488774052720890, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4052488774052720890, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4052488774052720890, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4052488774052720890, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 5630625985142052841, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: m_Name
-      value: HP to Riesgo 4
-      objectReference: {fileID: 0}
-    - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: data
-      value: 
-      objectReference: {fileID: 11400000, guid: eaa2c638f1e000e7284da18e42122e6f, type: 2}
-    - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: uiPanel
-      value: 
-      objectReference: {fileID: 1333724696}
-    - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: _interactOnce
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: objectsToHideOnClose.Array.size
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: objectsToShowOnClose.Array.size
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: objectsToHideOnClose.Array.data[0]
-      value: 
-      objectReference: {fileID: 84991916}
-    - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
-      propertyPath: objectsToShowOnClose.Array.data[0]
-      value: 
-      objectReference: {fileID: 84991916}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
 --- !u!1001 &748403305
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -103966,13 +103866,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 083572973a10abfa98f8bb018c0e8d83, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  alarmClip: {fileID: 8300000, guid: 044a71797beb2f133b3b6763c25a6092, type: 3}
+  alarmClipN3: {fileID: 0}
+  alarmClipN4: {fileID: 0}
   minDistance: 5
   maxDistance: 40
-  activateFromStage: 4
-  activateUntilStage: 4
   fadeInDuration: 1.5
   fadeOutDuration: 2.5
+  clipSwitchFadeDuration: 0.5
   sirenEffect: 1
   sirenPitchMin: 0.88
   sirenPitchMax: 1.12
@@ -132871,13 +132771,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 083572973a10abfa98f8bb018c0e8d83, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  alarmClip: {fileID: 8300000, guid: 044a71797beb2f133b3b6763c25a6092, type: 3}
+  alarmClipN3: {fileID: 8300000, guid: 68e7caeea79599c5084d201974d6eafb, type: 3}
+  alarmClipN4: {fileID: 8300000, guid: a7c6b7236c1bfb4a583da9324e6429fe, type: 3}
   minDistance: 5
   maxDistance: 40
-  activateFromStage: 4
-  activateUntilStage: 4
   fadeInDuration: 1.5
   fadeOutDuration: 2.5
+  clipSwitchFadeDuration: 0.5
   sirenEffect: 1
   sirenPitchMin: 0.88
   sirenPitchMax: 1.12
@@ -141175,7 +141075,6 @@ SceneRoots:
   - {fileID: 903751634}
   - {fileID: 1341997108}
   - {fileID: 1350889597}
-  - {fileID: 737086676}
   - {fileID: 68857195}
   - {fileID: 775229451}
   - {fileID: 2068431495}
