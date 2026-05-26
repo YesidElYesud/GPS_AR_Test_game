@@ -126,8 +126,10 @@ public class RiverDebrisController : MonoBehaviour
         {
             Activate();
         }
-        else if (_isActive && deactivateOnNextStage && (int)next > (int)activateOnStage)
+        else if (_isActive && ((int)next < (int)activateOnStage || deactivateOnNextStage))
         {
+            // Desactivar si bajamos por debajo del stage de activación (incluye retrocesos)
+            // o si subimos más allá y deactivateOnNextStage está marcado.
             Deactivate();
         }
     }

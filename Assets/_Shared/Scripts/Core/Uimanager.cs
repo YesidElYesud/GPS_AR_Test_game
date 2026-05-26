@@ -54,11 +54,8 @@ public class UIManager : MonoBehaviour
         if (StageManager.Instance != null)
             StageManager.Instance.OnStageChanged += HandleStageChanged;
 
-        // Estado inicial
-        SetJoystickPanelVisible(false);
-        UpdateModeText();
-        UpdateToggleButtonLabel();
-        CheckAutoJoystick();
+        // Estado inicial — joystick por defecto
+        ActivateJoystick(true);
     }
 
     private void OnDestroy()
