@@ -5,17 +5,20 @@ using UnityEngine.UI;
 /// <summary>
 /// RiskLevelIndicator — HUD de nivel de riesgo N1–N4.
 ///
-/// Muestra un sprite distinto para cada nivel. El contenido visual
-/// (textos, colores, distribución) vive dentro de cada sprite.
-/// El widget se oculta cuando el nivel es None.
-/// Niveles N3/N4 activan un pulso de escala.
+/// Estructura esperada en escena:
 ///
-/// Setup en escena:
-///   RiskLevelIndicator          [este script]
-///   └── IndicatorRoot           [GameObject] ← indicatorRoot
-///       └── LevelImage          [Image]      ← levelImage
+///   RiskLevelIndicator          ← este script
+///   └── IndicatorRoot           ← indicatorRoot
+///       ├── FondoBtn            ← Button + Image; al pulsar abre RiskLevelPanel
+///       │   └── LevelImage      ← Image que muestra el sprite del nivel (levelImage)
+///       ├── BtnN1               ← Button; al pulsar → SetLevel(N1)
+///       ├── BtnN2               ← Button; al pulsar → SetLevel(N2)
+///       ├── BtnN3               ← Button; al pulsar → SetLevel(N3)
+///       └── BtnN4               ← Button; al pulsar → SetLevel(N4)
 ///
-/// Asignar spriteN1–spriteN4 en el Inspector.
+///   RiskLevelPanel              ← panelRoot (puede vivir fuera de IndicatorRoot)
+///       ├── PanelImage          ← Image de fondo (cambia con el nivel)
+///       └── ExitButton          ← Button; cierra el panel
 /// </summary>
 public class RiskLevelIndicator : MonoBehaviour
 {
@@ -35,8 +38,7 @@ public class RiskLevelIndicator : MonoBehaviour
     }
 
     [Header("Nivel de riesgo por etapa (opcional)")]
-    [Tooltip("Al entrar a cada etapa configurada, el indicador muestra el nivel asignado.\n" +
-             "Deja vacío si solo quieres que los hotspots controlen el nivel.")]
+    [Tooltip("Al entrar a cada etapa configurada, el indicador muestra el nivel asignado.")]
     public StageRiskConfig[] stageRiskDefaults = new StageRiskConfig[]
     {
         new StageRiskConfig { stage = StageManager.Stage.Intro,  defaultRiskLevel = RiskLevel.None },
@@ -47,32 +49,60 @@ public class RiskLevelIndicator : MonoBehaviour
         new StageRiskConfig { stage = StageManager.Stage.Etapa5, defaultRiskLevel = RiskLevel.N1  },
     };
 
-    // ── Referencias UI ────────────────────────────────────────────────────────
-    [Header("UI")]
-    [Tooltip("GameObject raíz del widget. Se activa cuando hay nivel asignado, se desactiva con None.")]
+    // ── Referencias UI — Indicador ────────────────────────────────────────────
+    [Header("Indicador HUD")]
+    [Tooltip("GameObject raíz del widget. Se activa con nivel ≠ None.")]
     public GameObject indicatorRoot;
 
-    [Tooltip("Image que muestra el sprite del nivel activo.")]
+    [Tooltip("Image del nivel activo dentro de FondoBtn.")]
     public Image levelImage;
 
-    // ── Sprites por nivel ─────────────────────────────────────────────────────
-    [Header("Sprites por nivel")]
+    [Tooltip("Botón FondoBtn. Al pulsarlo abre el RiskLevelPanel.")]
+    public Button fondoBtn;
+
+    // ── Referencias UI — Botones de nivel ────────────────────────────────────
+    [Header("Botones de nivel (junto a FondoBtn)")]
+    [Tooltip("Botón que fija el nivel en N1.")]
+    public Button btnN1;
+    [Tooltip("Botón que fija el nivel en N2.")]
+    public Button btnN2;
+    [Tooltip("Botón que fija el nivel en N3.")]
+    public Button btnN3;
+    [Tooltip("Botón que fija el nivel en N4.")]
+    public Button btnN4;
+
+    // ── Referencias UI — Panel de riesgo ─────────────────────────────────────
+    [Header("RiskLevelPanel")]
+    [Tooltip("Panel que se abre al pulsar FondoBtn. Contiene PanelImage + ExitButton.")]
+    public GameObject panelRoot;
+
+    [Tooltip("Image dentro del panel que muestra la imagen del nivel actual.")]
+    public Image panelImage;
+
+    [Tooltip("Botón de salir dentro del panel.")]
+    public Button panelExitButton;
+
+    // ── Sprites indicador (pequeños, en HUD) ─────────────────────────────────
+    [Header("Sprites indicador (HUD)")]
     public Sprite spriteN1;
     public Sprite spriteN2;
     public Sprite spriteN3;
     public Sprite spriteN4;
 
+    // ── Sprites panel (tamaño completo) ───────────────────────────────────────
+    [Header("Sprites panel (imagen fullscreen/grande)")]
+    [Tooltip("Si quedan vacíos se usarán los sprites del indicador como fallback.")]
+    public Sprite panelSpriteN1;
+    public Sprite panelSpriteN2;
+    public Sprite panelSpriteN3;
+    public Sprite panelSpriteN4;
+
     // ── Animación ─────────────────────────────────────────────────────────────
     [Header("Animación")]
-    [Tooltip("Velocidad del pulso de escala para Nivel 3 (ciclos/segundo).")]
     [Range(0f, 5f)]
     public float pulseSpeedN3 = 1.5f;
-
-    [Tooltip("Velocidad del pulso de escala para Nivel 4 (ciclos/segundo).")]
     [Range(0f, 5f)]
     public float pulseSpeedN4 = 2.5f;
-
-    [Tooltip("Amplitud del pulso de escala (0.05 = ±5% del tamaño original).")]
     [Range(0f, 0.2f)]
     public float pulseAmplitude = 0.07f;
 
@@ -96,7 +126,60 @@ public class RiskLevelIndicator : MonoBehaviour
         if (StageManager.Instance != null)
             StageManager.Instance.OnStageChanged += OnStageChanged;
 
+        // Auto-cablear si no están asignados en el Inspector
+        AutoWireButtons();
+
+        // Botón principal → abre el panel
+        if (fondoBtn != null)
+            fondoBtn.onClick.AddListener(OpenPanel);
+
+        // Botón salir del panel
+        if (panelExitButton != null)
+            panelExitButton.onClick.AddListener(ClosePanel);
+
+        // Botones de nivel → cambian la etapa completa del juego (dispara todos los efectos)
+        if (btnN1 != null) btnN1.onClick.AddListener(() => GoToStageForLevel(RiskLevel.N1));
+        if (btnN2 != null) btnN2.onClick.AddListener(() => GoToStageForLevel(RiskLevel.N2));
+        if (btnN3 != null) btnN3.onClick.AddListener(() => GoToStageForLevel(RiskLevel.N3));
+        if (btnN4 != null) btnN4.onClick.AddListener(() => GoToStageForLevel(RiskLevel.N4));
+
+        // Ocultar indicador y panel al arrancar
         if (indicatorRoot != null) indicatorRoot.SetActive(false);
+        if (panelRoot     != null) panelRoot.SetActive(false);
+    }
+
+    // Busca los botones por nombre en la jerarquía si el Inspector los dejó vacíos.
+    // Nombres esperados según la escena: FondoBtn, Orden/N1_Btn, Orden/N2_Btn, etc.
+    private void AutoWireButtons()
+    {
+        if (indicatorRoot == null) return;
+        var root = indicatorRoot.transform;
+
+        if (fondoBtn == null)
+            fondoBtn = root.Find("FondoBtn")?.GetComponent<Button>();
+
+        // Los 4 botones de nivel viven dentro de un hijo llamado "Orden"
+        Transform orden = root.Find("Orden");
+        Transform search = orden != null ? orden : root;
+
+        if (btnN1 == null) btnN1 = search.Find("N1_Btn")?.GetComponent<Button>();
+        if (btnN2 == null) btnN2 = search.Find("N2_Btn")?.GetComponent<Button>();
+        if (btnN3 == null) btnN3 = search.Find("N3_Btn")?.GetComponent<Button>();
+        if (btnN4 == null) btnN4 = search.Find("N4_Btn")?.GetComponent<Button>();
+    }
+
+    // Llama GoToStage para el nivel solicitado y dispara todos los efectos del juego.
+    private void GoToStageForLevel(RiskLevel level)
+    {
+        StageManager.Stage stage = level switch
+        {
+            RiskLevel.N1 => StageManager.Stage.Etapa1,
+            RiskLevel.N2 => StageManager.Stage.Etapa2,
+            RiskLevel.N3 => StageManager.Stage.Etapa3,
+            RiskLevel.N4 => StageManager.Stage.Etapa4,
+            _            => StageManager.Stage.Etapa1,
+        };
+        StageManager.Instance?.GoToStage(stage);
     }
 
     private void OnDestroy()
@@ -113,7 +196,8 @@ public class RiskLevelIndicator : MonoBehaviour
     // ── API pública ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Establece el nivel de riesgo activo y actualiza el sprite.
+    /// Establece el nivel de riesgo activo.
+    /// Actualiza el sprite del indicador y, si el panel está abierto, también la imagen del panel.
     /// None oculta el widget.
     /// </summary>
     public void SetLevel(RiskLevel level)
@@ -122,13 +206,42 @@ public class RiskLevelIndicator : MonoBehaviour
 
         bool visible = level != RiskLevel.None;
         if (indicatorRoot != null) indicatorRoot.SetActive(visible);
-        if (!visible) return;
 
-        if (levelImage != null) levelImage.sprite = GetSprite(level);
+        if (!visible)
+        {
+            ClosePanel();
+            return;
+        }
+
+        if (levelImage != null) levelImage.sprite = GetIndicatorSprite(level);
+
+        // Si el panel ya está abierto, actualizar su imagen en tiempo real
+        if (panelRoot != null && panelRoot.activeSelf)
+            RefreshPanelImage();
     }
 
     /// <summary>Oculta el widget. Equivale a SetLevel(None).</summary>
     public void ClearLevel() => SetLevel(RiskLevel.None);
+
+    // ── Panel ─────────────────────────────────────────────────────────────────
+
+    public void OpenPanel()
+    {
+        if (panelRoot == null || CurrentLevel == RiskLevel.None) return;
+        RefreshPanelImage();
+        panelRoot.SetActive(true);
+    }
+
+    public void ClosePanel()
+    {
+        if (panelRoot != null) panelRoot.SetActive(false);
+    }
+
+    private void RefreshPanelImage()
+    {
+        if (panelImage == null) return;
+        panelImage.sprite = GetPanelSprite(CurrentLevel);
+    }
 
     // ── Reacción al cambio de etapa ───────────────────────────────────────────
     private void OnStageChanged(StageManager.Stage previous, StageManager.Stage current)
@@ -143,7 +256,7 @@ public class RiskLevelIndicator : MonoBehaviour
     {
         if (CurrentLevel == RiskLevel.None) return;
         if (indicatorRoot != null) indicatorRoot.SetActive(true);
-        if (levelImage != null) levelImage.sprite = GetSprite(CurrentLevel);
+        if (levelImage    != null) levelImage.sprite = GetIndicatorSprite(CurrentLevel);
     }
 
     // ── Pulso de escala (N3 / N4) ─────────────────────────────────────────────
@@ -157,12 +270,22 @@ public class RiskLevelIndicator : MonoBehaviour
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-    private Sprite GetSprite(RiskLevel level) => level switch
+    private Sprite GetIndicatorSprite(RiskLevel level) => level switch
     {
         RiskLevel.N1 => spriteN1,
         RiskLevel.N2 => spriteN2,
         RiskLevel.N3 => spriteN3,
         RiskLevel.N4 => spriteN4,
+        _            => null,
+    };
+
+    // Si el sprite de panel no está asignado, usa el del indicador como fallback.
+    private Sprite GetPanelSprite(RiskLevel level) => level switch
+    {
+        RiskLevel.N1 => panelSpriteN1 != null ? panelSpriteN1 : spriteN1,
+        RiskLevel.N2 => panelSpriteN2 != null ? panelSpriteN2 : spriteN2,
+        RiskLevel.N3 => panelSpriteN3 != null ? panelSpriteN3 : spriteN3,
+        RiskLevel.N4 => panelSpriteN4 != null ? panelSpriteN4 : spriteN4,
         _            => null,
     };
 

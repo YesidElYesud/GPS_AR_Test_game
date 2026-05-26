@@ -87,6 +87,10 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     private int         _currentStop      = 0;
     private int         _pathWaypointIdx  = 0; // Índice dentro de stops[_currentStop].pathWaypoints
 
+    // Cuando el nivel baja mientras el diálogo está abierto, ClosePanel debe
+    // ignorar la lógica de caminata porque el teletransporte ya ocurrió.
+    private bool _skipNextWalk;
+
 
     // ── Componentes ───────────────────────────────────────────────────────────
     private CharacterController _cc;
@@ -216,6 +220,10 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
         // Devolver la cámara a su orientación natural
         _playerCamera?.GetComponent<ARCameraController>()?.ResetYawNudge();
 
+        // Si el nivel bajó mientras el diálogo estaba abierto, ya se teletransportó:
+        // no iniciar caminata hacia el siguiente stop.
+        if (_skipNextWalk) { _skipNextWalk = false; return; }
+
         Debug.Log($"[NPCStageWalker] ClosePanel — currentStop={_currentStop}, stopsLength={stops?.Length}");
 
         if (_currentStop >= stops.Length - 1)
@@ -254,8 +262,80 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     // ── Eventos de etapa ──────────────────────────────────────────────────────
     private void OnStageChanged(StageManager.Stage previous, StageManager.Stage current)
     {
+        if ((int)current < (int)previous)
+        {
+            HandleStageDecrease(current);
+            return;
+        }
+
         if (_state == WalkerState.WaitingForStage)
             EvaluateStateForCurrentStop(current);
+    }
+
+    // Teletransporta el NPC al stop correcto para el nivel actual.
+    // Cancela cualquier caminata en curso y cierra el diálogo si estaba abierto.
+    private void HandleStageDecrease(StageManager.Stage current)
+    {
+        int targetStop = FindStopForStage(current);
+
+        // Cancelar corrutina de giro
+        if (_lookRoutine != null) { StopCoroutine(_lookRoutine); _lookRoutine = null; }
+
+        // Cerrar diálogo si estaba abierto: usamos _skipNextWalk para que
+        // ClosePanel() no arranque la caminata al siguiente stop.
+        if (_dialogueOpen)
+        {
+            _skipNextWalk = true;
+            NpcDialoguePanel.Instance?.Hide();
+            // Guards por si Hide() no pudo llamar a ClosePanel()
+            _dialogueOpen = false;
+            _skipNextWalk = false;
+        }
+
+        // Apagar CC antes del snap: con el CC activo, transform.position directo
+        // no funciona de forma fiable en Unity — el CC resiste el cambio.
+        _cc.enabled = false;
+        _verticalVel = 0f;
+
+        // Limpiar estado de proximidad
+        HotspotPromptButton.Instance?.UnregisterHotspot(this);
+        _isNearby = false;
+
+        // Actualizar stop
+        _currentStop     = targetStop;
+        _pathWaypointIdx = 0;
+
+        // Teletransporte instantáneo — CC apagado, posición se aplica de forma fiable
+        SnapToStop(_currentStop);
+        SetAnimSpeed(0f);
+
+        // Re-habilitar CC en la nueva posición
+        _cc.enabled = true;
+
+        // Determinar si el NPC es ya interactuable en este stop
+        int required = (int)stops[_currentStop].requiredStage;
+        if ((int)current >= required)
+        {
+            _state = WalkerState.IdleInteractable;
+            CheckProximityImmediate();
+        }
+        else
+        {
+            _state = WalkerState.WaitingForStage;
+        }
+    }
+
+    // Devuelve el índice del stop más avanzado cuyo requiredStage ≤ stage.
+    // Si ningún stop cumple, devuelve 0 (primer stop).
+    private int FindStopForStage(StageManager.Stage stage)
+    {
+        int best = 0;
+        for (int i = 0; i < stops.Length; i++)
+        {
+            if ((int)stops[i].requiredStage <= (int)stage)
+                best = i;
+        }
+        return best;
     }
 
     private void EvaluateStateForCurrentStop(StageManager.Stage current)
@@ -266,23 +346,11 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
         int stageInt    = (int)current;
         int requiredInt = (int)stops[_currentStop].requiredStage;
 
-        if (stageInt == requiredInt)
+        if (stageInt >= requiredInt)
         {
             _state = WalkerState.IdleInteractable;
             SetAnimSpeed(0f);
             CheckProximityImmediate();
-        }
-        else if (stageInt > requiredInt && _state == WalkerState.WaitingForStage && _currentStop < stops.Length - 1)
-        {
-            // La etapa avanzó más allá de la requerida por este stop (p.ej. el jugador
-            // usó "Evacuación Inmediata" sin haber cerrado el diálogo del NPC primero).
-            // Avanzar al siguiente stop y caminar sin diálogo.
-            _currentStop++;
-            _pathWaypointIdx = 0;
-            _cc.enabled = false;
-            _state = WalkerState.WalkingToNext;
-            SetAnimSpeed(moveSpeed);
-            // OnArrived() volverá a evaluar con la etapa actual al llegar.
         }
         else
         {

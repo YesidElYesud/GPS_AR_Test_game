@@ -6,25 +6,29 @@ using UnityEngine;
 ///
 /// Adjuntar a cada Poste_low que deba sonar. Cada poste tiene su propio
 /// AudioSource 3D → Unity atenúa automáticamente el volumen según la
-/// distancia del jugador. Al alejarse del poste el sonido baja; al acercarse
-/// sube, generando la sensación de proximidad real.
+/// distancia del jugador.
 ///
-/// El efecto "sirena" modula el pitch con una onda seno suave para imitar
-/// el ulular de una alarma civil de emergencia.
+/// Soporta dos clips distintos: uno para Nivel de Riesgo 3 (Etapa3) y otro
+/// para Nivel de Riesgo 4 (Etapa4). Al bajar de nivel la alarma se apaga.
+/// Al cambiar entre N3 y N4 hace un fade-out rápido, cambia el clip y hace
+/// fade-in del nuevo clip.
 ///
 /// Setup:
 ///   1. Adjuntar este script a Poste_low.001 y a Poste_low.002.
-///   2. Asignar 'security-alarm.mp3' al campo Alarm Clip.
+///   2. Asignar los clips en Alarm Clip N3 y Alarm Clip N4.
 ///   3. Ajustar Min Distance y Max Distance según el tamaño de la escena.
 ///   4. Unity añade AudioSource automáticamente.
 /// </summary>
 [RequireComponent(typeof(AudioSource))]
 public class AlarmPoleController : MonoBehaviour
 {
-    // ── Clip ──────────────────────────────────────────────────────────────────
-    [Header("Sonido")]
-    [Tooltip("Clip de alarma. Asignar 'security-alarm.mp3'.")]
-    public AudioClip alarmClip;
+    // ── Clips por nivel de riesgo ─────────────────────────────────────────────
+    [Header("Sonido por Nivel de Riesgo")]
+    [Tooltip("Clip que suena en bucle cuando el riesgo es N3 (Etapa3).")]
+    public AudioClip alarmClipN3;
+
+    [Tooltip("Clip que suena en bucle cuando el riesgo es N4 (Etapa4).")]
+    public AudioClip alarmClipN4;
 
     // ── Audio 3D ──────────────────────────────────────────────────────────────
     [Header("Audio 3D")]
@@ -36,14 +40,6 @@ public class AlarmPoleController : MonoBehaviour
     [Range(10f, 100f)]
     public float maxDistance = 40f;
 
-    // ── Activación ────────────────────────────────────────────────────────────
-    [Header("Activación por etapa")]
-    [Tooltip("Etapa desde la que la alarma se activa (inclusive).")]
-    public StageManager.Stage activateFromStage = StageManager.Stage.Etapa4;
-
-    [Tooltip("Etapa hasta la que la alarma permanece activa (inclusive).")]
-    public StageManager.Stage activateUntilStage = StageManager.Stage.Etapa4;
-
     // ── Fade ──────────────────────────────────────────────────────────────────
     [Header("Fade")]
     [Range(0f, 4f)]
@@ -53,6 +49,10 @@ public class AlarmPoleController : MonoBehaviour
     [Range(0f, 4f)]
     [Tooltip("Segundos de fade-out antes de detenerse.")]
     public float fadeOutDuration = 2.5f;
+
+    [Range(0.1f, 2f)]
+    [Tooltip("Segundos de fade-out rápido al cambiar de clip (N3↔N4).")]
+    public float clipSwitchFadeDuration = 0.5f;
 
     // ── Efecto sirena ─────────────────────────────────────────────────────────
     [Header("Efecto sirena (pitch)")]
@@ -68,7 +68,7 @@ public class AlarmPoleController : MonoBehaviour
     public float sirenPitchMax = 1.12f;
 
     [Range(0.05f, 1f)]
-    [Tooltip("Velocidad del ciclo de ulular (ciclos/segundo). 0.2 = ulular lento, 0.8 = rápido.")]
+    [Tooltip("Velocidad del ciclo de ulular (ciclos/segundo). 0.2 = lento, 0.8 = rápido.")]
     public float sirenSpeed = 0.22f;
 
     // ── Internos ──────────────────────────────────────────────────────────────
@@ -99,7 +99,6 @@ public class AlarmPoleController : MonoBehaviour
     {
         if (!_isActive || !sirenEffect) return;
 
-        // Onda seno suave: pitch sube y baja imitando sirena
         float t = Mathf.Sin(Time.time * sirenSpeed * Mathf.PI * 2f) * 0.5f + 0.5f;
         _source.pitch = Mathf.Lerp(sirenPitchMin, sirenPitchMax, t);
     }
@@ -107,13 +106,70 @@ public class AlarmPoleController : MonoBehaviour
     // ── Reacción a cambio de etapa ────────────────────────────────────────────
     private void OnStageChanged(StageManager.Stage prev, StageManager.Stage next)
     {
-        bool inRange = (int)next >= (int)activateFromStage &&
-                       (int)next <= (int)activateUntilStage;
-
-        if (inRange)
-            Activate();
+        if (next == StageManager.Stage.Etapa3)
+            SwitchToClip(alarmClipN3);
+        else if (next == StageManager.Stage.Etapa4)
+            SwitchToClip(alarmClipN4);
         else if (_isActive)
             Deactivate();
+    }
+
+    // ── Lógica de clip ────────────────────────────────────────────────────────
+    private void SwitchToClip(AudioClip clip)
+    {
+        if (clip == null)
+        {
+            if (_isActive) Deactivate();
+            return;
+        }
+
+        if (!_isActive)
+        {
+            // Primera activación: asignar clip y hacer fade-in normal
+            _source.clip = clip;
+            Activate();
+            return;
+        }
+
+        if (_source.clip == clip) return; // ya suena el clip correcto
+
+        // Cambio entre N3 y N4: fade-out rápido → swap → fade-in
+        if (_fadeRoutine != null) StopCoroutine(_fadeRoutine);
+        _fadeRoutine = StartCoroutine(SwitchClipRoutine(clip));
+    }
+
+    private IEnumerator SwitchClipRoutine(AudioClip newClip)
+    {
+        // Fade-out rápido del clip actual
+        float startVol = _source.volume;
+        float elapsed  = 0f;
+        while (elapsed < clipSwitchFadeDuration)
+        {
+            elapsed += Time.deltaTime;
+            _source.volume = Mathf.Lerp(startVol, 0f,
+                Mathf.Clamp01(elapsed / clipSwitchFadeDuration));
+            yield return null;
+        }
+        _source.volume = 0f;
+        _source.Stop();
+
+        // Swap de clip
+        _source.clip = newClip;
+        _source.pitch  = 1f;
+        _source.volume = 0f;
+        _source.Play();
+
+        // Fade-in del nuevo clip
+        elapsed = 0f;
+        while (elapsed < fadeInDuration)
+        {
+            elapsed += Time.deltaTime;
+            _source.volume = Mathf.Lerp(0f, 1f,
+                Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / fadeInDuration)));
+            yield return null;
+        }
+        _source.volume = 1f;
+        _fadeRoutine   = null;
     }
 
     // ── API pública ───────────────────────────────────────────────────────────
@@ -124,12 +180,8 @@ public class AlarmPoleController : MonoBehaviour
 
         if (_fadeRoutine != null) StopCoroutine(_fadeRoutine);
 
-        if (!_source.isPlaying)
-        {
-            _source.volume = 0f;
-            _source.Play();
-        }
-
+        _source.volume = 0f;
+        _source.Play();
         _fadeRoutine = StartCoroutine(FadeIn());
     }
 
@@ -162,7 +214,6 @@ public class AlarmPoleController : MonoBehaviour
 
     private IEnumerator FadeOutAndStop()
     {
-        // Pitch de vuelta a neutro durante el fade-out
         _source.pitch = 1f;
 
         float start   = _source.volume;
@@ -184,22 +235,21 @@ public class AlarmPoleController : MonoBehaviour
     // ── Configuración del AudioSource ─────────────────────────────────────────
     private void ConfigureAudioSource()
     {
-        _source.clip          = alarmClip;
-        _source.loop          = true;
-        _source.playOnAwake   = false;
-        _source.volume        = 0f;
-        _source.pitch         = 1f;
-        _source.dopplerLevel  = 0f;               // el poste no se mueve, sin doppler
-        _source.spatialBlend  = 1f;               // 100% 3D espacial
-        _source.rolloffMode   = AudioRolloffMode.Logarithmic; // atenuación natural
-        _source.minDistance   = minDistance;
-        _source.maxDistance   = maxDistance;
+        _source.clip         = null;
+        _source.loop         = true;
+        _source.playOnAwake  = false;
+        _source.volume       = 0f;
+        _source.pitch        = 1f;
+        _source.dopplerLevel = 0f;
+        _source.spatialBlend = 1f;
+        _source.rolloffMode  = AudioRolloffMode.Logarithmic;
+        _source.minDistance  = minDistance;
+        _source.maxDistance  = maxDistance;
     }
 
 #if UNITY_EDITOR
     private void OnValidate()
     {
-        // Refleja cambios del Inspector en tiempo real (sin Play)
         var src = GetComponent<AudioSource>();
         if (src == null) return;
         src.spatialBlend = 1f;
@@ -207,7 +257,6 @@ public class AlarmPoleController : MonoBehaviour
         src.maxDistance  = maxDistance;
         src.rolloffMode  = AudioRolloffMode.Logarithmic;
         src.dopplerLevel = 0f;
-        if (alarmClip != null) src.clip = alarmClip;
     }
 #endif
 }
