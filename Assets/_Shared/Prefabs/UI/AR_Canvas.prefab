@@ -7578,9 +7578,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   stageContents:
   - stage: 3
-    image: {fileID: 21300000, guid: 9e349ff477a758f6583811d6e4944ec0, type: 3}
-  - stage: 4
     image: {fileID: 21300000, guid: 035a78985b0259dc9ab9d7c21590df20, type: 3}
+  - stage: 4
+    image: {fileID: 21300000, guid: 9e349ff477a758f6583811d6e4944ec0, type: 3}
   panelImage: {fileID: 3511522601317342738}
   continueButton: {fileID: 3501580467447818026}
   showDelay: 1
@@ -10695,6 +10695,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 201836493e60d9fb19c3b07490f8938a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _slideSet: {fileID: 0}
   slideData:
   - title: 
     body: 

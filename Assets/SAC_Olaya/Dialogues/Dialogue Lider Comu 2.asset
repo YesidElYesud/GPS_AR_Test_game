@@ -15,9 +15,13 @@ MonoBehaviour:
   npcName: Lider Comunitario
   npcPhoto: {fileID: 21300000, guid: 182acf71ddf9c950fa17aa1f5eb640e3, type: 3}
   dialogueLines:
-  - Te recomiendo mantenerte siempre informado,
-  - Consulta el Geoportal del SIATA, revisa el SIRMED y mantente atento a las alarmas
-    del Sistema de Alerta Temprana (SAT).
+  - "Hola, vecino. La situaci\xF3n ha cambiado, estamos en alerta naranja."
+  - El nivel de la quebrada ha aumentado, por eso es importante que evites zonas
+    cercanas a la quebrada.
+  - "Te recomiendo consultar el Geoportal del SIATA para ver c\xF3mo est\xE1 el nivel
+    de la quebrada y revisar el SIRMED. "
+  - "Mantente preparado y atento a la alarma, ya que podr\xEDamos necesitar evacuar
+    en cualquier momento."
   npcText: "\xBFQu\xE9 haces ante una alerta de inundaci\xF3n?"
   options: []
   advancesStageOnCorrect: 0
