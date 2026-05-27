@@ -119,7 +119,13 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
         // Re-snap si el NPC se reactiva después del Start (SetActive ciclos).
         // En la primera activación _startHasRun es false, Start() se encarga.
         if (_startHasRun && stops != null && _currentStop < stops.Length)
+        {
             SnapToStop(_currentStop);
+            // Re-evaluar con la etapa real: si la etapa ya superó la de esta parada
+            // (p.ej. el NPC estaba inactivo mientras el jugador avanzaba niveles),
+            // el NPC arranca caminando hacia la siguiente parada sin necesitar interacción.
+            EvaluateStateForCurrentStop(StageManager.Instance?.CurrentStage ?? StageManager.Stage.Intro);
+        }
     }
 
     private void Start()
@@ -268,7 +274,10 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
             return;
         }
 
-        if (_state == WalkerState.WaitingForStage)
+        // Evaluar tanto en WaitingForStage como en IdleInteractable.
+        // Si el jugador no interactuó con esta parada antes de que avanzara
+        // la etapa, el NPC debe caminar automáticamente a la siguiente.
+        if (_state == WalkerState.WaitingForStage || _state == WalkerState.IdleInteractable)
             EvaluateStateForCurrentStop(current);
     }
 
@@ -342,11 +351,26 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     {
         if (stops == null || _currentStop >= stops.Length) return;
         if (_state == WalkerState.WalkingToNext || _state == WalkerState.Finished) return;
+        if (_dialogueOpen) return;               // No interrumpir un diálogo activo
+        if (!gameObject.activeInHierarchy) return; // No procesar si el NPC está inactivo
+                                                   // (el evento C# llega aunque el GO esté inactivo)
 
         int stageInt    = (int)current;
         int requiredInt = (int)stops[_currentStop].requiredStage;
 
-        if (stageInt >= requiredInt)
+        if (stageInt > requiredInt && _currentStop < stops.Length - 1)
+        {
+            // La etapa superó la requerida sin que el jugador interactuara →
+            // el NPC avanza automáticamente hacia la siguiente parada.
+            HotspotPromptButton.Instance?.UnregisterHotspot(this);
+            _isNearby = false;
+            _currentStop++;
+            _pathWaypointIdx = 0;
+            _state           = WalkerState.WalkingToNext;
+            _cc.enabled      = false;
+            SetAnimSpeed(moveSpeed);
+        }
+        else if (stageInt >= requiredInt)
         {
             _state = WalkerState.IdleInteractable;
             SetAnimSpeed(0f);
@@ -435,17 +459,26 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
         // Snap exacto al standPoint y re-habilitar CC para gravedad/interacción
         var sp = stops[_currentStop].standPoint;
         if (sp != null) transform.position = sp.position;
-        _cc.enabled = true;
+        _cc.enabled  = true;
         _verticalVel = 0f;
+        _isNearby    = false;
 
-        // Proximidad parte de cero en cada nueva parada
-        _isNearby = false;
-
-        // Al llegar: si la etapa ya alcanzó (o superó) la requerida → interactuable.
-        // Si aún no llegó → esperar. NO auto-avanzar al llegar: el jugador debe
-        // poder interactuar aquí aunque la etapa ya haya pasado de largo.
         StageManager.Stage current = StageManager.Instance?.CurrentStage ?? StageManager.Stage.Intro;
-        if ((int)current >= (int)stops[_currentStop].requiredStage)
+        int stageInt    = (int)current;
+        int requiredInt = (int)stops[_currentStop].requiredStage;
+
+        // Si la etapa ya superó la de esta parada (y hay siguiente), seguir caminando.
+        // Ocurre cuando: el NPC llega tarde (estaba inactivo) o la etapa avanzó
+        // mientras el NPC estaba en camino. Se encadena hasta la parada correcta.
+        if (stageInt > requiredInt && _currentStop < stops.Length - 1)
+        {
+            _currentStop++;
+            _pathWaypointIdx = 0;
+            _state           = WalkerState.WalkingToNext;
+            _cc.enabled      = false;
+            SetAnimSpeed(moveSpeed);
+        }
+        else if (stageInt >= requiredInt)
         {
             _state = WalkerState.IdleInteractable;
             CheckProximityImmediate();

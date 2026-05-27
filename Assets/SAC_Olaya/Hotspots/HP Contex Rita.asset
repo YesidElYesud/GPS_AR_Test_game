@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1ef9622e3be7f0cdd8d063b28538a030, type: 3}
-  m_Name: Hotspot Lider Evac
+  m_Name: HP Contex Rita
   m_EditorClassIdentifier: 
   title: HP Historico
   description: Contexto Historio
@@ -24,7 +24,16 @@ MonoBehaviour:
   infoSlides:
   - title: 
     body: 
-    image: {fileID: 21300000, guid: 3071e7f3c6d9529528ce9f1adf82dd73, type: 3}
+    image: {fileID: 21300000, guid: d9311eabb9db1ca45ab5629c6f29473b, type: 3}
+  - title: 
+    body: 
+    image: {fileID: 21300000, guid: ef20bb1073a41d64bbcc7ddb59a132aa, type: 3}
+  - title: 
+    body: 
+    image: {fileID: 21300000, guid: dd15653727d2a1fbebe99acbcccccee0, type: 3}
+  - title: 
+    body: 
+    image: {fileID: 21300000, guid: 57ca5ffc4497ae1a9a95041512572a93, type: 3}
   infoSlideAdvancesStage: 0
   sequenceAdvancesStage: 0
   triggerRadius: 2

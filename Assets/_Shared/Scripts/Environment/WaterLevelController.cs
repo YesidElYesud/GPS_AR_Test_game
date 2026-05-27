@@ -78,6 +78,11 @@ public class WaterLevelController : MonoBehaviour
                 return;
             }
         }
+        // Ninguna entrada en stageConfigs coincide con la nueva etapa.
+        // Si el nivel del agua no cambia, revisa que stageConfigs[] tenga
+        // una entrada para cada Stage que deba producir movimiento.
+        Debug.LogWarning($"[WaterLevelController] Sin config para {newStage} — el nivel del agua no cambiará. " +
+                         $"Agrega una entrada en stageConfigs[] para esta etapa.", this);
     }
 
     private void MoveToLevel(Vector3 target, float duration)
