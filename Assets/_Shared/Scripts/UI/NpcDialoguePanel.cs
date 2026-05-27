@@ -80,11 +80,27 @@ public class NpcDialoguePanel : MonoBehaviour
              "Al cerrar se restaura el estado previo (activeSelf) de cada uno.")]
     [SerializeField] private GameObject[] _hudElementsToHide;
 
+    // ── Audio de voz ──────────────────────────────────────────────────────────
+    [Header("Audio de voz del NPC")]
+    [Tooltip("AudioSource para la narración de cada línea. " +
+             "Si se deja vacío se crea uno automáticamente en Awake.")]
+    [SerializeField] private AudioSource _voiceSource;
+
+    [Tooltip("Volumen al que baja el audio ambiente mientras el panel está abierto (0–1). " +
+             "Al cerrar el panel el ambiente vuelve a su nivel normal.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float _ambientDuckVolume = 0.15f;
+
+    [Tooltip("Segundos del fade de duck/unduck.")]
+    [Range(0f, 2f)]
+    [SerializeField] private float _duckFadeDuration = 0.4f;
+
     // ── Estado interno ─────────────────────────────────────────────────────────
     private NpcDialogueData      _currentData;
     private IHotspotInteractable _sourceHotspot;
     private System.Action        _onCorrectCallback;
     private string[]             _lines;
+    private AudioClip[]          _lineAudios;   // paralelo a _lines; puede ser null
     private int                  _lineIndex;
     private Coroutine            _feedbackRoutine;
     private bool[]               _hudWasActive;
@@ -97,6 +113,16 @@ public class NpcDialoguePanel : MonoBehaviour
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
         gameObject.SetActive(false);
+
+        // Auto-crear AudioSource de voz si no está asignado en Inspector
+        if (_voiceSource == null)
+        {
+            _voiceSource              = gameObject.AddComponent<AudioSource>();
+            _voiceSource.playOnAwake  = false;
+            _voiceSource.loop         = false;
+            _voiceSource.spatialBlend = 0f; // 2D — la voz es siempre omnidireccional
+            _voiceSource.volume       = 1f;
+        }
     }
 
     private void Start()
@@ -123,24 +149,51 @@ public class NpcDialoguePanel : MonoBehaviour
         _sourceHotspot     = source;
         _onCorrectCallback = onCorrect;
 
-        bool hasLines = data.dialogueLines != null && data.dialogueLines.Length > 0;
-        _lines     = hasLines ? data.dialogueLines : new[] { data.npcText };
+        // Prioridad: dialogueEntries (texto + audio) → dialogueLines (solo texto) → npcText
+        bool hasEntries = data.dialogueEntries != null && data.dialogueEntries.Length > 0;
+        bool hasLines   = data.dialogueLines   != null && data.dialogueLines.Length   > 0;
+
+        if (hasEntries)
+        {
+            _lines      = new string[data.dialogueEntries.Length];
+            _lineAudios = new AudioClip[data.dialogueEntries.Length];
+            for (int i = 0; i < data.dialogueEntries.Length; i++)
+            {
+                _lines[i]      = data.dialogueEntries[i].text;
+                _lineAudios[i] = data.dialogueEntries[i].audio;
+            }
+        }
+        else
+        {
+            _lines      = hasLines ? data.dialogueLines : new[] { data.npcText };
+            _lineAudios = null;
+        }
+
         _lineIndex = 0;
 
         PopulateNpcInfo();
-        ShowLine(0);
-
         SaveAndHideHud();
         ScreenBackground.Instance?.SetSuppressed(true);
 
+        // Activar el GO ANTES de ShowLine: AudioSource.Play() es ignorado en GOs inactivos,
+        // por lo que el clip de la primera línea no sonaría si SetActive(true) va después.
         gameObject.SetActive(true);
         BlockInput(true);
+
+        // Bajar el volumen del ambiente para que la voz del NPC se oiga claramente
+        AudioStageManager.Instance?.DuckAmbient(_ambientDuckVolume, _duckFadeDuration);
+
+        ShowLine(0);
     }
 
     /// <summary>Cierra el panel y desbloquea el input.</summary>
     public void Hide()
     {
         if (_feedbackRoutine != null) { StopCoroutine(_feedbackRoutine); _feedbackRoutine = null; }
+
+        // Detener audio de voz y restaurar volumen ambiente
+        StopVoice();
+        AudioStageManager.Instance?.RestoreVolume(_duckFadeDuration);
 
         ResetOptionColors();
         if (_optionsContainer != null) _optionsContainer.SetActive(false);
@@ -159,6 +212,7 @@ public class NpcDialoguePanel : MonoBehaviour
 
         _currentData       = null;
         _onCorrectCallback = null;
+        _lineAudios        = null;
         gameObject.SetActive(false);
     }
 
@@ -173,6 +227,9 @@ public class NpcDialoguePanel : MonoBehaviour
         _lineIndex = index;
         if (_dialogueText != null) _dialogueText.text = _lines[index];
 
+        // Reproducir audio de esta línea (corta el anterior si aún sonaba)
+        PlayVoice(index);
+
         bool isLast  = index >= _lines.Length - 1;
         bool hasOpts = HasOptions();
 
@@ -180,6 +237,34 @@ public class NpcDialoguePanel : MonoBehaviour
             EnterQuestionMode();
         else
             EnterStatementMode();
+    }
+
+    // ── Audio de voz ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Detiene la voz anterior (si la hay) y reproduce el clip de la línea indicada.
+    /// Si la línea no tiene clip asignado, simplemente para el audio anterior.
+    /// </summary>
+    private void PlayVoice(int lineIndex)
+    {
+        if (_voiceSource == null) return;
+
+        _voiceSource.Stop();
+
+        AudioClip clip = (_lineAudios != null && lineIndex < _lineAudios.Length)
+            ? _lineAudios[lineIndex]
+            : null;
+
+        if (clip == null) return;
+
+        _voiceSource.clip = clip;
+        _voiceSource.Play();
+    }
+
+    private void StopVoice()
+    {
+        if (_voiceSource != null && _voiceSource.isPlaying)
+            _voiceSource.Stop();
     }
 
     // ── Modos de UI ───────────────────────────────────────────────────────────

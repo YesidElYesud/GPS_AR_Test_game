@@ -10,19 +10,28 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a4b488c86b9ab9a45bd0ccc96dd123bd, type: 3}
-  m_Name: Dialogue Lider Comu
+  m_Name: Dialogue Lider Comu 0
   m_EditorClassIdentifier: 
   npcName: Lider Comunitario
   npcPhoto: {fileID: 21300000, guid: 182acf71ddf9c950fa17aa1f5eb640e3, type: 3}
+  dialogueEntries:
+  - text: "Hola, soy el l\xEDder comunitario de este sector."
+    audio: {fileID: 8300000, guid: 4ea5cb1d01dc09f98a159f64974783f2, type: 3}
+  - text: "Estoy aqu\xED para apoyarte y orientarte en todo lo relacionado con la
+      gesti\xF3n del riesgo."
+    audio: {fileID: 8300000, guid: 000606c11d6d1850893b97982358e056, type: 3}
+  - text: "En Medell\xEDn, desde el DAGRD se promueve la creaci\xF3n y el fortalecimiento
+      de comit\xE9s y comisiones de Gesti\xF3n del Riesgo,"
+    audio: {fileID: 8300000, guid: 3f9817a723fed4170b57ee53a2148d42, type: 3}
+  - text: "donde trabajamos junto a vecinos y voluntarios para estar mejor preparados,
+      a trav\xE9s de capacitaciones, acompa\xF1amiento y trabajo articulado con las
+      instituciones."
+    audio: {fileID: 8300000, guid: 35a6012dc5b3a3cce949f3a82e5480c6, type: 3}
   dialogueLines:
-  - "Hola, soy el l\xEDder comunitario de este sector."
-  - "Estoy aqu\xED para apoyarte y orientarte en todo lo relacionado con la gesti\xF3n
-    del riesgo."
-  - "En Medell\xEDn, desde el DAGRD se promueve la creaci\xF3n y el fortalecimiento
-    de comit\xE9s y comisiones de Gesti\xF3n del Riesgo,"
-  - "donde trabajamos junto a vecinos y voluntarios para estar mejor preparados,
-    a trav\xE9s de capacitaciones, acompa\xF1amiento y trabajo articulado con las
-    instituciones."
+  - 
+  - 
+  - 
+  - 
   - Te recomiendo mantenerte siempre informado, consulta el Geoportal del SIATA,
     revisa el SIRMED y mantente atento a las alarmas del Sistema de Alerta Temprana
     (SAT).

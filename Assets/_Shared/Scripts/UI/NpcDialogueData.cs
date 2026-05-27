@@ -1,6 +1,23 @@
 using UnityEngine;
 
 /// <summary>
+/// Línea de diálogo con texto + clip de voz opcional.
+/// Usar en NpcDialogueData.dialogueEntries[].
+/// </summary>
+[System.Serializable]
+public class DialogueLine
+{
+    [TextArea(2, 5)]
+    [Tooltip("Texto que aparece en el panel de diálogo.")]
+    public string text;
+
+    [Tooltip("Clip de voz que se reproduce al mostrar esta línea. " +
+             "Si el jugador avanza antes de que termine, se corta y arranca el siguiente. " +
+             "Dejar vacío para líneas sin narración.")]
+    public AudioClip audio;
+}
+
+/// <summary>
 /// DialogueOption — Una opción de respuesta dentro de un diálogo.
 /// Serializable para aparecer como lista editable en el Inspector.
 /// </summary>
@@ -44,14 +61,17 @@ public class NpcDialogueData : ScriptableObject
     public Sprite npcPhoto;
 
     // ── Diálogo ───────────────────────────────────────────────────────────────
-    [Header("Diálogo paginado")]
-    [Tooltip("Líneas de diálogo en secuencia. El jugador avanza con 'Continuar'.\n" +
-             "Al llegar al final aparecen las opciones (si las hay) o se cierra el panel.\n" +
-             "Si está vacío se usa el campo 'Texto legado' de abajo (modo retrocompatible).")]
+    [Header("Diálogo paginado con audio")]
+    [Tooltip("Cada entrada tiene texto + clip de voz opcional.\n" +
+             "Si este array tiene contenido, se ignoran los campos legados de abajo.\n" +
+             "Crear via Assets > Create > AR > NPC Dialogue Data.")]
+    public DialogueLine[] dialogueEntries;
+
+    [Header("Legado — solo si dialogueEntries está vacío")]
+    [Tooltip("Líneas de texto sin audio (compatibilidad con assets anteriores).")]
     public string[] dialogueLines;
 
-    [Header("Texto legado (solo si dialogueLines está vacío)")]
-    [Tooltip("Texto único del NPC. Ignorado si dialogueLines tiene contenido.")]
+    [Tooltip("Texto único del NPC. Ignorado si dialogueLines o dialogueEntries tienen contenido.")]
     [TextArea(3, 6)]
     public string npcText = "Texto del NPC.";
 

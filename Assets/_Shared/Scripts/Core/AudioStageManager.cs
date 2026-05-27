@@ -124,17 +124,32 @@ public class AudioStageManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Baja gradualmente el volumen del ambiente (útil durante cinemáticas).
+    /// Baja gradualmente el volumen del ambiente a cero (útil durante cinemáticas).
     /// Llama RestoreVolume() para volver al nivel normal.
     /// </summary>
     public void MuteAmbient(float fadeDuration = 0.5f)
     {
-        if (_preMuteVolume >= 0f) return; // ya está silenciado
+        if (_preMuteVolume >= 0f) return; // ya está silenciado / duckeado
         _preMuteVolume = _active != null ? _active.volume : 0f;
         StartCoroutine(FadeSource(_active, 0f, fadeDuration));
     }
 
-    /// <summary>Restaura el volumen del ambiente tras un MuteAmbient().</summary>
+    /// <summary>
+    /// Baja gradualmente el volumen del ambiente a un nivel reducido (duck).
+    /// Úsalo durante diálogos de NPC para que la voz se oiga sobre el ambiente.
+    /// Llama RestoreVolume() para volver al nivel normal al cerrar el diálogo.
+    /// </summary>
+    /// <param name="targetVolume">Volumen duckeado (0–1). Por defecto 0.15.</param>
+    /// <param name="fadeDuration">Segundos del fade-down.</param>
+    public void DuckAmbient(float targetVolume = 0.15f, float fadeDuration = 0.4f)
+    {
+        if (_preMuteVolume >= 0f) return; // ya está duckeado o silenciado — no re-entrar
+        _preMuteVolume = _active != null ? _active.volume : 0f;
+        if (_active != null)
+            StartCoroutine(FadeSource(_active, targetVolume * masterVolume, fadeDuration));
+    }
+
+    /// <summary>Restaura el volumen del ambiente tras un MuteAmbient() o DuckAmbient().</summary>
     public void RestoreVolume(float fadeDuration = 0.5f)
     {
         if (_preMuteVolume < 0f) return;
