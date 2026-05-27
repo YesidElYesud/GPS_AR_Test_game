@@ -120,6 +120,15 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
         // En la primera activación _startHasRun es false, Start() se encarga.
         if (_startHasRun && stops != null && _currentStop < stops.Length)
         {
+            // Si se desactivó mientras caminaba (WalkingToNext), el CC quedó apagado
+            // y EvaluateStateForCurrentStop se saltaría por su guard de estado.
+            // Resetear aquí para que la evaluación pueda correr limpia.
+            if (_state == WalkerState.WalkingToNext)
+            {
+                _cc.enabled = true;
+                _state      = WalkerState.WaitingForStage;
+            }
+
             SnapToStop(_currentStop);
             // Re-evaluar con la etapa real: si la etapa ya superó la de esta parada
             // (p.ej. el NPC estaba inactivo mientras el jugador avanzaba niveles),
@@ -268,6 +277,12 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     // ── Eventos de etapa ──────────────────────────────────────────────────────
     private void OnStageChanged(StageManager.Stage previous, StageManager.Stage current)
     {
+        // IMPORTANTE: el evento C# llega aunque el GO esté inactivo en escena.
+        // Si el NPC no es visible todavía (el hotspot aún no lo reveló), ignorar
+        // cualquier cambio de etapa — ni calcular estados, ni registrar en el botón HUD.
+        // OnEnable evaluará el estado correcto cuando el hotspot active el GO.
+        if (!gameObject.activeInHierarchy) return;
+
         if ((int)current < (int)previous)
         {
             HandleStageDecrease(current);
