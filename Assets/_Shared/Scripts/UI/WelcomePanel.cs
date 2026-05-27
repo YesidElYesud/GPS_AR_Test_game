@@ -46,8 +46,23 @@ public class WelcomePanel : MonoBehaviour
         public Sprite image;
     }
 
+    // ── Slide Set (override por escena / SAC) ────────────────────────────────
+    [Header("Slide Set — override por escena")]
+    [Tooltip(
+        "ScriptableObject con los slides de esta escena/SAC. " +
+        "Si está asignado, REEMPLAZA el array 'slideData' de abajo. " +
+        "Crear via Assets > Create > AR > Welcome Slide Set. " +
+        "Dejar vacío para usar el array inline (retrocompat).")]
+    [SerializeField] private WelcomeSlideSet _slideSet;
+
+    // ── Propiedad interna: devuelve el array activo según si hay SlideSet asignado ──
+    private WelcomeSlideData[] ActiveSlideData =>
+        (_slideSet != null && _slideSet.slides != null && _slideSet.slides.Length > 0)
+            ? _slideSet.slides
+            : slideData;
+
     [Header("Slides — Modo A: datos en Inspector")]
-    [Tooltip("Define aquí el contenido de cada slide. Si está vacío, se usa el array 'slides' (Modo B).")]
+    [Tooltip("Define aquí el contenido de cada slide. Solo se usa si 'Slide Set' está vacío.")]
     public WelcomeSlideData[] slideData = new WelcomeSlideData[]
     {
         new WelcomeSlideData
@@ -123,7 +138,7 @@ public class WelcomePanel : MonoBehaviour
         get
         {
             if (_usingDataMode)
-                return (slideData != null && slideData.Length > 0) ? slideData.Length : 1;
+                return (ActiveSlideData != null && ActiveSlideData.Length > 0) ? ActiveSlideData.Length : 1;
             return (slides != null) ? slides.Length : 0;
         }
     }
@@ -204,9 +219,10 @@ public class WelcomePanel : MonoBehaviour
             foreach (var s in slides)
                 if (s != null && s != slideTemplate) s.SetActive(false);
 
-        if (slideData == null || index >= slideData.Length) return;
+        WelcomeSlideData[] active = ActiveSlideData;
+        if (active == null || index >= active.Length) return;
 
-        WelcomeSlideData data = slideData[index];
+        WelcomeSlideData data = active[index];
 
         if (slideTitle != null) slideTitle.text = data.title;
         if (slideBody  != null) slideBody.text  = data.body;

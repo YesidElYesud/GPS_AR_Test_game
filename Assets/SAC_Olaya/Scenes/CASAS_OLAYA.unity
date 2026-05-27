@@ -94860,6 +94860,14 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 4180838750325775220, guid: 03a9ea8f93192117dad81e4a7e28dfac, type: 3}
+      propertyPath: _slideSet
+      value: 
+      objectReference: {fileID: 11400000, guid: 4f63c2a9c3b86abb8acd62d4797c7a37, type: 2}
+    - target: {fileID: 4180838750325775220, guid: 03a9ea8f93192117dad81e4a7e28dfac, type: 3}
+      propertyPath: slideData.Array.size
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4318899302496158778, guid: 03a9ea8f93192117dad81e4a7e28dfac, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
