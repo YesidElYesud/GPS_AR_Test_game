@@ -107,9 +107,9 @@ public class RiverDebrisController : MonoBehaviour
 
         // Aplicar la etapa actual de inmediato — sin esperar el próximo cambio.
         var current = StageManager.Instance.CurrentStage;
-        if (current == activateOnStage)
+        if (ShouldBeActive(current) && !_isActive)
             Activate();
-        else if (_isActive && deactivateOnNextStage && (int)current > (int)activateOnStage)
+        else if (!ShouldBeActive(current) && _isActive)
             Deactivate();
     }
 
@@ -122,16 +122,24 @@ public class RiverDebrisController : MonoBehaviour
     // ── Reacción al cambio de etapa ───────────────────────────────────────────
     void OnStageChanged(StageManager.Stage prev, StageManager.Stage next)
     {
-        if (next == activateOnStage)
-        {
+        // ShouldBeActive cubre saltos de etapa (ej: N1→N4 también activa los escombros
+        // aunque se haya saltado la etapa exacta de activación).
+        if (ShouldBeActive(next) && !_isActive)
             Activate();
-        }
-        else if (_isActive && ((int)next < (int)activateOnStage || deactivateOnNextStage))
-        {
-            // Desactivar si bajamos por debajo del stage de activación (incluye retrocesos)
-            // o si subimos más allá y deactivateOnNextStage está marcado.
+        else if (!ShouldBeActive(next) && _isActive)
             Deactivate();
-        }
+    }
+
+    /// <summary>
+    /// Devuelve true si el sistema de escombros debe estar activo en la etapa dada.
+    /// Activo cuando stage >= activateOnStage, a menos que deactivateOnNextStage
+    /// exija que solo esté activo en la etapa exacta de activación.
+    /// </summary>
+    private bool ShouldBeActive(StageManager.Stage stage)
+    {
+        bool reachedActivation = (int)stage >= (int)activateOnStage;
+        bool stillActive       = !deactivateOnNextStage || stage == activateOnStage;
+        return reachedActivation && stillActive;
     }
 
     // ── API pública ───────────────────────────────────────────────────────────

@@ -80,7 +80,7 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
         WaitingForStage,   // En posición, etapa incorrecta — NO interactuable
         IdleInteractable,  // En posición, etapa correcta  — interactuable
         WalkingToNext,     // Recorriendo ruta hacia la siguiente parada
-        Finished           // Último diálogo completado, NPC queda quieto
+        Finished           // Solo cuando disappearAfterFinalDialogue=true: fade-out en curso
     }
 
     private WalkerState _state            = WalkerState.WaitingForStage;
@@ -243,11 +243,22 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
 
         if (_currentStop >= stops.Length - 1)
         {
-            Debug.Log("[NPCStageWalker] → Última parada, estado=Finished");
-            _state = WalkerState.Finished;
             SetAnimSpeed(0f);
             if (disappearAfterFinalDialogue)
+            {
+                // Finished bloquea re-interacciones durante el fade-out
+                _state = WalkerState.Finished;
                 StartCoroutine(DisappearRoutine());
+                Debug.Log("[NPCStageWalker] → Última parada, iniciando fade-out");
+            }
+            else
+            {
+                // El NPC se queda en su última posición, sigue siendo interactuable
+                // y responde a retrocesos de etapa normalmente.
+                _state = WalkerState.IdleInteractable;
+                CheckProximityImmediate();
+                Debug.Log("[NPCStageWalker] → Última parada completada, NPC queda en IdleInteractable");
+            }
             return;
         }
 
