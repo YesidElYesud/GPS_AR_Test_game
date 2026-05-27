@@ -10,10 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1ef9622e3be7f0cdd8d063b28538a030, type: 3}
-  m_Name: Hotspot Lider Evac
+  m_Name: Hotspot Alarma N 1
   m_EditorClassIdentifier: 
-  title: HP Historico
-  description: Contexto Historio
+  title: Hotspot
+  description: "Informaci\xF3n del hotspot."
   icon: {fileID: 0}
   actionType: 4
   cinematicClip: {fileID: 0}
@@ -24,7 +24,7 @@ MonoBehaviour:
   infoSlides:
   - title: 
     body: 
-    image: {fileID: 21300000, guid: 3071e7f3c6d9529528ce9f1adf82dd73, type: 3}
+    image: {fileID: 21300000, guid: c7ba0faaba91ab39a9e22eff7e988f12, type: 3}
   infoSlideAdvancesStage: 0
   sequenceAdvancesStage: 0
   triggerRadius: 2
@@ -34,7 +34,7 @@ MonoBehaviour:
   riskLevel: 0
   advancesStageOnClose: 0
   activatesEvacuationRoute: 0
-  postCloseSequence: 0
+  postCloseSequence: 1
   activatesEndGame: 0
   markerColor: {r: 0.2, g: 0.8, b: 1, a: 0.9}
   hotspotMaterial: {fileID: 0}

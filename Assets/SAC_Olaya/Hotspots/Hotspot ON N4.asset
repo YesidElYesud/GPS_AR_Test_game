@@ -20,11 +20,19 @@ MonoBehaviour:
   cinematicUrl: 
   cinematicAdvancesStage: 1
   dialogueData: {fileID: 0}
+  siataSequence: {fileID: 0}
+  infoSlides: []
+  infoSlideAdvancesStage: 1
+  sequenceAdvancesStage: 1
   triggerRadius: 3
   allowClick: 1
-  requiredStage: 3
+  requiredStage: -1
   headerImage: {fileID: 0}
   riskLevel: 0
+  advancesStageOnClose: 0
+  activatesEvacuationRoute: 0
+  postCloseSequence: 0
+  activatesEndGame: 0
   markerColor: {r: 0.2, g: 0.8, b: 1, a: 0.9}
   hotspotMaterial: {fileID: 0}
   isBlinking: 1
