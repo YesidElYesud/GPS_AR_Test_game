@@ -52,6 +52,16 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: Roof_tile
+    second: {fileID: 2100000, guid: 1fdb3ba71e349b845a52f59790047ad1, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Sensores
+    second: {fileID: 2100000, guid: 490bbac848472e843979ba31418de4ab, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: VAYAS
     second: {fileID: 2100000, guid: 05a9766fede3b234eac35ac10dff26d0, type: 2}
   - first:
@@ -139,6 +149,11 @@ ModelImporter:
       assembly: UnityEngine.CoreModule
       name: rocas rio
     second: {fileID: 2100000, guid: 38b47721045a3ed42a0a80608cc08192, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: telaverde
+    second: {fileID: 2100000, guid: a1e652d03164bc2429151abde0653d00, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
