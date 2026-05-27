@@ -15,15 +15,13 @@ MonoBehaviour:
   npcName: Lider Comunitario
   npcPhoto: {fileID: 21300000, guid: 182acf71ddf9c950fa17aa1f5eb640e3, type: 3}
   dialogueLines:
-  - "Estas herramientas te ayudar\xE1n a actuar a tiempo y a tomar mejores decisiones
-    para cuidar tu vida y la de quienes te rodean."
+  - "\xA1Vecino! Estamos en alerta roja. La quebrada se ha desbordado y hay inundaciones
+    en el sector."
+  - "Debes evacuar de inmediato. Sigue la ruta de evacuaci\xF3n y dir\xEDgete al
+    punto de encuentro m\xE1s cercano. No te detengas en zonas inundadas."
+  - "Recuerda que puedes consultar el SIATA y el SIRMED, pero en este momento lo
+    m\xE1s importante es ponerte a salvo."
   npcText: "\xBFQu\xE9 haces ante una alerta de inundaci\xF3n?"
-  options:
-  - optionText: Quedarme en casa
-    isCorrect: 0
-    feedbackText: Incorrecto, debes evacuar.
-  - optionText: Evacuar al punto seguro
-    isCorrect: 1
-    feedbackText: "\xA1Correcto! El punto de evacuaci\xF3n salva vidas."
+  options: []
   advancesStageOnCorrect: 0
   correctAnswerDelay: 1.5
