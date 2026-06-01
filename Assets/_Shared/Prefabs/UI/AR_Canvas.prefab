@@ -19151,6 +19151,9 @@ MonoBehaviour:
   - {fileID: 5423661241995548620}
   - {fileID: 2175140197691754828}
   - {fileID: 8881678297775417416}
+  _voiceSource: {fileID: 0}
+  _ambientDuckVolume: 0.15
+  _duckFadeDuration: 0.4
 --- !u!1 &8641725425758660690
 GameObject:
   m_ObjectHideFlags: 0
@@ -21107,27 +21110,27 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8822765204612816749, guid: 6d5eb1566662bf36c979f9860638742b, type: 3}
       propertyPath: m_AnchorMax.y
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8822765204612816749, guid: 6d5eb1566662bf36c979f9860638742b, type: 3}
       propertyPath: m_AnchorMin.y
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8822765204612816749, guid: 6d5eb1566662bf36c979f9860638742b, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 288
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8822765204612816749, guid: 6d5eb1566662bf36c979f9860638742b, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 135.01
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8822765204612816749, guid: 6d5eb1566662bf36c979f9860638742b, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 154
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8822765204612816749, guid: 6d5eb1566662bf36c979f9860638742b, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: -75.505
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
