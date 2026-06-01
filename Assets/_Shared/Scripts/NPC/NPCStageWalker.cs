@@ -55,6 +55,10 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
     public float rotationSpeed = 5f;
     public float arrivalRadius = 0.4f;
     [SerializeField] private float gravity = -15f;
+    [Tooltip("Capas que se usan para detectar el suelo mientras el NPC camina (raycast descendente). Por defecto todas.")]
+    [SerializeField] private LayerMask _groundMask = ~0;
+    [Tooltip("Distancia máxima hacia abajo para buscar el suelo desde los pies del NPC (metros).")]
+    [SerializeField] private float _groundSnapRange = 3f;
 
     [Header("Interacción")]
     [Tooltip("Radio en el que aparece el botón HUD. Usar ≥ 2.5 para NPCs al nivel del suelo.")]
@@ -457,10 +461,24 @@ public class NPCStageWalker : MonoBehaviour, IHotspotInteractable
                 Quaternion.LookRotation(flatDir),
                 rotationSpeed * Time.deltaTime);
 
-        // Movimiento directo por transform — el NPC atraviesa paredes y casas sin fricción.
-        // El CC está deshabilitado durante todo el trayecto (ver ClosePanel/OnArrived).
-        Vector3 dir3D = (target.position - transform.position).normalized;
-        transform.position += dir3D * (moveSpeed * Time.deltaTime);
+        // Movimiento plano XZ — el CC está deshabilitado para atravesar paredes.
+        // SnapToGround ajusta Y vía raycast para que el NPC siga la superficie del terreno.
+        transform.position += flatDir * (moveSpeed * Time.deltaTime);
+        SnapToGround();
+    }
+
+    // ── Snap al suelo durante WalkingToNext ───────────────────────────────────
+    private void SnapToGround()
+    {
+        // Origen 1.2 m sobre los pies para superar la geometría propia de la malla
+        const float aboveFeet = 1.2f;
+        Vector3 origin = transform.position + Vector3.up * aboveFeet;
+        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit,
+                            aboveFeet + _groundSnapRange, _groundMask,
+                            QueryTriggerInteraction.Ignore))
+        {
+            transform.position = new Vector3(transform.position.x, hit.point.y, transform.position.z);
+        }
     }
 
     /// <summary>

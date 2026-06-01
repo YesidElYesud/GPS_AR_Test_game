@@ -54,6 +54,11 @@ public class HotspotController : MonoBehaviour, IHotspotInteractable
     [SerializeField] private bool _interactOnce = false;
 
     [Header("Al cerrar el panel")]
+    [Tooltip("Controlador de ruta de evacuación que se mostrará al cerrar este hotspot.\n" +
+             "Solo necesario si HotspotData.activatesEvacuationRoute = true.\n" +
+             "Permite tener múltiples rutas independientes en la misma escena.")]
+    [SerializeField] private EvacuationRouteController _evacuationRoute;
+
     [Tooltip("GameObjects que se OCULTARÁN (SetActive false) cuando se cierre este hotspot.\n" +
              "Útil para hacer desaparecer la malla del hotspot u objetos relacionados.")]
     [SerializeField] private GameObject[] objectsToHideOnClose;
@@ -344,7 +349,7 @@ public class HotspotController : MonoBehaviour, IHotspotInteractable
         if (uiPanel != null) uiPanel.Hide();
 
         if (data != null && data.activatesEvacuationRoute)
-            EvacuationRouteController.Instance?.Show();
+            _evacuationRoute?.Show();
 
         ApplyOnCloseVisibility();
 

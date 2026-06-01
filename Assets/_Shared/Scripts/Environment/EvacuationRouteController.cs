@@ -26,8 +26,6 @@ using UnityEngine;
 [RequireComponent(typeof(LineRenderer))]
 public class EvacuationRouteController : MonoBehaviour
 {
-    public static EvacuationRouteController Instance { get; private set; }
-
     // ── Ruta ──────────────────────────────────────────────────────────────────
     [Header("Ruta — Waypoints")]
     [Tooltip("Transforms vacíos que definen el camino, en orden desde el origen hasta el Punto de Encuentro.")]
@@ -86,9 +84,6 @@ public class EvacuationRouteController : MonoBehaviour
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
     {
-        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
-        Instance = this;
-
         _lr = GetComponent<LineRenderer>();
         ConfigureLineRenderer();
         BuildPath();
