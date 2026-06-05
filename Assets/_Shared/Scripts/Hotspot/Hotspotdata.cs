@@ -172,6 +172,11 @@ public class HotspotData : ScriptableObject
              "Usar únicamente en el hotspot del Punto de Encuentro (último hotspot del recorrido).")]
     public bool activatesEndGame = false;
 
+    [Tooltip("Etapa en que se activa el EndGame.\n" +
+             "-1 = siempre que activatesEndGame sea true.\n" +
+             " 4 = solo en Etapa4 (N4 / Crítico — final del recorrido).")]
+    public int endGameRequiredStage = -1;
+
     // ── Visual ────────────────────────────────────────────────────────────────
     [Header("Visual")]
     [Tooltip("Color del marcador del hotspot en la escena")]

@@ -358,8 +358,14 @@ public class HotspotController : MonoBehaviour, IHotspotInteractable
 
         if (data != null && data.activatesEndGame)
         {
-            EndGamePanel.Instance?.Show();
-            return;
+            bool stageOk = data.endGameRequiredStage < 0 ||
+                           (StageManager.Instance != null &&
+                            (int)StageManager.Instance.CurrentStage == data.endGameRequiredStage);
+            if (stageOk)
+            {
+                EndGamePanel.Instance?.Show();
+                return;
+            }
         }
 
         // Secuencia de cámara post-cierre (ej: mostrar postes de alarma tras el panel)

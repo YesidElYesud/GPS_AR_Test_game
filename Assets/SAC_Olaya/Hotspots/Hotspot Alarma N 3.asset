@@ -24,9 +24,6 @@ MonoBehaviour:
   infoSlides:
   - title: 
     body: 
-    image: {fileID: 21300000, guid: b7d8679af19b1ddb9b84dcf196cf2606, type: 3}
-  - title: 
-    body: 
     image: {fileID: 21300000, guid: d2d554c98d2552e34887a717e871c6f1, type: 3}
   infoSlideAdvancesStage: 0
   sequenceAdvancesStage: 0
@@ -39,6 +36,7 @@ MonoBehaviour:
   activatesEvacuationRoute: 0
   postCloseSequence: 1
   activatesEndGame: 0
+  endGameRequiredStage: -1
   markerColor: {r: 0.2, g: 0.8, b: 1, a: 0.9}
   hotspotMaterial: {fileID: 0}
   isBlinking: 1
