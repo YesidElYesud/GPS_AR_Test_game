@@ -97,6 +97,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: ground_2
+    second: {fileID: 2100000, guid: 50bae3faae59aeb4e8c282747d9ff708, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: jueguitos
     second: {fileID: 2100000, guid: ee6c88f3bfbdfe24e90a26504b35072d, type: 2}
   - first:
@@ -104,6 +109,21 @@ ModelImporter:
       assembly: UnityEngine.CoreModule
       name: ladrillos
     second: {fileID: 2100000, guid: bef46ea64d9cc5f438d62f70ce2e7b5f, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: ladrillos superior
+    second: {fileID: 2100000, guid: ac9e06889b30069468476cb952745a34, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: ladrillos_1
+    second: {fileID: 2100000, guid: 7682983493a932d4a8e65438f2f074c8, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: ladrillos_2
+    second: {fileID: 2100000, guid: 357e4b073e7adc2468ec6383303e597e, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
@@ -179,6 +199,11 @@ ModelImporter:
       assembly: UnityEngine.CoreModule
       name: tubo
     second: {fileID: 2100000, guid: b223cbec6d6e5a8408d19732558b5c90, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: vallas negras
+    second: {fileID: 2100000, guid: 88bcf700ac56bca479440692892ee3bf, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule

@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: muros quevbrada
+  m_Name: ladrillos superior
   m_Shader: {fileID: 46, guid: 0000000000000000f000000000000000, type: 0}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -25,7 +25,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _BumpMap:
-        m_Texture: {fileID: 2800000, guid: 5ec883b7f5aeda54ea84ee68c51412df, type: 3}
+        m_Texture: {fileID: 2800000, guid: 8d8946b490ccccb4aa42f3877c51c3c4, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _DetailAlbedoMap:
@@ -42,18 +42,18 @@ Material:
         m_Offset: {x: 0, y: 0}
     - _EmissionMap:
         m_Texture: {fileID: 0}
-        m_Scale: {x: 4.4, y: 2.74}
-        m_Offset: {x: 0, y: 0}
+        m_Scale: {x: 17.99, y: 91.7}
+        m_Offset: {x: 0, y: -0.8}
     - _MainTex:
-        m_Texture: {fileID: 2800000, guid: 66e38e03f66342b47a6da86c1b96beef, type: 3}
-        m_Scale: {x: 4.4, y: 2.74}
-        m_Offset: {x: 0, y: 0}
+        m_Texture: {fileID: 2800000, guid: df483e145661f464c8ec846255ab419c, type: 3}
+        m_Scale: {x: 17.99, y: 91.7}
+        m_Offset: {x: 0, y: -0.8}
     - _MetallicGlossMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _OcclusionMap:
-        m_Texture: {fileID: 2800000, guid: 89fcefc79d9f2824197eb8f487e1329b, type: 3}
+        m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _ParallaxMap:
@@ -67,7 +67,7 @@ Material:
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
     - _GlossMapScale: 1
-    - _Glossiness: 0.284
+    - _Glossiness: 0.519
     - _GlossyReflections: 1
     - _Metallic: 0
     - _Mode: 0
@@ -79,6 +79,6 @@ Material:
     - _UVSec: 0
     - _ZWrite: 1
     m_Colors:
-    - _Color: {r: 0.8301887, g: 0.8301887, b: 0.8301887, a: 1}
+    - _Color: {r: 0.5660378, g: 0.5660378, b: 0.5660378, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []
