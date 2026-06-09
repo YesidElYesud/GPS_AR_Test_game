@@ -4,8 +4,9 @@ using UnityEngine;
 /// <summary>
 /// Controla animación de flujo y apariencia del agua sobre una malla con shader Custom/WaterFlow.
 /// Al cambiar de etapa interpola suavemente: color del agua, color de espuma,
-/// intensidad de espuma, brillo y fuerza de ondas — consiguiendo el efecto
-/// de agua turbia/lodosa a medida que sube el nivel de riesgo.
+/// intensidad de espuma, brillo, fuerza de ondas y amplitud de desplazamiento
+/// geométrico — consiguiendo el efecto de crecida con olas visibles a medida
+/// que sube el nivel de riesgo.
 /// </summary>
 [RequireComponent(typeof(MeshRenderer))]
 public class WaterFlowController : MonoBehaviour
@@ -35,57 +36,73 @@ public class WaterFlowController : MonoBehaviour
 
         [Tooltip("Intensidad de las ondas del normal map. Crecida = valores altos.")]
         [Range(0f, 3f)] public float bumpStrength = 0.65f;
+
+        [Header("Desplazamiento geométrico")]
+        [Tooltip("Altura máxima de las olas en metros. 0 = agua plana (N1).")]
+        [Range(0f, 0.5f)] public float waveAmplitude = 0f;
+
+        [Tooltip("Frecuencia espacial de las olas. Más alto = olas más cortas y numerosas.")]
+        [Range(0f, 20f)]  public float waveFrequency = 6f;
+
+        [Tooltip("Multiplicador de velocidad de animación de las olas.")]
+        [Range(0f, 5f)]   public float waveSpeed     = 1f;
     }
 
     [Header("Apariencia por etapa")]
     public StageWaterConfig[] stageConfigs = new StageWaterConfig[]
     {
-        // ── Intro / Etapa 1 — quebrada normal, agua clara ─────────────────────
+        // ── Intro / Etapa 1 — quebrada normal, agua clara, superficie plana ────
         new StageWaterConfig
         {
-            stage        = StageManager.Stage.Intro,
-            waterColor   = new Color(0.15f, 0.40f, 0.65f, 0.75f),
-            foamColor    = new Color(0.85f, 0.92f, 1.00f, 0.50f),
-            foamBlend    = 0.22f, glossiness = 0.88f, bumpStrength = 0.55f
+            stage         = StageManager.Stage.Intro,
+            waterColor    = new Color(0.15f, 0.40f, 0.65f, 0.75f),
+            foamColor     = new Color(0.85f, 0.92f, 1.00f, 0.50f),
+            foamBlend     = 0.22f, glossiness = 0.88f, bumpStrength = 0.55f,
+            waveAmplitude = 0.00f, waveFrequency = 4f, waveSpeed = 0.5f
         },
         new StageWaterConfig
         {
-            stage        = StageManager.Stage.Etapa1,
-            waterColor   = new Color(0.15f, 0.40f, 0.65f, 0.75f),
-            foamColor    = new Color(0.85f, 0.92f, 1.00f, 0.50f),
-            foamBlend    = 0.22f, glossiness = 0.88f, bumpStrength = 0.55f
+            stage         = StageManager.Stage.Etapa1,
+            waterColor    = new Color(0.15f, 0.40f, 0.65f, 0.75f),
+            foamColor     = new Color(0.85f, 0.92f, 1.00f, 0.50f),
+            foamBlend     = 0.22f, glossiness = 0.88f, bumpStrength = 0.55f,
+            waveAmplitude = 0.00f, waveFrequency = 4f, waveSpeed = 0.5f
         },
-        // ── Etapa 2 — primeras lluvias, turbiedad leve ────────────────────────
+        // ── Etapa 2 — primeras lluvias, ondas leves ───────────────────────────
         new StageWaterConfig
         {
-            stage        = StageManager.Stage.Etapa2,
-            waterColor   = new Color(0.20f, 0.38f, 0.54f, 0.82f),
-            foamColor    = new Color(0.80f, 0.84f, 0.88f, 0.55f),
-            foamBlend    = 0.28f, glossiness = 0.68f, bumpStrength = 0.90f
+            stage         = StageManager.Stage.Etapa2,
+            waterColor    = new Color(0.20f, 0.38f, 0.54f, 0.82f),
+            foamColor     = new Color(0.80f, 0.84f, 0.88f, 0.55f),
+            foamBlend     = 0.28f, glossiness = 0.68f, bumpStrength = 0.90f,
+            waveAmplitude = 0.04f, waveFrequency = 6f, waveSpeed = 0.8f
         },
-        // ── Etapa 3 — crecida activa, agua marrón lodosa ─────────────────────
+        // ── Etapa 3 — crecida activa, agua lodosa, olas medianas ─────────────
         new StageWaterConfig
         {
-            stage        = StageManager.Stage.Etapa3,
-            waterColor   = new Color(0.50f, 0.30f, 0.07f, 0.90f),
-            foamColor    = new Color(0.80f, 0.68f, 0.38f, 0.68f),
-            foamBlend    = 0.44f, glossiness = 0.38f, bumpStrength = 1.60f
+            stage         = StageManager.Stage.Etapa3,
+            waterColor    = new Color(0.50f, 0.30f, 0.07f, 0.90f),
+            foamColor     = new Color(0.80f, 0.68f, 0.38f, 0.68f),
+            foamBlend     = 0.44f, glossiness = 0.38f, bumpStrength = 1.60f,
+            waveAmplitude = 0.11f, waveFrequency = 8f, waveSpeed = 1.4f
         },
-        // ── Etapa 4 — crecida máxima, barro oscuro ───────────────────────────
+        // ── Etapa 4 — crecida máxima, barro oscuro, olas agresivas ───────────
         new StageWaterConfig
         {
-            stage        = StageManager.Stage.Etapa4,
-            waterColor   = new Color(0.36f, 0.18f, 0.03f, 0.96f),
-            foamColor    = new Color(0.64f, 0.48f, 0.20f, 0.78f),
-            foamBlend    = 0.55f, glossiness = 0.20f, bumpStrength = 2.10f
+            stage         = StageManager.Stage.Etapa4,
+            waterColor    = new Color(0.36f, 0.18f, 0.03f, 0.96f),
+            foamColor     = new Color(0.64f, 0.48f, 0.20f, 0.78f),
+            foamBlend     = 0.55f, glossiness = 0.20f, bumpStrength = 2.10f,
+            waveAmplitude = 0.20f, waveFrequency = 10f, waveSpeed = 2.0f
         },
-        // ── Etapa 5 — post-evento, barro residual ────────────────────────────
+        // ── Etapa 5 — post-evento, barro residual, olas residuales ───────────
         new StageWaterConfig
         {
-            stage        = StageManager.Stage.Etapa5,
-            waterColor   = new Color(0.40f, 0.26f, 0.08f, 0.88f),
-            foamColor    = new Color(0.72f, 0.60f, 0.32f, 0.60f),
-            foamBlend    = 0.32f, glossiness = 0.34f, bumpStrength = 1.20f
+            stage         = StageManager.Stage.Etapa5,
+            waterColor    = new Color(0.40f, 0.26f, 0.08f, 0.88f),
+            foamColor     = new Color(0.72f, 0.60f, 0.32f, 0.60f),
+            foamBlend     = 0.32f, glossiness = 0.34f, bumpStrength = 1.20f,
+            waveAmplitude = 0.07f, waveFrequency = 6f, waveSpeed = 0.9f
         },
     };
 
@@ -102,34 +119,41 @@ public class WaterFlowController : MonoBehaviour
     private Material  _mat;
     private Coroutine _transitionRoutine;
 
-    // Apariencia actual (usada como "from" en las transiciones)
     private Color _curWater;
     private Color _curFoam;
     private float _curFoamBlend;
     private float _curGlossiness;
     private float _curBumpStrength;
+    private float _curWaveAmplitude;
+    private float _curWaveFrequency;
+    private float _curWaveSpeed;
 
     // IDs de propiedades del shader
-    private static readonly int PropFlowDir      = Shader.PropertyToID("_FlowDirection");
-    private static readonly int PropFlowSpeed    = Shader.PropertyToID("_FlowSpeed");
-    private static readonly int PropColor        = Shader.PropertyToID("_Color");
-    private static readonly int PropFoamColor    = Shader.PropertyToID("_FoamColor");
-    private static readonly int PropFoamBlend    = Shader.PropertyToID("_FoamBlend");
-    private static readonly int PropGlossiness   = Shader.PropertyToID("_Glossiness");
-    private static readonly int PropBumpStrength = Shader.PropertyToID("_BumpStrength");
+    private static readonly int PropFlowDir       = Shader.PropertyToID("_FlowDirection");
+    private static readonly int PropFlowSpeed     = Shader.PropertyToID("_FlowSpeed");
+    private static readonly int PropColor         = Shader.PropertyToID("_Color");
+    private static readonly int PropFoamColor     = Shader.PropertyToID("_FoamColor");
+    private static readonly int PropFoamBlend     = Shader.PropertyToID("_FoamBlend");
+    private static readonly int PropGlossiness    = Shader.PropertyToID("_Glossiness");
+    private static readonly int PropBumpStrength  = Shader.PropertyToID("_BumpStrength");
+    private static readonly int PropWaveAmplitude = Shader.PropertyToID("_WaveAmplitude");
+    private static readonly int PropWaveFrequency = Shader.PropertyToID("_WaveFrequency");
+    private static readonly int PropWaveSpeed     = Shader.PropertyToID("_WaveSpeed");
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     void Awake()
     {
         _mat = GetComponent<MeshRenderer>().material;
 
-        // Inicializar estado con la primera config disponible
         var init = FindConfig(StageManager.Stage.Etapa1);
-        _curWater       = init.waterColor;
-        _curFoam        = init.foamColor;
-        _curFoamBlend   = init.foamBlend;
-        _curGlossiness  = init.glossiness;
-        _curBumpStrength = init.bumpStrength;
+        _curWater         = init.waterColor;
+        _curFoam          = init.foamColor;
+        _curFoamBlend     = init.foamBlend;
+        _curGlossiness    = init.glossiness;
+        _curBumpStrength  = init.bumpStrength;
+        _curWaveAmplitude = init.waveAmplitude;
+        _curWaveFrequency = init.waveFrequency;
+        _curWaveSpeed     = init.waveSpeed;
 
         PushToMaterial();
     }
@@ -184,21 +208,27 @@ public class WaterFlowController : MonoBehaviour
     // ── Aplicación de apariencia ──────────────────────────────────────────────
     private void SnapToConfig(StageWaterConfig cfg)
     {
-        _curWater        = cfg.waterColor;
-        _curFoam         = cfg.foamColor;
-        _curFoamBlend    = cfg.foamBlend;
-        _curGlossiness   = cfg.glossiness;
-        _curBumpStrength = cfg.bumpStrength;
+        _curWater         = cfg.waterColor;
+        _curFoam          = cfg.foamColor;
+        _curFoamBlend     = cfg.foamBlend;
+        _curGlossiness    = cfg.glossiness;
+        _curBumpStrength  = cfg.bumpStrength;
+        _curWaveAmplitude = cfg.waveAmplitude;
+        _curWaveFrequency = cfg.waveFrequency;
+        _curWaveSpeed     = cfg.waveSpeed;
         PushToMaterial();
     }
 
     private IEnumerator TransitionRoutine(StageWaterConfig to)
     {
-        Color fromWater  = _curWater;
-        Color fromFoam   = _curFoam;
-        float fromFoamB  = _curFoamBlend;
-        float fromGloss  = _curGlossiness;
-        float fromBump   = _curBumpStrength;
+        Color fromWater    = _curWater;
+        Color fromFoam     = _curFoam;
+        float fromFoamB    = _curFoamBlend;
+        float fromGloss    = _curGlossiness;
+        float fromBump     = _curBumpStrength;
+        float fromWaveAmp  = _curWaveAmplitude;
+        float fromWaveFreq = _curWaveFrequency;
+        float fromWaveSpd  = _curWaveSpeed;
 
         float elapsed = 0f;
         while (elapsed < transitionDuration)
@@ -206,11 +236,14 @@ public class WaterFlowController : MonoBehaviour
             elapsed += Time.deltaTime;
             float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / transitionDuration));
 
-            _curWater        = Color.Lerp(fromWater, to.waterColor,   t);
-            _curFoam         = Color.Lerp(fromFoam,  to.foamColor,    t);
-            _curFoamBlend    = Mathf.Lerp(fromFoamB, to.foamBlend,    t);
-            _curGlossiness   = Mathf.Lerp(fromGloss, to.glossiness,   t);
-            _curBumpStrength = Mathf.Lerp(fromBump,  to.bumpStrength, t);
+            _curWater         = Color.Lerp(fromWater,    to.waterColor,    t);
+            _curFoam          = Color.Lerp(fromFoam,     to.foamColor,     t);
+            _curFoamBlend     = Mathf.Lerp(fromFoamB,   to.foamBlend,     t);
+            _curGlossiness    = Mathf.Lerp(fromGloss,   to.glossiness,    t);
+            _curBumpStrength  = Mathf.Lerp(fromBump,    to.bumpStrength,  t);
+            _curWaveAmplitude = Mathf.Lerp(fromWaveAmp, to.waveAmplitude, t);
+            _curWaveFrequency = Mathf.Lerp(fromWaveFreq,to.waveFrequency, t);
+            _curWaveSpeed     = Mathf.Lerp(fromWaveSpd, to.waveSpeed,     t);
             PushToMaterial();
             yield return null;
         }
@@ -223,13 +256,16 @@ public class WaterFlowController : MonoBehaviour
         if (_mat == null || fallbackMode) return;
 
         Vector2 dir = NormalizedDir();
-        _mat.SetVector(PropFlowDir,      new Vector4(dir.x, dir.y, 0f, 0f));
-        _mat.SetFloat (PropFlowSpeed,    flowSpeed);
-        _mat.SetColor (PropColor,        _curWater);
-        _mat.SetColor (PropFoamColor,    _curFoam);
-        _mat.SetFloat (PropFoamBlend,    _curFoamBlend);
-        _mat.SetFloat (PropGlossiness,   _curGlossiness);
-        _mat.SetFloat (PropBumpStrength, _curBumpStrength);
+        _mat.SetVector(PropFlowDir,       new Vector4(dir.x, dir.y, 0f, 0f));
+        _mat.SetFloat (PropFlowSpeed,     flowSpeed);
+        _mat.SetColor (PropColor,         _curWater);
+        _mat.SetColor (PropFoamColor,     _curFoam);
+        _mat.SetFloat (PropFoamBlend,     _curFoamBlend);
+        _mat.SetFloat (PropGlossiness,    _curGlossiness);
+        _mat.SetFloat (PropBumpStrength,  _curBumpStrength);
+        _mat.SetFloat (PropWaveAmplitude, _curWaveAmplitude);
+        _mat.SetFloat (PropWaveFrequency, _curWaveFrequency);
+        _mat.SetFloat (PropWaveSpeed,     _curWaveSpeed);
     }
 
     // ── API pública ───────────────────────────────────────────────────────────

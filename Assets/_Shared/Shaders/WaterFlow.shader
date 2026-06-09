@@ -21,6 +21,11 @@ Shader "Custom/WaterFlow"
         _Glossiness   ("Brillo",          Range(0,1)) = 0.85
         _Metallic     ("Metallic",        Range(0,1)) = 0.0
         _Alpha        ("Transparencia",   Range(0,1)) = 0.75
+
+        [Header(Desplazamiento de vertices)]
+        _WaveAmplitude ("Amplitud olas (m)",    Range(0, 0.5)) = 0.0
+        _WaveFrequency ("Frecuencia espacial",  Range(0, 20))  = 6.0
+        _WaveSpeed     ("Velocidad olas",       Range(0, 5))   = 1.0
     }
 
     SubShader
@@ -32,8 +37,8 @@ Shader "Custom/WaterFlow"
         Cull Off
 
         CGPROGRAM
-        // Surface shader — compila para WebGL sin problemas
-        #pragma surface surf Standard fullforwardshadows alpha:fade keepalpha
+        // vertex:vert activa desplazamiento geométrico por etapa
+        #pragma surface surf Standard vertex:vert fullforwardshadows alpha:fade keepalpha
         #pragma target 3.0
 
         sampler2D _MainTex;
@@ -53,12 +58,35 @@ Shader "Custom/WaterFlow"
         half    _Metallic;
         half    _Alpha;
 
+        float   _WaveAmplitude;
+        float   _WaveFrequency;
+        float   _WaveSpeed;
+
         struct Input
         {
             float2 uv_MainTex;
             float2 uv_FoamTex;
             float2 uv_BumpMap;
         };
+
+        // ── Desplazamiento de vértices ────────────────────────────────────────────
+        void vert(inout appdata_full v)
+        {
+            float2 flowDir = normalize(_FlowDirection.xy + float2(0.0001, 0.0));
+            float2 perpDir = float2(-flowDir.y, flowDir.x);
+            float  t       = _Time.y * _WaveSpeed;
+            float2 pos     = v.vertex.xz;
+
+            // Tres capas de seno en direcciones distintas para simular turbulencia
+            // Capa 1: a lo largo de la corriente (ola dominante)
+            float w1 = sin(dot(pos, flowDir) * _WaveFrequency + t * 1.30);
+            // Capa 2: transversal a la corriente (cruce de olas)
+            float w2 = sin(dot(pos, perpDir) * _WaveFrequency * 1.4 + t * 0.90) * 0.45;
+            // Capa 3: diagonal caótica (turbulencia)
+            float w3 = sin((pos.x * 1.7 + pos.y * 0.8) * _WaveFrequency * 0.55 + t * 1.70) * 0.25;
+
+            v.vertex.y += (w1 + w2 + w3) * _WaveAmplitude;
+        }
 
         void surf (Input IN, inout SurfaceOutputStandard o)
         {
@@ -89,7 +117,7 @@ Shader "Custom/WaterFlow"
             fixed3 foam      = foamSample.rgb  * _FoamColor.rgb;
             fixed3 blended   = lerp(baseColor, foam, _FoamBlend * foamSample.a);
 
-            // Normal map para efecto de ondas
+            // Normal map para efecto de ondas superficiales
             fixed3 normal    = UnpackNormal(tex2D(_BumpMap, bumpUV));
             normal.xy       *= _BumpStrength;
             o.Normal         = normalize(normal);
