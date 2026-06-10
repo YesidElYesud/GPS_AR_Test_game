@@ -74141,8 +74141,8 @@ MonoBehaviour:
     foamBlend: 0.28
     glossiness: 0.68
     bumpStrength: 0.9
-    waveAmplitude: 0.04
-    waveFrequency: 6
+    waveAmplitude: 0.074
+    waveFrequency: 14.9
     waveSpeed: 0.8
   - stage: 3
     waterColor: {r: 0.5, g: 0.3, b: 0.07, a: 0.9}
@@ -74150,7 +74150,7 @@ MonoBehaviour:
     foamBlend: 0.44
     glossiness: 0.38
     bumpStrength: 1.6
-    waveAmplitude: 0.11
+    waveAmplitude: 0.214
     waveFrequency: 8
     waveSpeed: 1.4
   - stage: 4
@@ -74159,18 +74159,9 @@ MonoBehaviour:
     foamBlend: 0.55
     glossiness: 0.2
     bumpStrength: 2.1
-    waveAmplitude: 0.2
+    waveAmplitude: 0.357
     waveFrequency: 10
     waveSpeed: 2
-  - stage: 5
-    waterColor: {r: 0.4, g: 0.26, b: 0.08, a: 0.88}
-    foamColor: {r: 0.72, g: 0.6, b: 0.32, a: 0.6}
-    foamBlend: 0.32
-    glossiness: 0.34
-    bumpStrength: 1.2
-    waveAmplitude: 0.07
-    waveFrequency: 6
-    waveSpeed: 0.9
   transitionDuration: 3
   fallbackMode: 0
 --- !u!1 &542997823

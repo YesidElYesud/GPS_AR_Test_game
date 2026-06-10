@@ -75,7 +75,11 @@ Shader "Custom/WaterFlow"
             float2 flowDir = normalize(_FlowDirection.xy + float2(0.0001, 0.0));
             float2 perpDir = float2(-flowDir.y, flowDir.x);
             float  t       = _Time.y * _WaveSpeed;
-            float2 pos     = v.vertex.xz;
+
+            // Muestrear en world-space XZ para que las olas sean correctas
+            // independientemente de la rotación o escala de la malla
+            float3 worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
+            float2 pos      = worldPos.xz;
 
             // Tres capas de seno en direcciones distintas para simular turbulencia
             // Capa 1: a lo largo de la corriente (ola dominante)
@@ -85,7 +89,10 @@ Shader "Custom/WaterFlow"
             // Capa 3: diagonal caótica (turbulencia)
             float w3 = sin((pos.x * 1.7 + pos.y * 0.8) * _WaveFrequency * 0.55 + t * 1.70) * 0.25;
 
-            v.vertex.y += (w1 + w2 + w3) * _WaveAmplitude;
+            // Desplazar en world-up (Y global), convertido a espacio de objeto
+            // Resuelve el problema cuando local-Y no apunta hacia arriba en el mundo
+            float wave = (w1 + w2 + w3) * _WaveAmplitude;
+            v.vertex.xyz += mul((float3x3)unity_WorldToObject, float3(0.0, wave, 0.0));
         }
 
         void surf (Input IN, inout SurfaceOutputStandard o)
