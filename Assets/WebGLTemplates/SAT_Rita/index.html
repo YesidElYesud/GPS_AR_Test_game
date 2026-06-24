@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
   <meta name="theme-color" content="#232B48"/>
-  <title>SATCS — Santa Rita · SIRMED Medellín</title>
+  <title>SATCS: Santa Rita · SIRMED Medellín</title>
 
   <style>
     /* ── Fuentes Metropolis ──────────────────────────────────────────────── */
@@ -35,7 +35,7 @@
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      /* Paleta institucional DAGRD / Pascual Bravo */
+      /* Paleta institucional DAGRD */
       --navy:        #232B48;        /* PANTONE 2766C — azul noche */
       --navy-mid:    #2C2C61;        /* PANTONE 2738C — azul profundo */
       --yellow:      #FFCC00;        /* PANTONE 130C  — amarillo institucional */
@@ -118,18 +118,22 @@
       border-radius: var(--radius) var(--radius) 0 0;
     }
 
-    /* ── Logo ────────────────────────────────────────────────────────────── */
+    /* ── Logo — recuadro institucional amarillo (Manual DAGRD p.8) ──────── */
     .logo-wrap {
       margin-bottom: 24px;
-      padding: 12px 18px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid var(--border);
+      padding: 14px 22px;
+      background: var(--yellow);
       border-radius: var(--radius-sm);
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .logo-wrap img {
       display: block;
-      height: clamp(46px, 10vw, 62px);
+      height: clamp(44px, 9.5vw, 58px);
       width: auto;
+      max-width: 100%;
       object-fit: contain;
     }
 
@@ -281,10 +285,20 @@
     }
     #loading-overlay.hidden { opacity: 0; pointer-events: none; }
 
-    .ld-logo {
-      height: clamp(40px, 9vw, 54px);
-      width: auto; object-fit: contain;
+    .ld-logo-wrap {
+      padding: 10px 20px;
+      background: var(--yellow);
+      border-radius: var(--radius-sm);
       margin-bottom: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ld-logo {
+      height: clamp(34px, 8vw, 46px);
+      width: auto;
+      max-width: 260px;
+      object-fit: contain;
     }
     .ld-title {
       font-size: clamp(11px, 2.8vw, 13px);
@@ -318,7 +332,9 @@
     @media (max-height: 580px) {
       .card { padding: 18px 20px; }
       .logo-wrap { margin-bottom: 12px; padding: 8px 14px; }
-      .logo-wrap img { height: 36px; }
+      .logo-wrap img { height: 34px; }
+      .ld-logo-wrap { padding: 7px 14px; margin-bottom: 20px; }
+      .ld-logo { height: 28px; }
       .description, .badges, .permissions { margin-bottom: 12px; }
       .divider { margin-bottom: 12px; }
       .credits { display: none; }
@@ -337,7 +353,7 @@
     <div class="card">
 
       <div class="logo-wrap">
-        <img src="images/logo_DAGRD.png" alt="DAGRD — Gestión del Riesgo de Desastres" loading="eager"/>
+        <img src="images/LogosDAGRD.png" alt="Bomberos Medellín · DAGRD · Alcaldía de Medellín" loading="eager"/>
       </div>
 
       <p class="tag">Sistema de Alerta Temprana Comunitaria</p>
@@ -357,16 +373,15 @@
       <div class="badges">
         <span class="badge badge-yellow">SIRMED Medellín</span>
         <span class="badge badge-outline">DAGRD</span>
-        <span class="badge badge-outline">I.U. Pascual Bravo</span>
       </div>
 
       <div class="permissions" aria-label="Permisos requeridos">
         <div class="perm-item">
-          <div class="perm-icon">📍</div>
+          <div class="perm-icon">GPS</div>
           <span>Ubicación GPS</span>
         </div>
         <div class="perm-item">
-          <div class="perm-icon">🔄</div>
+          <div class="perm-icon">GYR</div>
           <span>Giroscopio</span>
         </div>
       </div>
@@ -379,7 +394,7 @@
 
       <p class="credits">
         Proyecto SATCS · Medellín, Colombia<br>
-        Desarrollado con el apoyo del SIRMED —<br>
+        Desarrollado con el apoyo del SIRMED,<br>
         Sistema de Respuesta ante Emergencias de Medellín
       </p>
 
@@ -388,7 +403,9 @@
 
   <!-- ── PANTALLA DE CARGA ──────────────────────────────────────────────── -->
   <div id="loading-overlay" role="status" aria-label="Cargando experiencia">
-    <img class="ld-logo" src="images/logo_DAGRD.png" alt="DAGRD"/>
+    <div class="ld-logo-wrap">
+      <img class="ld-logo" src="images/LogosDAGRD.png" alt="Bomberos Medellín · DAGRD · Alcaldía de Medellín"/>
+    </div>
     <p class="ld-title">Cargando experiencia</p>
     <div class="ld-bar-wrap">
       <div class="ld-bar" id="progress-bar"></div>
@@ -415,7 +432,7 @@
           typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission()
           .then(function(state) {
-            setStatus(state === 'granted' ? 'Giroscopio activado ✓' : 'Giroscopio: ' + state);
+            setStatus(state === 'granted' ? 'Giroscopio activado' : 'Giroscopio: ' + state);
             loadUnity();
           })
           .catch(function() {
