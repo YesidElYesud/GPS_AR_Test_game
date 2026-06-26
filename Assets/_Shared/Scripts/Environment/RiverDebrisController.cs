@@ -66,6 +66,16 @@ public class RiverDebrisController : MonoBehaviour
     [Tooltip("Desviación máxima perpendicular a la dirección del tramo (metros).")]
     public float lateralMargin = 0.4f;
 
+    [Header("Evasión de obstáculos")]
+    [Tooltip("Capas que se consideran obstáculo. La malla del agua no necesita excluirse: si no tiene Collider, el raycast la ignora automáticamente.")]
+    public LayerMask obstacleLayerMask = Physics.DefaultRaycastLayers;
+    [Range(0.3f, 3f)]
+    [Tooltip("Distancia (m) a la que el escombro empieza a esquivar. 1.2–1.5 cubre rocas y bordes del puente.")]
+    public float avoidanceRange = 1.2f;
+    [Range(0f, 6f)]
+    [Tooltip("Si el centro del colisionador detectado está a más de esta altura (m) sobre el escombro, se ignora: es un puente u obstáculo elevado. Los escombros pasan por debajo siguiendo los waypoints.")]
+    public float bridgeClearance = 2f;
+
     [Header("Rotación y bamboleo")]
     [Tooltip("Si es true, el objeto gira gradualmente para orientarse en la dirección del flujo.")]
     public bool alignToFlow = true;
@@ -212,7 +222,7 @@ public class RiverDebrisController : MonoBehaviour
         float speed = Random.Range(minSpeed, maxSpeed);
         RiverDebrisObject debrisObj = obj.AddComponent<RiverDebrisObject>();
         debrisObj.Initialize(waypoints, speed, lateralMargin, alignToFlow, rotationSpeed,
-                             wobbleAmplitude, wobbleSpeed);
+                             wobbleAmplitude, wobbleSpeed, obstacleLayerMask, avoidanceRange, bridgeClearance);
 
         _activeDebris.Add(obj);
     }
@@ -279,7 +289,7 @@ public class RiverDebrisController : MonoBehaviour
 
 // ── RiverDebrisObject ─────────────────────────────────────────────────────────
 /// Componente añadido en runtime a cada objeto instanciado.
-/// Gestiona movimiento por waypoints + bamboleo orgánico con ruido Perlin.
+/// Gestiona movimiento por waypoints + bamboleo orgánico + evasión de obstáculos.
 public class RiverDebrisObject : MonoBehaviour
 {
     private Transform[] _waypoints;
@@ -289,6 +299,9 @@ public class RiverDebrisObject : MonoBehaviour
     private float _rotationSpeed;
     private float _wobbleAmplitude;
     private float _wobbleSpeed;
+    private LayerMask _obstacleMask;
+    private float     _avoidRange;
+    private float     _bridgeClearance;
 
     // Semillas independientes para cada eje → movimiento no periódico ni sincronizado
     private float _seedX;
@@ -300,15 +313,19 @@ public class RiverDebrisObject : MonoBehaviour
 
     public void Initialize(Transform[] waypoints, float speed, float lateralMargin,
                            bool alignToFlow, float rotationSpeed,
-                           float wobbleAmplitude, float wobbleSpeed)
+                           float wobbleAmplitude, float wobbleSpeed,
+                           LayerMask obstacleMask, float avoidRange, float bridgeClearance)
     {
-        _waypoints      = waypoints;
-        _speed          = speed;
-        _lateralMargin  = lateralMargin;
-        _alignToFlow    = alignToFlow;
-        _rotationSpeed  = rotationSpeed;
+        _waypoints       = waypoints;
+        _speed           = speed;
+        _lateralMargin   = lateralMargin;
+        _alignToFlow     = alignToFlow;
+        _rotationSpeed   = rotationSpeed;
         _wobbleAmplitude = wobbleAmplitude;
-        _wobbleSpeed    = wobbleSpeed;
+        _wobbleSpeed     = wobbleSpeed;
+        _obstacleMask    = obstacleMask;
+        _avoidRange      = avoidRange;
+        _bridgeClearance = bridgeClearance;
 
         // Semillas aleatorias: cada objeto bambolea diferente
         _seedX = Random.Range(0f, 100f);
@@ -338,18 +355,24 @@ public class RiverDebrisObject : MonoBehaviour
             toTarget.y = 0f;
         }
 
-        // Movimiento a lo largo del cauce
-        transform.position += (_targetPos - transform.position).normalized * (_speed * Time.deltaTime);
+        // Dirección de movimiento: XZ con evasión de obstáculos, Y preserva la
+        // pendiente real del cauce (componente Y de la dirección al waypoint).
+        Vector3 moveDir = toTarget.sqrMagnitude > 0.01f ? toTarget.normalized : transform.forward;
+        moveDir = ApplyObstacleAvoidance(moveDir);
+
+        Vector3 toTarget3D = _targetPos - transform.position;
+        float ySlope = toTarget3D.sqrMagnitude > 0.0001f ? toTarget3D.normalized.y : 0f;
+        Vector3 dir3D = new Vector3(moveDir.x, ySlope, moveDir.z).normalized;
+        transform.position += dir3D * (_speed * Time.deltaTime);
 
         // ── Rotación: flujo + bamboleo ────────────────────────────────────────
 
-        // 1. Yaw base = dirección del flujo (si alignToFlow está activo)
-        Quaternion flowRot = _alignToFlow && toTarget.sqrMagnitude > 0.001f
-            ? Quaternion.LookRotation(toTarget.normalized)
+        // 1. Yaw base = dirección 3D real (incluye evasión y pendiente del cauce)
+        Quaternion flowRot = _alignToFlow && dir3D.sqrMagnitude > 0.001f
+            ? Quaternion.LookRotation(dir3D)
             : Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
 
         // 2. Bamboleo: ruido Perlin en pitch (X) y roll (Z) independientes
-        //    Perlin devuelve [0,1] → llevamos a [-1,1] con *2-1
         float noiseX = Mathf.PerlinNoise(_seedX + Time.time * _wobbleSpeed, 0f) * 2f - 1f;
         float noiseZ = Mathf.PerlinNoise(0f, _seedZ + Time.time * _wobbleSpeed) * 2f - 1f;
         Quaternion wobble = Quaternion.Euler(
@@ -358,9 +381,39 @@ public class RiverDebrisObject : MonoBehaviour
             noiseZ * _wobbleAmplitude);
 
         // 3. Combinar: el bamboleo se aplica en el espacio local del flujo
-        Quaternion target = flowRot * wobble;
+        Quaternion targetRot = flowRot * wobble;
         transform.rotation = Quaternion.RotateTowards(
-            transform.rotation, target, _rotationSpeed * Time.deltaTime);
+            transform.rotation, targetRot, _rotationSpeed * Time.deltaTime);
+    }
+
+    // Desvía moveDir perpendicular al flujo si hay un obstáculo adelante.
+    // Elige el lado más despejado con dos raycasts diagonales.
+    // La malla del agua no interfiere: si no tiene Collider, el raycast la ignora.
+    private Vector3 ApplyObstacleAvoidance(Vector3 moveDir)
+    {
+        if (_avoidRange <= 0f || moveDir.sqrMagnitude < 0.01f) return moveDir;
+
+        // Origen elevado 0.4 m para evitar raycasts dentro del propio collider del escombro
+        Vector3 origin = transform.position + Vector3.up * 0.4f;
+
+        if (!Physics.Raycast(origin, moveDir, out RaycastHit hit, _avoidRange, _obstacleMask))
+            return moveDir;
+
+        // Estructura elevada (puente, voladizo): el centro del colisionador
+        // está significativamente más alto que el escombro → pasar por debajo,
+        // no esquivar hacia los lados.
+        if (hit.collider.bounds.center.y - transform.position.y > _bridgeClearance)
+            return moveDir;
+
+        // Obstáculo al nivel del agua (roca, pared): decidir lado con dos raycasts diagonales
+        Vector3 right = Vector3.Cross(Vector3.up, moveDir).normalized;
+        bool rightFree = !Physics.Raycast(origin, (moveDir + right * 0.8f).normalized,
+                                          _avoidRange * 0.75f, _obstacleMask);
+        float side    = rightFree ? 1f : -1f;
+
+        // Urgencia aumenta cuanto más cerca está el obstáculo
+        float urgency = 1f - Mathf.Clamp01(hit.distance / _avoidRange);
+        return (moveDir + right * (side * urgency * 1.8f)).normalized;
     }
 
     Vector3 ComputeTarget(int index)

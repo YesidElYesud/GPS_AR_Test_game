@@ -14,6 +14,17 @@ public class RainParticleController : MonoBehaviour
         public RainIntensity intensity;
     }
 
+    // Defaults estáticos usados como fallback si stagePresets está vacío en Inspector
+    private static readonly StageRainPreset[] k_DefaultStagePresets =
+    {
+        new StageRainPreset { stage = StageManager.Stage.Intro,  intensity = RainIntensity.None   },
+        new StageRainPreset { stage = StageManager.Stage.Etapa1, intensity = RainIntensity.None   },
+        new StageRainPreset { stage = StageManager.Stage.Etapa2, intensity = RainIntensity.Light  },
+        new StageRainPreset { stage = StageManager.Stage.Etapa3, intensity = RainIntensity.Medium },
+        new StageRainPreset { stage = StageManager.Stage.Etapa4, intensity = RainIntensity.Heavy  },
+        new StageRainPreset { stage = StageManager.Stage.Etapa5, intensity = RainIntensity.None   },
+    };
+
     // ── Inspector ─────────────────────────────────────────────────────────────
     [Header("Intensidad")]
     public RainIntensity intensity = RainIntensity.Light;
@@ -93,6 +104,10 @@ public class RainParticleController : MonoBehaviour
         _ps.Clear(true);
         if (_renderer != null) _renderer.enabled = false;
 
+        // Fallback si Unity serializó un array vacío en la escena
+        if (stagePresets == null || stagePresets.Length == 0)
+            stagePresets = k_DefaultStagePresets;
+
         BuildParticleSystem();
         EnsureSplashSystem();
     }
@@ -102,7 +117,7 @@ public class RainParticleController : MonoBehaviour
         var cam = Camera.main;
         if (cam != null) _cam = cam.transform;
 
-        SnapToCamera();
+        if (_cam != null) SnapToCamera();
 
         if (StageManager.Instance != null)
         {
@@ -129,7 +144,7 @@ public class RainParticleController : MonoBehaviour
 
     public void ApplyStageIntensity(StageManager.Stage stage)
     {
-        if (stagePresets == null) return;
+        if (stagePresets == null || stagePresets.Length == 0) return;
         foreach (var p in stagePresets)
         {
             if (p.stage == stage)
@@ -153,14 +168,33 @@ public class RainParticleController : MonoBehaviour
 
         if (_transitionRoutine != null) StopCoroutine(_transitionRoutine);
 
-        // None siempre se aplica inmediatamente — no tiene sentido que gotas de N4
-        // sigan cayendo mientras el hub ya muestra N1 (día soleado).
-        if (transitionDuration > 0f && newIntensity != RainIntensity.None)
-            _transitionRoutine = StartCoroutine(IntensityTransition(newIntensity));
-        else
+        // Desde estado detenido (None anterior) la transición suave tarda
+        // ~0.8s rampa + ~1.1s lifetime antes de que la lluvia sea visible.
+        // En ese caso se aplica inmediato y se pre-rellena el PS con Simulate()
+        // para que la lluvia aparezca en el primer frame.
+        bool fromStopped = !_ps.isPlaying || _currentRate == 0f;
+
+        if (newIntensity == RainIntensity.None || fromStopped || transitionDuration <= 0f)
+        {
             ApplyIntensityImmediate(newIntensity);
+            if (fromStopped && newIntensity != RainIntensity.None)
+                PreFillParticles(newIntensity);
+        }
+        else
+        {
+            _transitionRoutine = StartCoroutine(IntensityTransition(newIntensity));
+        }
 
         _splash?.SetIntensity(newIntensity);
+    }
+
+    // Pre-rellena el PS simulando un lifetime completo para que la lluvia
+    // sea visible inmediatamente al activarse desde estado detenido.
+    private void PreFillParticles(RainIntensity preset)
+    {
+        var (_, _, _, _, spd, _, _) = k_Presets[(int)preset];
+        float fillTime = height / spd + 0.4f;
+        _ps.Simulate(fillTime, true, false);
     }
 
     public void SetDensityNormalized(float t)
@@ -249,18 +283,29 @@ public class RainParticleController : MonoBehaviour
     // ── Material ──────────────────────────────────────────────────────────────
     private Material BuildRainMaterial()
     {
-        var shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
-        if (shader == null || !shader.isSupported) shader = Shader.Find("Universal Render Pipeline/Particles/Simple Lit");
+        // Built-in RP primero, luego URP, siempre termina en Sprites/Default
+        Shader shader = Shader.Find("Particles/Alpha Blended");
         if (shader == null || !shader.isSupported) shader = Shader.Find("Legacy Shaders/Particles/Alpha Blended");
+        if (shader == null || !shader.isSupported) shader = Shader.Find("Particles/Standard Unlit");
+        if (shader == null || !shader.isSupported) shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        if (shader == null || !shader.isSupported) shader = Shader.Find("Universal Render Pipeline/Particles/Simple Lit");
         if (shader == null || !shader.isSupported) shader = Shader.Find("Sprites/Default");
+
+        if (shader == null)
+        {
+            Debug.LogError("[RainParticleController] No se encontró ningún shader de partículas. Las gotas serán invisibles.", this);
+            return new Material(Shader.Find("Hidden/InternalErrorShader") ?? Shader.Find("Standard")) { name = "RainDrop_Error" };
+        }
 
         var mat         = new Material(shader) { name = "RainDrop_Auto" };
         mat.mainTexture = (dropTexture != null) ? dropTexture : BuildStreakTexture();
         if (mat.HasProperty("_BaseColor"))  mat.SetColor("_BaseColor",  Color.white);
         if (mat.HasProperty("_Color"))      mat.SetColor("_Color",      Color.white);
-        if (mat.HasProperty("_Surface"))    mat.SetFloat("_Surface",    1f); // Transparent en URP
-        if (mat.HasProperty("_Blend"))      mat.SetFloat("_Blend",      0f); // Alpha blend
+        if (mat.HasProperty("_Surface"))    mat.SetFloat("_Surface",    1f);
+        if (mat.HasProperty("_Blend"))      mat.SetFloat("_Blend",      0f);
         mat.renderQueue = 3000;
+
+        Debug.Log($"[RainParticleController] Material de lluvia usando shader: {shader.name}", this);
         return mat;
     }
 
