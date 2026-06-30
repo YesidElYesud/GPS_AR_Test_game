@@ -91,6 +91,7 @@ public class RainParticleController : MonoBehaviour
     private float                  _currentArea;
     private Coroutine              _transitionRoutine;
     private RainGroundSplash       _splash;
+    private bool                   _stageSubscribed;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     private void Awake()
@@ -110,6 +111,16 @@ public class RainParticleController : MonoBehaviour
 
         BuildParticleSystem();
         EnsureSplashSystem();
+
+        // Suscribir en Awake y NO en Start: si VisualEffectsStageController.Start()
+        // desactiva este GO antes de que Start() corra, Unity difiere Start() hasta
+        // la próxima reactivación, dejando el sistema sin suscripción.
+        // En Awake todos los GOs activos corren antes de cualquier Start().
+        if (StageManager.Instance != null)
+        {
+            StageManager.Instance.OnStageChanged += OnStageChanged;
+            _stageSubscribed = true;
+        }
     }
 
     private void Start()
@@ -121,7 +132,12 @@ public class RainParticleController : MonoBehaviour
 
         if (StageManager.Instance != null)
         {
-            StageManager.Instance.OnStageChanged += OnStageChanged;
+            // Fallback: si Awake no encontró la instancia (orden de ejecución), suscribir ahora
+            if (!_stageSubscribed)
+            {
+                StageManager.Instance.OnStageChanged += OnStageChanged;
+                _stageSubscribed = true;
+            }
             ApplyStageIntensity(StageManager.Instance.CurrentStage);
         }
         else
@@ -164,9 +180,18 @@ public class RainParticleController : MonoBehaviour
     // ── API pública ────────────────────────────────────────────────────────────
     public void SetIntensity(RainIntensity newIntensity)
     {
+        // VisualEffectsStageController puede desactivar este GO vía particlesToStop.
+        // Si la intensidad nueva requiere lluvia, reactivar antes de operar el PS.
+        if (newIntensity != RainIntensity.None && !gameObject.activeInHierarchy)
+            gameObject.SetActive(true);
+
         intensity = newIntensity;
 
-        if (_transitionRoutine != null) StopCoroutine(_transitionRoutine);
+        if (_transitionRoutine != null)
+        {
+            StopCoroutine(_transitionRoutine);
+            _transitionRoutine = null;
+        }
 
         // Desde estado detenido (None anterior) la transición suave tarda
         // ~0.8s rampa + ~1.1s lifetime antes de que la lluvia sea visible.
@@ -192,9 +217,21 @@ public class RainParticleController : MonoBehaviour
     // sea visible inmediatamente al activarse desde estado detenido.
     private void PreFillParticles(RainIntensity preset)
     {
-        var (_, _, _, _, spd, _, _) = k_Presets[(int)preset];
+        var (rate, _, _, _, spd, _, _) = k_Presets[(int)preset];
         float fillTime = height / spd + 0.4f;
-        _ps.Simulate(fillTime, true, false);
+
+        _ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        // Re-afirmar tasa ANTES de Simulate: Simulate(restart=true) resetea los
+        // módulos al valor serializado en escena (rateOverTime=0 del BuildParticleSystem),
+        // ignorando los valores aplicados en runtime por ApplyIntensityImmediate.
+        // Con restart=false el módulo se preserva, pero re-afirmar la tasa lo hace
+        // explícito y seguro frente a cualquier versión de Unity.
+        var emission = _ps.emission;
+        emission.rateOverTime = rate;
+
+        _ps.Simulate(fillTime, true, false); // restart=false: no resetea módulos
+        _ps.Play();
     }
 
     public void SetDensityNormalized(float t)
