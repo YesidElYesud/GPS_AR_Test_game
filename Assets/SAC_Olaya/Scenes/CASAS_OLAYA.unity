@@ -71339,6 +71339,10 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 1333724696}
     - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
+      propertyPath: _evacuationRoute
+      value: 
+      objectReference: {fileID: 52956758}
+    - target: {fileID: 7473347515584338007, guid: c6b6d4022537b1fe6a6e52d0a4d35ee5, type: 3}
       propertyPath: objectsToHideOnClose.Array.size
       value: 1
       objectReference: {fileID: 0}
